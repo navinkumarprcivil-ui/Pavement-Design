@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+*.log
+
+# Your own copies of the IRC codes belong here. They are copyrighted
+# publications and must not be committed to this repository.
+codebooks/
