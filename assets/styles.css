@@ -188,6 +188,10 @@ h2.section-title {
   border-color: var(--accent);
 }
 
+.choice-card h3:only-child {
+  margin: 0;
+}
+
 .choice-card h3 {
   margin: 0 0 4px;
   font-size: 1.1rem;

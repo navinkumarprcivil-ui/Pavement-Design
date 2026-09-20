@@ -23,7 +23,7 @@ import renderRigid from './ui/screens/rigid.js';
 import renderCodebook from './ui/screens/codebook.js';
 
 const SCREENS = {
-  home: { render: renderHome, title: 'Pavement Design', back: null },
+  home: { render: renderHome, title: 'IRC Pavement Design', back: null },
   traffic: { render: renderTraffic, title: 'Design traffic', back: 'home' },
   layers: { render: renderLayers, title: 'Layer combination', back: 'traffic' },
   inputs: { render: renderInputs, title: 'Design inputs', back: 'layers' },
@@ -128,26 +128,20 @@ const app = {
   render() {
     const screen = SCREENS[this.state.screen] || SCREENS.home;
 
+    // Back button where there is somewhere to go back to, then the title.
+    // The header carries no action button: code references belong on the
+    // individual steps, next to the number they justify.
     clear(this.header);
-    this.header.appendChild(
-      screen.back
-        ? h(
-            'button',
-            { class: 'back-button', onclick: () => this.go(screen.back) },
-            '‹ Back'
-          )
-        : h('span', { style: { width: '4px' } })
-    );
-    this.header.appendChild(h('h1', {}, screen.title));
-    if (this.state.screen !== 'codebook') {
+    if (screen.back) {
       this.header.appendChild(
         h(
           'button',
-          { class: 'icon-button', onclick: () => this.go('codebook') },
-          'Codes'
+          { class: 'back-button', onclick: () => this.go(screen.back) },
+          '‹ Back'
         )
       );
     }
+    this.header.appendChild(h('h1', {}, screen.title));
 
     clear(this.root);
     this.root.appendChild(screen.render(this));
@@ -167,7 +161,7 @@ function boot() {
 
   // Screens that show saved work refresh when the cloud changes it. Input
   // screens are left alone so a re-render never interrupts typing.
-  const SYNCED_SCREENS = new Set(['home', 'trials', 'rural']);
+  const SYNCED_SCREENS = new Set(['trials', 'rural']);
   const refreshIfShowingSavedWork = () => {
     if (SYNCED_SCREENS.has(app.state.screen)) app.render();
   };
