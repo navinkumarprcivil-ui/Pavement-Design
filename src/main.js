@@ -8,6 +8,8 @@
 import { h, clear } from './ui/dom.js';
 import { closeSheet } from './ui/citations.js';
 import { loadProject, saveProject } from './store/trials.js';
+import { connectCloud, onCloudChange } from './store/cloud.js';
+import { subscribe as onStoreChange } from './store/sync.js';
 
 import renderHome from './ui/screens/home.js';
 import renderTraffic from './ui/screens/traffic.js';
@@ -162,6 +164,20 @@ function boot() {
   }
 
   app.render();
+
+  // Screens that show saved work refresh when the cloud changes it. Input
+  // screens are left alone so a re-render never interrupts typing.
+  const SYNCED_SCREENS = new Set(['home', 'trials', 'rural']);
+  const refreshIfShowingSavedWork = () => {
+    if (SYNCED_SCREENS.has(app.state.screen)) app.render();
+  };
+
+  onCloudChange(refreshIfShowingSavedWork);
+  onStoreChange((_collection, origin) => {
+    if (origin === 'remote') refreshIfShowingSavedWork();
+  });
+
+  connectCloud();
 }
 
 if (document.readyState === 'loading') {

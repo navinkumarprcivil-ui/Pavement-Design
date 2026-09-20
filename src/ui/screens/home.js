@@ -1,6 +1,7 @@
 import { h, notice } from '../dom.js';
 import { listTrials } from '../../store/trials.js';
 import { unverifiedCount } from '../../data/ircConstants.js';
+import { syncStatusCard } from '../syncStatus.js';
 
 export default function renderHome(app) {
   const trials = listTrials();
@@ -75,6 +76,8 @@ export default function renderHome(app) {
           : 'Nothing saved yet. Designs you save will be listed here for comparison.'
       )
     ),
+
+    syncStatusCard(app),
 
     notice(
       'warn',

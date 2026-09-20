@@ -9,11 +9,13 @@ costs nothing.
 Built mobile-first and dependency-free, so it runs in a phone browser today and
 ports cleanly to Android later.
 
+Live at **https://pavementdesign.vercel.app**
+
 ## Running it
 
 ```bash
 npm run serve      # then open http://localhost:8080
-npm test           # 25 tests, no dependencies
+npm test           # 38 tests, no dependencies
 ```
 
 There is no build step and nothing to install. `npm run serve` is a small static
@@ -57,6 +59,47 @@ coefficient are implemented and are sound classical theory. The IRC:58 design
 procedure proper — finite-element derived flexural stress equations and
 cumulative fatigue damage over the axle load spectrum — is not, so the app
 reports stresses without claiming a pass or fail.
+
+## Saved work and cloud sync
+
+The app is offline-first. Everything is written to device storage the moment
+you save it, so it keeps working with no signal — which is the point, on site.
+
+When a network is available, trials and the IRC:SP:72 catalogue are mirrored to
+a Firebase Realtime Database so they survive a lost phone and follow you between
+devices. Sign-in is anonymous: each device gets a Firebase uid and its records
+live under `users/{uid}`. Losing the cloud never costs you a design — every
+failure path falls back to local storage and says so on the home screen.
+
+Merging is last-write-wins per record, and deletes leave a tombstone so that
+deleting a trial on one phone is not undone by another device's older copy.
+`tests/sync.test.js` covers those cases.
+
+### Firebase setup
+
+Two things must be switched on in the [Firebase
+console](https://console.firebase.google.com/project/pavement-design) before
+sync works:
+
+1. **Authentication → Sign-in method → Anonymous → Enable.** Without this the
+   app reports "Anonymous sign-in is not enabled" and stays local.
+2. **Realtime Database → Rules.** Publish the contents of
+   `database.rules.json`. They deny everything by default and let each user read
+   and write only their own records.
+
+   Do not leave the database in test mode. Test-mode rules are open to the
+   whole internet: anyone could read or wipe every saved design.
+
+The Firebase config in `src/config/firebase.js` is committed deliberately. A web
+`apiKey` is a public project identifier, not a credential — it is meant to ship
+in client code, and the security rules are what actually protect the data. Set
+`FIREBASE_ENABLED` to false there to run purely on device storage.
+
+## Deployment
+
+Vercel serves the repository as a static site — there is no build step, so there
+is nothing to configure beyond connecting the repo. Pushes to `main` deploy to
+production; `vercel.json` only sets cache and security headers.
 
 ## How the structural analysis works
 
@@ -124,10 +167,15 @@ src/engine/             Calculation core — no browser APIs
   rigidIRC58.js           Rigid pavement (partial)
   costing.js              Quantities and cost
 src/data/               IRC constants with citations; layer catalogue
-src/store/              Saved trials and project state
+src/config/firebase.js  Firebase project config (public, not a secret)
+src/store/
+  sync.js                 Offline-first storage with merge and tombstones
+  cloud.js                Firebase mirroring, entirely optional
+  trials.js               Saved trials and project state
 src/ui/                 Screens and DOM helpers
 tests/                  Node test runner, no dependencies
 tools/serve.js          Static file server for development
+database.rules.json     Realtime Database security rules to publish
 ```
 
 `src/engine/` and `src/data/` are deliberately free of any browser API. That is

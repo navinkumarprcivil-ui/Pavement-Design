@@ -1,71 +1,67 @@
 /**
- * Saved design trials.
+ * Saved design trials and the working project state.
  *
- * Trials live in localStorage so the app works offline with no server. The
- * storage layer is deliberately small and framework-free: when this moves to
- * Android, only the four functions at the bottom need a new backing store.
+ * Trials go through the syncable store so they are mirrored to the cloud when
+ * one is available. The project form state stays on the device — it is
+ * half-finished input, and having it jump between devices mid-edit would be
+ * more surprising than useful.
  */
 
-const STORAGE_KEY = 'pavement-design.trials.v1';
+import { list, get, put, remove, getMap, putAll, clear } from './sync.js';
+
 const PROJECT_KEY = 'pavement-design.project.v1';
 
-function read(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function write(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function listTrials() {
-  const trials = read(STORAGE_KEY, []);
-  return Array.isArray(trials) ? trials : [];
-}
-
-export function saveTrial(trial) {
-  const trials = listTrials();
-  const record = {
-    ...trial,
-    id: trial.id || `trial-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    savedAt: new Date().toISOString(),
-  };
-  const existing = trials.findIndex((t) => t.id === record.id);
-  if (existing >= 0) trials[existing] = record;
-  else trials.push(record);
-  write(STORAGE_KEY, trials);
-  return record;
-}
-
-export function deleteTrial(id) {
-  write(
-    STORAGE_KEY,
-    listTrials().filter((t) => t.id !== id)
+  return list('trials').sort(
+    (a, b) => Date.parse(a.savedAt || 0) - Date.parse(b.savedAt || 0)
   );
 }
 
+export function saveTrial(trial) {
+  const id =
+    trial.id || `trial-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  return put('trials', id, trial);
+}
+
+export function deleteTrial(id) {
+  remove('trials', id);
+}
+
+/** Mark one trial as the chosen design, clearing the flag on the others. */
 export function setChosenTrial(id) {
-  const trials = listTrials().map((t) => ({ ...t, chosen: t.id === id }));
-  write(STORAGE_KEY, trials);
+  const map = getMap('trials');
+  const updates = {};
+  for (const [trialId, trial] of Object.entries(map)) {
+    if (trial.deleted) continue;
+    const chosen = trialId === id;
+    if (Boolean(trial.chosen) !== chosen) {
+      updates[trialId] = { ...trial, chosen };
+    }
+  }
+  if (Object.keys(updates).length) putAll('trials', updates);
 }
 
 export function clearTrials() {
-  write(STORAGE_KEY, []);
+  clear('trials');
+}
+
+export function getTrial(id) {
+  return get('trials', id);
 }
 
 export function loadProject() {
-  return read(PROJECT_KEY, null);
+  try {
+    const raw = localStorage.getItem(PROJECT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function saveProject(project) {
-  write(PROJECT_KEY, project);
+  try {
+    localStorage.setItem(PROJECT_KEY, JSON.stringify(project));
+  } catch {
+    // A full or blocked storage quota must not break the design flow.
+  }
 }

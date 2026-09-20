@@ -1,6 +1,7 @@
 import { h, msa, notice } from '../dom.js';
 import { formatCurrency } from '../../engine/costing.js';
 import { listTrials, deleteTrial, setChosenTrial } from '../../store/trials.js';
+import { syncStatusLine } from '../syncStatus.js';
 
 export default function renderTrials(app) {
   const trials = listTrials();
@@ -136,7 +137,8 @@ export default function renderTrials(app) {
         'p',
         { class: 'screen-intro' },
         'Safe trials first, then cheapest. Mark the one you intend to build.'
-      )
+      ),
+      h('div', { style: { marginTop: '6px' } }, syncStatusLine())
     ),
 
     trials.some((t) => t.cost?.total)

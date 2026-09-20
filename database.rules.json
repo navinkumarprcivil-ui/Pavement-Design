@@ -1,0 +1,22 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "trials": {
+          "$trialId": {
+            ".validate": "newData.hasChildren(['id', 'savedAt'])"
+          }
+        },
+        "catalogue": {
+          "$cellId": {
+            ".validate": "newData.hasChildren(['id', 'savedAt'])"
+          }
+        }
+      }
+    }
+  }
+}

@@ -12,8 +12,7 @@
  */
 
 import { CODES, ref } from '../data/ircConstants.js';
-
-const STORAGE_KEY = 'pavement-design.sp72-catalogue.v1';
+import { get as readCell, put as writeCell, remove as removeCell, list as listCells } from '../store/sync.js';
 
 /**
  * Traffic categories, in cumulative standard axles. The band limits are
@@ -79,25 +78,7 @@ export function categoriseCBR(cbrPercent) {
   );
 }
 
-function readCatalogue() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeCatalogue(catalogue) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(catalogue));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const cellKey = (trafficId, cbrId) => `${trafficId}|${cbrId}`;
+const cellKey = (trafficId, cbrId) => `${trafficId}__${cbrId}`;
 
 /**
  * One catalogue cell: the pavement composition for a traffic/CBR pair.
@@ -105,26 +86,22 @@ const cellKey = (trafficId, cbrId) => `${trafficId}|${cbrId}`;
  */
 
 export function getComposition(trafficId, cbrId) {
-  return readCatalogue()[cellKey(trafficId, cbrId)] || null;
+  return readCell('catalogue', cellKey(trafficId, cbrId));
 }
 
 export function setComposition(trafficId, cbrId, composition) {
-  const catalogue = readCatalogue();
+  const id = cellKey(trafficId, cbrId);
   if (composition == null) {
-    delete catalogue[cellKey(trafficId, cbrId)];
-  } else {
-    catalogue[cellKey(trafficId, cbrId)] = {
-      ...composition,
-      enteredAt: new Date().toISOString(),
-    };
+    removeCell('catalogue', id);
+    return true;
   }
-  return writeCatalogue(catalogue);
+  writeCell('catalogue', id, { ...composition, trafficId, cbrId });
+  return true;
 }
 
 export function catalogueCoverage() {
-  const catalogue = readCatalogue();
   const total = TRAFFIC_CATEGORIES.length * CBR_BANDS.length;
-  return { entered: Object.keys(catalogue).length, total };
+  return { entered: listCells('catalogue').length, total };
 }
 
 /**
