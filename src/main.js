@@ -21,6 +21,7 @@ import renderTrials from './ui/screens/trials.js';
 import renderRural from './ui/screens/rural.js';
 import renderRigid from './ui/screens/rigid.js';
 import renderCodebook from './ui/screens/codebook.js';
+import renderDesignSteps from './ui/screens/designSteps.js';
 
 const SCREENS = {
   home: { render: renderHome, title: 'IRC Pavement Design', back: null },
@@ -33,6 +34,8 @@ const SCREENS = {
   rural: { render: renderRural, title: 'Low volume rural road', back: 'traffic' },
   rigid: { render: renderRigid, title: 'Rigid pavement', back: 'home' },
   codebook: { render: renderCodebook, title: 'Code references', back: 'home' },
+  // Reached from the header, so it returns to wherever it was opened from.
+  designSteps: { render: renderDesignSteps, title: 'Design steps', back: () => app.designStepsReturn },
 };
 
 export const defaultState = () => ({
@@ -86,12 +89,15 @@ export const defaultState = () => ({
     slabLengthMm: 4500,
   },
   rigidResult: null,
+  openDesignStep: 0,
 });
 
 const app = {
   state: defaultState(),
   root: null,
   header: null,
+  /** Screen the design steps were opened from. Deliberately not persisted. */
+  designStepsReturn: 'home',
 
   go(screen) {
     closeSheet();
@@ -127,21 +133,34 @@ const app = {
 
   render() {
     const screen = SCREENS[this.state.screen] || SCREENS.home;
+    const back = typeof screen.back === 'function' ? screen.back() : screen.back;
 
-    // Back button where there is somewhere to go back to, then the title.
-    // The header carries no action button: code references belong on the
-    // individual steps, next to the number they justify.
+    // Back button where there is somewhere to go back to, then the title,
+    // then the design procedure. Code references are not up here: they sit on
+    // the individual steps, next to the number they justify.
     clear(this.header);
-    if (screen.back) {
+    if (back) {
       this.header.appendChild(
-        h(
-          'button',
-          { class: 'back-button', onclick: () => this.go(screen.back) },
-          '‹ Back'
-        )
+        h('button', { class: 'back-button', onclick: () => this.go(back) }, '‹ Back')
       );
     }
     this.header.appendChild(h('h1', {}, screen.title));
+    // Top right: the design procedure, readable from anywhere in the flow.
+    if (this.state.screen !== 'designSteps') {
+      this.header.appendChild(
+        h(
+          'button',
+          {
+            class: 'icon-button',
+            onclick: () => {
+              this.designStepsReturn = this.state.screen;
+              this.go('designSteps');
+            },
+          },
+          'Design Steps'
+        )
+      );
+    }
 
     clear(this.root);
     this.root.appendChild(screen.render(this));
