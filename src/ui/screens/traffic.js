@@ -93,14 +93,12 @@ export default function renderTraffic(app) {
       h('input', {
         type: 'text',
         value: project.name,
-        placeholder: 'e.g. Widening of SH-27, km 12 to 18',
         oninput: (e) => app.patch('project', { name: e.target.value }),
       })
     ),
 
     selectField({
       label: 'Terrain',
-      hint: 'Used for the indicative vehicle damage factor.',
       value: project.terrain,
       options: [
         { value: 'plain', label: 'Plain' },
@@ -117,7 +115,6 @@ export default function renderTraffic(app) {
 
     numberField({
       label: 'Commercial vehicles per day at the last count',
-      hint: 'Both directions, vehicles of laden weight 3 tonnes and above.',
       value: traffic.presentCVPD,
       suffix: 'CVPD',
       min: 0,
@@ -142,7 +139,6 @@ export default function renderTraffic(app) {
       }),
       numberField({
         label: 'Years to completion',
-        hint: 'From the count to the end of construction.',
         value: traffic.yearsToCompletion,
         suffix: 'yr',
         min: 0,
@@ -166,7 +162,6 @@ export default function renderTraffic(app) {
 
     selectField({
       label: 'Carriageway type',
-      hint: 'Sets the lane distribution factor.',
       value: traffic.laneDistributionId,
       options: laneOptions.map((o) => ({
         value: o.id,
@@ -193,7 +188,6 @@ export default function renderTraffic(app) {
     traffic.vdfMode === 'manual'
       ? numberField({
           label: 'Vehicle damage factor from the survey',
-          hint: 'A measured VDF always takes precedence over the indicative value.',
           value: traffic.vehicleDamageFactor ?? '',
           min: 0,
           onInput: (value) => {
@@ -218,13 +212,7 @@ export default function renderTraffic(app) {
       'div',
       {},
       h('span', { class: 'step-label' }, 'Step 1 of 4'),
-      h('h2', { class: 'screen-title' }, 'Design traffic'),
-      h(
-        'p',
-        { class: 'screen-intro' },
-        'Traffic comes first because it decides which guideline applies — a ' +
-          'full flexible design or a low volume rural road.'
-      )
+      h('h2', { class: 'screen-title' }, 'Design traffic')
     ),
     form,
     resultHost
