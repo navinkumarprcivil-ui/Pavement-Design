@@ -12,6 +12,9 @@ export const defaultLayeredSubgrade = () => ({
   borrowCBR: null,
   borrowMm: 500,
   embankmentCBR: null,
+  /** Surface deflection from this app's analysis, or read from IITPAVE. */
+  source: 'app',
+  iitpaveDeflectionMm: null,
 });
 
 export const defaultNarratives = () => ({ traffic: '', subgrade: '', mix: '', materials: '' });

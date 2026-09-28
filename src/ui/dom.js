@@ -180,6 +180,9 @@ export function fold({ title, memory, key, children }) {
   details.addEventListener('toggle', () => {
     if (memory) memory[key] = details.open;
   });
+  // Animate only an opening by hand, never a redraw of a fold already open.
+  details.querySelector('summary').addEventListener('click', () => details.classList.toggle('opening', !details.open));
+  details.addEventListener('animationend', () => details.classList.remove('opening'));
   return details;
 }
 

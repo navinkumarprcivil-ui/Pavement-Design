@@ -13,7 +13,7 @@ import {
 import { stepCard } from '../citations.js';
 import { designTraffic } from '../project.js';
 import { laneDistributionOptions } from '../../engine/traffic.js';
-import { TRAFFIC, roadCategory } from '../../data/ircConstants.js';
+import { TRAFFIC, MODULI, roadCategory } from '../../data/ircConstants.js';
 import { projectCard } from '../projectCard.js';
 import { lowVolumeChoice } from '../lowVolume.js';
 
@@ -21,6 +21,7 @@ export default function renderTraffic(app) {
   const { traffic, project } = app.state;
   const lanes = laneDistributionOptions();
   const lane = lanes.find((o) => o.id === traffic.laneDistributionId) || lanes[0];
+  const direct = traffic.mode === 'direct';
 
   const resultHost = h('div', { class: 'card-stack' });
   const next = button('Continue', null);
@@ -49,7 +50,7 @@ export default function renderTraffic(app) {
           { class: 'metric-grid three' },
           metric('VDF', design.vdf.toFixed(2)),
           metric('Reliability', `${design.reliability}%`),
-          metric(lane.directional ? 'CVPD one way' : 'CVPD', Math.round(result.initialCVPD).toLocaleString('en-IN'))
+          metric(!result.direct && lane.directional ? 'CVPD one way' : 'CVPD', Math.round(result.initialCVPD).toLocaleString('en-IN'))
         ),
 
         design.routeChoice
@@ -92,29 +93,60 @@ export default function renderTraffic(app) {
 
     card(
       'Traffic',
-      numberField({
-        label: 'Commercial vehicles per day, both ways',
+      segmented({
+        label: 'Traffic data',
         ref: TRAFFIC.growthEquation.ref,
-        value: traffic.presentCVPD,
-        suffix: 'CVPD',
-        min: 0,
-        onInput: onNumber('presentCVPD'),
+        value: direct ? 'direct' : 'calculate',
+        options: [
+          { value: 'calculate', label: 'Commercial vehicle count' },
+          { value: 'direct', label: 'Design traffic known' },
+        ],
+        onChange: (value) => app.patch('traffic', { mode: value }, { rerender: true }),
       }),
-      numberField({
-        label: 'Growth rate',
-        ref: TRAFFIC.minimumGrowthRate.ref,
-        value: traffic.growthRatePercent,
-        suffix: '%',
-        min: 0,
-        onInput: onNumber('growthRatePercent'),
-      }),
-      numberField({
-        label: 'Years to completion',
-        value: traffic.yearsToCompletion,
-        suffix: 'yr',
-        min: 0,
-        onInput: onNumber('yearsToCompletion'),
-      }),
+      direct
+        ? [
+            numberField({
+              label: 'Design traffic',
+              ref: TRAFFIC.growthEquation.ref,
+              value: traffic.designMsa,
+              suffix: 'msa',
+              min: 0,
+              onInput: onNumber('designMsa'),
+            }),
+            numberField({
+              label: 'Commercial vehicles per day at completion, both ways',
+              ref: MODULI.minimumCBR.ref,
+              value: traffic.completionCVPD,
+              suffix: 'CVPD',
+              min: 0,
+              onInput: onNumber('completionCVPD'),
+            }),
+          ]
+        : [
+            numberField({
+              label: 'Commercial vehicles per day, both ways',
+              ref: TRAFFIC.growthEquation.ref,
+              value: traffic.presentCVPD,
+              suffix: 'CVPD',
+              min: 0,
+              onInput: onNumber('presentCVPD'),
+            }),
+            numberField({
+              label: 'Growth rate',
+              ref: TRAFFIC.minimumGrowthRate.ref,
+              value: traffic.growthRatePercent,
+              suffix: '%',
+              min: 0,
+              onInput: onNumber('growthRatePercent'),
+            }),
+            numberField({
+              label: 'Years to completion',
+              value: traffic.yearsToCompletion,
+              suffix: 'yr',
+              min: 0,
+              onInput: onNumber('yearsToCompletion'),
+            }),
+          ],
       numberField({
         label: 'Design period',
         ref: TRAFFIC.longLife.ref,
@@ -123,14 +155,16 @@ export default function renderTraffic(app) {
         min: 1,
         onInput: onNumber('designLifeYears'),
       }),
-      selectField({
-        label: 'Carriageway',
-        ref: TRAFFIC.laneDistributionFactors.ref,
-        value: traffic.laneDistributionId,
-        options: lanes.map((o) => ({ value: o.id, label: `${o.label} · D = ${o.value}` })),
-        onChange: (value) => app.patch('traffic', { laneDistributionId: value }, { rerender: true }),
-      }),
-      lane.directional
+      direct
+        ? null
+        : selectField({
+            label: 'Carriageway',
+            ref: TRAFFIC.laneDistributionFactors.ref,
+            value: traffic.laneDistributionId,
+            options: lanes.map((o) => ({ value: o.id, label: `${o.label} · D = ${o.value}` })),
+            onChange: (value) => app.patch('traffic', { laneDistributionId: value }, { rerender: true }),
+          }),
+      !direct && lane.directional
         ? numberField({
             label: 'Share in the design direction',
             value: traffic.directionalSplitPercent,

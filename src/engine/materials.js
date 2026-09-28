@@ -32,8 +32,10 @@ export function cbrForModulus(mr) {
  * @param {number} input.borrowCBR  Select borrow (subgrade) CBR.
  * @param {number} input.embankmentCBR
  * @param {number} [input.borrowMm]  Thickness of the borrow layer.
+ * @param {'app'|'iitpave'} [input.source]  Whose surface deflection is used.
+ * @param {number} [input.iitpaveDeflectionMm]  Read from IITPAVE for the same system.
  */
-export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm }) {
+export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm, source, iitpaveDeflectionMm }) {
   const spec = MODULI.effectiveSubgrade;
   const thickness = borrowMm || spec.subgradeThicknessMm;
   const raw = (cbr) => (cbr <= 5 ? 10 * cbr : 17.6 * Math.pow(cbr, 0.64));
@@ -49,7 +51,9 @@ export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm }) {
     load: { wheelLoadN: spec.wheelLoadN, tyrePressureMPa: spec.tyrePressureMPa },
     points: [{ x: 0, y: 0, z: 0, layerIndex: 0 }],
   });
-  const deflection = surface.surfaceDeflectionMm;
+  const computed = surface.surfaceDeflectionMm;
+  const fromIitpave = source === 'iitpave' && iitpaveDeflectionMm > 0;
+  const deflection = fromIitpave ? iitpaveDeflectionMm : computed;
   const equivalent = (2 * (1 - nu * nu) * spec.tyrePressureMPa * a) / deflection;
   const value = Math.min(equivalent, MODULI.subgrade.capMPa);
   const cbr = cbrForModulus(value);
@@ -58,6 +62,8 @@ export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm }) {
     value,
     equivalent,
     deflection,
+    computed,
+    fromIitpave,
     cbr,
     borrowMR: upper,
     embankmentMR: lower,
@@ -74,8 +80,10 @@ export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm }) {
       {
         id: 'surface-deflection',
         title: 'Surface deflection of the two-layer system',
-        formula: `Single wheel of ${spec.wheelLoadN} N at ${spec.tyrePressureMPa} MPa, μ = ${nu}`,
-        substitution: `${thickness} mm of ${upper.toFixed(1)} MPa on ${lower.toFixed(1)} MPa, a = ${a.toFixed(1)} mm`,
+        formula: `Single wheel of ${spec.wheelLoadN} N at ${spec.tyrePressureMPa} MPa, μ = ${nu}` + (fromIitpave ? '; from IITPAVE' : ''),
+        substitution:
+          `${thickness} mm of ${upper.toFixed(1)} MPa on ${lower.toFixed(1)} MPa, a = ${a.toFixed(1)} mm` +
+          (fromIitpave ? `; this app ${computed.toFixed(3)} mm` : ''),
         result: `δ = ${deflection.toFixed(3)} mm`,
         ref: spec.ref,
         verified: spec.verified,

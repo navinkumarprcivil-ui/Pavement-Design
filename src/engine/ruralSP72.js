@@ -50,7 +50,9 @@ export function appendixAEsal(cvpd) {
  * @param {'counts'|'appendixA'} t.mode
  * @param {number} t.hcv  Heavy commercial vehicles per day as counted.
  * @param {number} t.mcv  Medium-heavy commercial vehicles per day as counted.
+ * @param {'counts'|'appendixA'|'direct'} t.mode
  * @param {number} t.cvpd Commercial vehicles per day, for Appendix A.
+ * @param {number} [t.designEsal]  Design traffic, when known.
  * @param {number} t.ladenPercent  Share of each class laden.
  * @param {'indicative'|'survey'} t.vdfMode
  * @param {number} [t.vdfHcv] @param {number} [t.vdfMcv]  From an axle load survey.
@@ -69,6 +71,19 @@ export function sp72Traffic(t) {
 
   if (years !== SP72.designLife.years) {
     warnings.push(`Design life taken as ${years} years; the code recommends ${SP72.designLife.years} · ${SP72.designLife.ref.clause}`);
+  }
+
+  if (t.mode === 'direct') {
+    const N = t.designEsal > 0 ? t.designEsal : 0;
+    steps.push({
+      id: 'esal',
+      title: 'Cumulative ESAL over the design life',
+      formula: 'Entered',
+      substitution: '',
+      result: `N = ${inr(N)} ESAL`,
+      ref: SP72.cumulative.ref,
+    });
+    return { mode: 'direct', esal: N, esalPerDay: null, laneFactor: null, cvpdAtOpening: null, steps, warnings };
   }
 
   if (t.mode === 'appendixA') {
@@ -132,19 +147,26 @@ export function sp72Traffic(t) {
   }
 
   const p = (t.ladenPercent ?? 50) / 100;
-  const indicative = t.vdfMode !== 'survey';
+  // A survey value is used once entered; an empty box keeps the indicative one.
+  const entered = (v) => t.vdfMode === 'survey' && Number.isFinite(v) && v >= 0;
+  const surveyed = { hcv: entered(t.vdfHcv), mcv: entered(t.vdfMcv) };
+  const indicative = !surveyed.hcv && !surveyed.mcv;
   const vdf = {
-    hcv: indicative || !(t.vdfHcv >= 0) ? p * SP72.vdf.hcv.laden + (1 - p) * SP72.vdf.hcv.unladen : t.vdfHcv,
-    mcv: indicative || !(t.vdfMcv >= 0) ? p * SP72.vdf.mcv.laden + (1 - p) * SP72.vdf.mcv.unladen : t.vdfMcv,
+    hcv: surveyed.hcv ? t.vdfHcv : p * SP72.vdf.hcv.laden + (1 - p) * SP72.vdf.hcv.unladen,
+    mcv: surveyed.mcv ? t.vdfMcv : p * SP72.vdf.mcv.laden + (1 - p) * SP72.vdf.mcv.unladen,
   };
   steps.push({
     id: 'vdf',
     title: 'Vehicle damage factor',
-    formula: indicative ? 'VDF = p x laden + (1 − p) x unladen' : 'From the axle load survey',
+    formula: indicative
+      ? 'VDF = p x laden + (1 − p) x unladen'
+      : surveyed.hcv && surveyed.mcv
+        ? 'From the axle load survey'
+        : 'From the axle load survey; otherwise p x laden + (1 − p) x unladen',
     substitution: indicative
       ? `p = ${p}; HCV ${p} x ${SP72.vdf.hcv.laden} + ${(1 - p).toFixed(2)} x ${SP72.vdf.hcv.unladen}; ` +
         `MCV ${p} x ${SP72.vdf.mcv.laden} + ${(1 - p).toFixed(2)} x ${SP72.vdf.mcv.unladen}`
-      : `HCV ${vdf.hcv}, MCV ${vdf.mcv}`,
+      : `HCV ${+vdf.hcv.toFixed(3)}, MCV ${+vdf.mcv.toFixed(3)}`,
     result: `HCV ${vdf.hcv.toFixed(3)} · MCV ${vdf.mcv.toFixed(3)}`,
     ref: SP72.vdf.ref,
   });

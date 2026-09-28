@@ -53,7 +53,8 @@ export function ctbDamageInput(state, traffic) {
   const ctb = state.ctb;
   const t = traffic.result;
   const lane = traffic.lane.value;
-  const vehicles = 365 * t.initialCVPD * lane * t.growthFactor;
+  // Known design traffic gives the vehicles back through the VDF.
+  const vehicles = t.direct ? t.cumulativeAxles / traffic.vdf : 365 * t.initialCVPD * lane * t.growthFactor;
   const rupture = modulusOfRupture(ctb.ucsMPa, ctb.material);
   const classes = axleRepetitions({
     vehicles,
@@ -76,8 +77,10 @@ export function ctbDamageInput(state, traffic) {
     rupture.step,
     {
       title: 'Commercial vehicles in the design lane over the design period',
-      formula: 'Nv = 365 x A x D x [(1 + r)^n - 1] / r',
-      substitution: `Nv = 365 x ${t.initialCVPD.toFixed(1)} x ${lane} x ${t.growthFactor.toFixed(3)}`,
+      formula: t.direct ? 'Nv = N / VDF' : 'Nv = 365 x A x D x [(1 + r)^n - 1] / r',
+      substitution: t.direct
+        ? `Nv = ${count(t.cumulativeAxles)} / ${traffic.vdf.toFixed(2)}`
+        : `Nv = 365 x ${t.initialCVPD.toFixed(1)} x ${lane} x ${t.growthFactor.toFixed(3)}`,
       result: `Nv = ${count(vehicles)}`,
       ref: TRAFFIC.growthEquation.ref,
       verified: TRAFFIC.growthEquation.verified,

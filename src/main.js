@@ -102,6 +102,10 @@ export const defaultState = () => ({
     terrain: 'plain',
   },
   traffic: {
+    /** 'calculate' from the counts, or 'direct' when the design traffic is known. */
+    mode: 'calculate',
+    designMsa: null,
+    completionCVPD: null,
     presentCVPD: 1500,
     growthRatePercent: 5,
     yearsToCompletion: 2,
@@ -275,7 +279,11 @@ const app = {
   switchModule(type) {
     const s = this.state;
     if (type === 'rural' && s.pavementType === 'flexible') {
-      Object.assign(s.rural.traffic, { cvpd: s.traffic.presentCVPD, yearsToOpening: s.traffic.yearsToCompletion });
+      if (s.traffic.mode === 'direct') {
+        Object.assign(s.rural.traffic, { mode: 'direct', designEsal: (s.traffic.designMsa || 0) * 1e6 });
+      } else {
+        Object.assign(s.rural.traffic, { cvpd: s.traffic.presentCVPD, yearsToOpening: s.traffic.yearsToCompletion });
+      }
     }
     if (type === 'ruralRigid' && s.pavementType === 'rigid') {
       Object.assign(s.lvRigid.traffic, { presentCVPD: s.rigid.traffic.twoWayCVPD, yearsToCompletion: s.rigid.traffic.yearsToCompletion });
@@ -387,8 +395,32 @@ const app = {
     renderDrawer(this);
   },
 
+  /**
+   * Keep the page at least as tall as it is now: an edit that shortens the page
+   * would otherwise pull it up under the finger. The hold goes as soon as
+   * letting go moves nothing on screen.
+   */
+  holdHeight() {
+    this.root.style.minHeight = `${this.root.offsetHeight}px`;
+    requestAnimationFrame(() => this.releaseHeight());
+  },
+
+  releaseHeight() {
+    const held = this.root.style.minHeight;
+    if (!held) return;
+    const y = window.scrollY;
+    this.root.style.minHeight = '';
+    // Shorter than the scroll position allows: the page would jump, so keep holding.
+    if (window.scrollY !== y) {
+      this.root.style.minHeight = held;
+      window.scrollTo(0, y);
+    }
+  },
+
   render() {
     const screen = SCREENS[this.state.screen] || SCREENS.home;
+    if (this.entering) this.root.style.minHeight = '';
+    else this.holdHeight();
 
     this.setActions();
     const body = screen.render(this);
@@ -413,6 +445,22 @@ function boot() {
   app.root = document.getElementById('app-main');
   app.actions = document.getElementById('app-actions');
   app.root.addEventListener('animationend', () => app.root.classList.remove('entering'));
+
+  // Typing redraws the results as it goes; hold the page height so it never moves.
+  app.root.addEventListener('input', () => app.holdHeight(), true);
+  let releasing = false;
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (releasing || !app.root.style.minHeight) return;
+      releasing = true;
+      requestAnimationFrame(() => {
+        releasing = false;
+        app.releaseHeight();
+      });
+    },
+    { passive: true }
+  );
 
   const saved = loadProject();
   if (saved) app.state = migrate(saved);

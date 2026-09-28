@@ -4,7 +4,9 @@ import { hasCTB, ctbSevenDay } from '../ctbProject.js';
 import { flexibleInput, reliabilityOf } from '../flexibleProject.js';
 import { describeCombination, BINDER_GRADES, BEHAVIOUR } from '../../data/layerCatalog.js';
 import { evaluateTrial, designSection } from '../../engine/flexibleDesign.js';
-import { effectiveSubgrade, bituminousModulus } from '../../engine/materials.js';
+import { bituminousModulus } from '../../engine/materials.js';
+import { effectiveSubgradeCase } from '../iitpave.js';
+import { entryGuide, copyButton } from '../iitpaveTables.js';
 import { MODULI, CRITERIA, MINIMUM_THICKNESS } from '../../data/ircConstants.js';
 
 /** Dumpers on the granular sub-base and on the CTB, for the construction checks. */
@@ -95,19 +97,30 @@ export default function renderInputs(app) {
   const layered = materials.layeredSubgrade;
 
   // Select borrow over the embankment: the effective CBR follows from the two.
+  const guideHost = h('div', {});
   const effectiveHost = h('div', { class: 'key-results' });
   const showEffective = () => {
     if (!(layered.borrowCBR > 0 && layered.embankmentCBR > 0)) {
+      guideHost.replaceChildren();
       effectiveHost.replaceChildren();
       return;
     }
-    const e = effectiveSubgrade(layered);
+    const c = effectiveSubgradeCase(layered);
+    const e = c.effective;
     app.state.materials.subgradeCBR = Math.round(e.cbr * 100) / 100;
     app.persist();
+    const ref = MODULI.effectiveSubgrade.ref;
+    const viaIitpave = layered.source === 'iitpave';
+    guideHost.replaceChildren(viaIitpave ? h('div', { class: 'iitpave-entry' }, h('h4', {}, 'IITPAVE input'), entryGuide(c), copyButton(c)) : '');
     effectiveHost.replaceChildren(
-      keyResult('Surface deflection', e.deflection.toFixed(3), 'mm', MODULI.effectiveSubgrade.ref),
-      keyResult('Effective MR', e.value.toFixed(1), 'MPa', MODULI.effectiveSubgrade.ref),
-      keyResult('Effective CBR', e.cbr.toFixed(1), '%', MODULI.subgrade.ref)
+      ...[
+        viaIitpave
+          ? keyResult('Deflection, IITPAVE', e.fromIitpave ? e.deflection.toFixed(3) : '—', 'mm', ref)
+          : keyResult('Surface deflection', e.deflection.toFixed(3), 'mm', ref),
+        viaIitpave ? keyResult('Deflection, this app', e.computed.toFixed(3), 'mm', ref) : null,
+        keyResult('Effective MR', e.value.toFixed(1), 'MPa', ref),
+        keyResult('Effective CBR', e.cbr.toFixed(1), '%', MODULI.subgrade.ref),
+      ].filter(Boolean)
     );
     showCbrWarning();
   };
@@ -171,6 +184,22 @@ export default function renderInputs(app) {
             layeredField('Select borrow CBR', 'borrowCBR', '%'),
             layeredField('Select borrow thickness', 'borrowMm', 'mm'),
             layeredField('Embankment CBR', 'embankmentCBR', '%'),
+            segmented({
+              label: 'Surface deflection',
+              ref: MODULI.effectiveSubgrade.ref,
+              value: layered.source === 'iitpave' ? 'iitpave' : 'app',
+              options: [
+                { value: 'app', label: 'This app' },
+                { value: 'iitpave', label: 'IITPAVE' },
+              ],
+              onChange: (value) => {
+                layered.source = value;
+                app.persist();
+                app.render();
+              },
+            }),
+            guideHost,
+            layered.source === 'iitpave' ? layeredField('Surface deflection, IITPAVE DispZ at z 0, r 0', 'iitpaveDeflectionMm', 'mm') : null,
             effectiveHost,
           ]
         : numberField({

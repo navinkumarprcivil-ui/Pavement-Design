@@ -10,9 +10,14 @@ export default function renderLvRigidSlab(app) {
 
   const show = () => {
     const r = lvRigidDesignFor(app.state);
+    app.state.lvRigidResult = r.ok ? r : null;
+    if (!r.ok) {
+      app.setActions();
+      host.replaceChildren(notice('danger', null, r.message));
+      return;
+    }
     const { design } = r;
     const e = design.adopted;
-    app.state.lvRigidResult = r;
 
     app.setActions(
       button('Report', () => app.go('report'), { kind: 'secondary' }),

@@ -1,68 +1,11 @@
 import { h, card, numberField, segmented, button, msa } from '../dom.js';
 import { clauseChip } from '../citations.js';
-import { iitpaveCases, sectionKey, engineValue, caseText } from '../iitpave.js';
+import { iitpaveCases, sectionKey, engineValue } from '../iitpave.js';
+import { stackTable, loadTable, copyButton } from '../iitpaveTables.js';
 import { flexibleInput } from '../flexibleProject.js';
 import { evaluateTrial } from '../../engine/flexibleDesign.js';
 
 const fmt = (value, unit) => (unit === 'MPa' ? value.toFixed(3) : value.toFixed(1));
-
-function stackTable(c) {
-  return h(
-    'div',
-    { class: 'table-scroll' },
-    h(
-      'table',
-      { class: 'data' },
-      h('thead', {}, h('tr', {}, h('th', {}, 'Layer'), h('th', {}, 'E, MPa'), h('th', {}, 'μ'), h('th', {}, 'h, mm'))),
-      h(
-        'tbody',
-        {},
-        c.layers.map((l) =>
-          h(
-            'tr',
-            {},
-            h('td', {}, l.label),
-            h('td', { class: 'numeric' }, l.E.toFixed(1)),
-            h('td', { class: 'numeric' }, l.nu.toFixed(2)),
-            h('td', { class: 'numeric' }, l.h == null ? '∞' : String(l.h))
-          )
-        )
-      )
-    )
-  );
-}
-
-function loadTable(c) {
-  const rows = [
-    ['No. of layers', String(c.layers.length)],
-    c.wheelLoadN != null ? ['Wheel load', `${Math.round(c.wheelLoadN).toLocaleString('en-IN')} N`] : null,
-    ['Tyre pressure', `${c.tyrePressureMPa.toFixed(2)} MPa`],
-    ['Wheel set', c.dualSpacingMm > 0 ? `Dual, ${c.dualSpacingMm} mm c/c` : 'Single'],
-    ['Analysis points', c.points.map((p) => `z ${p.z.toFixed(0)}, r ${p.r.toFixed(0)}`).join(' · ')],
-  ].filter(Boolean);
-  return h(
-    'div',
-    { class: 'table-scroll' },
-    h('table', { class: 'data kv' }, h('tbody', {}, rows.map(([k, v]) => h('tr', {}, h('th', {}, k), h('td', {}, v)))))
-  );
-}
-
-function copyButton(c) {
-  const copy = button(
-    'Copy inputs',
-    async () => {
-      try {
-        await navigator.clipboard.writeText(caseText(c));
-        copy.textContent = 'Copied';
-      } catch {
-        copy.textContent = 'Copy failed';
-      }
-      setTimeout(() => (copy.textContent = 'Copy inputs'), 1600);
-    },
-    { kind: 'ghost' }
-  );
-  return h('div', { class: 'card-actions' }, copy);
-}
 
 const difference = (app, entered) => {
   if (!(entered > 0) || !(app > 0)) return '—';

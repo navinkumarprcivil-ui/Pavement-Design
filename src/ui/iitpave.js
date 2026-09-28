@@ -38,22 +38,7 @@ export function iitpaveCases(result, state) {
 
   const layered = state.materials.layeredSubgrade;
   if (layered?.enabled && layered.borrowCBR > 0 && layered.embankmentCBR > 0) {
-    const e = effectiveSubgrade(layered);
-    const spec = MODULI.effectiveSubgrade;
-    cases.push({
-      id: 'subgrade',
-      title: 'Effective subgrade',
-      ref: spec.ref,
-      layers: [
-        { label: 'Select borrow', h: layered.borrowMm || spec.subgradeThicknessMm, E: e.borrowMR, nu: spec.poissonRatio },
-        { label: 'Embankment', h: null, E: e.embankmentMR, nu: spec.poissonRatio },
-      ],
-      wheelLoadN: spec.wheelLoadN,
-      tyrePressureMPa: spec.tyrePressureMPa,
-      dualSpacingMm: 0,
-      points: [{ z: 0, r: 0 }],
-      readout: { label: 'Surface deflection', unit: 'mm', value: e.deflection.toFixed(3) },
-    });
+    cases.push(effectiveSubgradeCase(layered));
   }
 
   const outputs = [];
@@ -148,6 +133,31 @@ export function iitpaveCases(result, state) {
   }
 
   return cases;
+}
+
+/** The two-layer system behind the effective subgrade (IRC:37 Cl. 6.4.1), as IITPAVE takes it. */
+export function effectiveSubgradeCase(layered) {
+  const e = effectiveSubgrade(layered);
+  const spec = MODULI.effectiveSubgrade;
+  return {
+    id: 'subgrade',
+    title: 'Effective subgrade',
+    ref: spec.ref,
+    layers: [
+      { label: 'Select borrow', h: layered.borrowMm || spec.subgradeThicknessMm, E: e.borrowMR, nu: spec.poissonRatio },
+      { label: 'Embankment', h: null, E: e.embankmentMR, nu: spec.poissonRatio },
+    ],
+    wheelLoadN: spec.wheelLoadN,
+    tyrePressureMPa: spec.tyrePressureMPa,
+    dualSpacingMm: 0,
+    points: [{ z: 0, r: 0 }],
+    readout: {
+      label: e.fromIitpave ? 'Surface deflection, IITPAVE' : 'Surface deflection',
+      unit: 'mm',
+      value: e.deflection.toFixed(3),
+    },
+    effective: e,
+  };
 }
 
 /** An entered output in engine units: strains as fractions, stresses in MPa. */

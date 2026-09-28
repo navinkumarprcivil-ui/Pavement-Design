@@ -31,8 +31,12 @@ export default function renderRuralTraffic(app) {
           'div',
           { class: 'metric-grid three' },
           metric('Category', category.id),
-          traffic.esalPerDay != null ? metric('ESAL per day', traffic.esalPerDay.toFixed(2)) : metric('CVPD', inr(traffic.cvpdAtOpening)),
-          metric('Lane factor', String(traffic.laneFactor))
+          traffic.esalPerDay != null
+            ? metric('ESAL per day', traffic.esalPerDay.toFixed(2))
+            : traffic.cvpdAtOpening != null
+              ? metric('CVPD', inr(traffic.cvpdAtOpening))
+              : metric('msa', (traffic.esal / 1e6).toFixed(3)),
+          traffic.laneFactor != null ? metric('Lane factor', String(traffic.laneFactor)) : metric('Design life', `${t.designLifeYears} yr`)
         ),
         lowVolumeChoice(app, {
           label: 'Design to',
@@ -64,6 +68,7 @@ export default function renderRuralTraffic(app) {
   };
 
   const counts = t.mode === 'counts';
+  const direct = t.mode === 'direct';
   const hv = t.harvest;
 
   const screen = h(
@@ -80,6 +85,7 @@ export default function renderRuralTraffic(app) {
         options: [
           { value: 'counts', label: 'Counts by class' },
           { value: 'appendixA', label: 'CVPD only' },
+          { value: 'direct', label: 'Design traffic known' },
         ],
         onChange: onChoice('mode'),
       }),
@@ -111,21 +117,27 @@ export default function renderRuralTraffic(app) {
                 )
               : null,
           ]
-        : numberField({ label: 'Commercial vehicles per day', ref: SP72.appendixA.ref, value: t.cvpd, suffix: 'CVPD', min: 0, onInput: onNumber('cvpd') }),
-      h(
-        'div',
-        { class: 'field-row' },
-        numberField({ label: 'Growth rate', ref: SP72.growth.ref, value: t.growthPercent, suffix: '%', min: 0, onInput: onNumber('growthPercent') }),
-        numberField({ label: 'Years from count to opening', value: t.yearsToOpening, suffix: 'yr', min: 0, onInput: onNumber('yearsToOpening') })
-      ),
+        : direct
+          ? numberField({ label: 'Design traffic', ref: SP72.cumulative.ref, value: t.designEsal, suffix: 'ESAL', min: 0, onInput: onNumber('designEsal') })
+          : numberField({ label: 'Commercial vehicles per day', ref: SP72.appendixA.ref, value: t.cvpd, suffix: 'CVPD', min: 0, onInput: onNumber('cvpd') }),
+      direct
+        ? null
+        : h(
+            'div',
+            { class: 'field-row' },
+            numberField({ label: 'Growth rate', ref: SP72.growth.ref, value: t.growthPercent, suffix: '%', min: 0, onInput: onNumber('growthPercent') }),
+            numberField({ label: 'Years from count to opening', value: t.yearsToOpening, suffix: 'yr', min: 0, onInput: onNumber('yearsToOpening') })
+          ),
       numberField({ label: 'Design life', ref: SP72.designLife.ref, value: t.designLifeYears, suffix: 'yr', min: 1, onInput: onNumber('designLifeYears') }),
-      segmented({
-        label: 'Carriageway',
-        ref: SP72.lane.ref,
-        value: t.laneId,
-        options: SP72.lane.options.map((o) => ({ value: o.id, label: `${o.label} · L = ${o.value}` })),
-        onChange: onChoice('laneId'),
-      })
+      direct
+        ? null
+        : segmented({
+            label: 'Carriageway',
+            ref: SP72.lane.ref,
+            value: t.laneId,
+            options: SP72.lane.options.map((o) => ({ value: o.id, label: `${o.label} · L = ${o.value}` })),
+            onChange: onChoice('laneId'),
+          })
     ),
 
     counts

@@ -16,6 +16,7 @@ export const defaultRuralState = () => ({
     hcv: 10,
     mcv: 40,
     cvpd: 50,
+    designEsal: null,
     ladenPercent: 50,
     vdfMode: 'indicative',
     vdfHcv: null,
@@ -112,11 +113,23 @@ export function migrateLvRigid(saved) {
   };
 }
 
+/** The input a SP:62 design still needs, or null when it can run. */
+function lvRigidMissing({ slab: s }) {
+  if (s.subBase === 'measured' ? !(s.measuredK > 0) : !(s.subgradeCBR > 0)) return s.subBase === 'measured' ? 'Enter the effective k' : 'Enter the subgrade CBR';
+  if (s.strengthMode === 'flexural' ? !(s.flexural28 > 0) : !(s.fck > 0)) return s.strengthMode === 'flexural' ? 'Enter the flexural strength' : 'Enter the concrete grade';
+  if (s.temperature.mode === 'site' && !Number.isFinite(s.temperature.deltaC)) return 'Enter the temperature differential';
+  if (!(s.jointM > 0)) return 'Enter the joint spacing';
+  return null;
+}
+
 export function lvRigidDesignFor(state) {
+  const missing = lvRigidMissing(state.lvRigid);
+  if (missing) return { ok: false, message: missing };
   const { traffic, slab } = state.lvRigid;
   const design = designSP62({ ...traffic, ...slab });
   const e = design.adopted;
   return {
+    ok: true,
     design,
     slots: design.slots,
     safe: design.safe,

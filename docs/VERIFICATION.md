@@ -44,7 +44,7 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Lateral distribution | 1.0, 0.75, 0.5, 0.4; divided 0.75, 0.6, 0.45 | Cl. 4.5.1 | 16, 17 | ✓ |
 | Design traffic | N = 365 A D F [(1+r)^n − 1]/r; A = P(1+r)^x | Cl. 4.6.1, Eq. 4.5 / 4.6 | 17 | ✓ |
 | Subgrade modulus | 10 CBR (≤ 5%); 17.6 CBR^0.64 (> 5%); μ 0.35 | Cl. 6.3, Eq. 6.1 / 6.2 | 19 | ✓ |
-| Effective subgrade | 40,000 N, 0.56 MPa, a = 150.8 mm, 500 mm layer, MRS = 2(1−μ²)pa/δ | Cl. 6.4.1, Eq. 6.3 | 20 | ✓ |
+| Effective subgrade | 40,000 N, 0.56 MPa, a = 150.8 mm, 500 mm layer, MRS = 2(1−μ²)pa/δ; δ from the app's analysis or read from IITPAVE (step (i)); app 1.411 mm against Annex-II.1's 1.41 mm | Cl. 6.4.1, Eq. 6.3 | 20 | ✓ |
 | Subgrade modulus cap | 100 MPa | Cl. 6.4.2 | 20 | ✓ |
 | Minimum subgrade CBR | Over 5% above 450 CVPD | Cl. 6.4.3 | 20 | ✓ |
 | GSB minimum | 150 mm (single filter-cum-drainage layer) | Cl. 7.2.2 | 21 | ✓ |

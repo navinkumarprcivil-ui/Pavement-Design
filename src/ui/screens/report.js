@@ -217,6 +217,18 @@ function closing() {
 function trafficGiven(app, traffic, cite) {
   const t = app.state.traffic;
   const surveyed = t.vdfMode === 'survey' && t.vehicleDamageFactor > 0;
+  if (traffic.result.direct) {
+    return givenTable(
+      'Design traffic inputs',
+      [
+        ['N', 'Design traffic', `${traffic.result.msa} msa`, 'Input', TRAFFIC.growthEquation.ref],
+        ['A', 'Commercial vehicles per day at completion, both ways', `${traffic.twoWayAtCompletion} CVPD`, 'Input', MODULI.minimumCBR.ref],
+        ['n', 'Design period', `${t.designLifeYears} years`, 'Input', TRAFFIC.longLife.ref],
+        ['F', 'Vehicle damage factor', traffic.vdf.toFixed(2), surveyed ? 'Input' : 'Code', surveyed ? null : TRAFFIC.indicativeVDF.ref],
+      ],
+      cite
+    );
+  }
   return givenTable(
     'Design traffic inputs',
     [
@@ -378,10 +390,10 @@ function flexibleReport(app, cite) {
       [
         ['Road category', category?.label],
         ['Terrain', project.terrain[0].toUpperCase() + project.terrain.slice(1)],
-        ['Carriageway', traffic.lane.label],
+        traffic.result.direct ? null : ['Carriageway', traffic.lane.label],
         ['Design period', `${t.designLifeYears} years`],
         ['Composition', combinationName(combination)],
-      ]
+      ].filter(Boolean)
     ),
 
     h('h2', {}, '2. Materials'),
@@ -393,6 +405,9 @@ function flexibleReport(app, cite) {
               ['CBR', 'Select borrow CBR', `${layered.borrowCBR}%`, 'Input', MODULI.effectiveSubgrade.ref],
               ['', 'Select borrow thickness', `${layered.borrowMm} mm`, 'Input', MODULI.effectiveSubgrade.ref],
               ['CBR', 'Embankment CBR', `${layered.embankmentCBR}%`, 'Input', MODULI.effectiveSubgrade.ref],
+              ...(layered.source === 'iitpave' && layered.iitpaveDeflectionMm > 0
+                ? [['δ', 'Surface deflection of the two-layer system', `${layered.iitpaveDeflectionMm} mm`, 'IITPAVE', MODULI.effectiveSubgrade.ref]]
+                : []),
               ['CBR', 'Effective subgrade CBR', `${Number(materials.subgradeCBR).toFixed(1)}%`, 'Derived', MODULI.effectiveSubgrade.ref],
             ]
           : [['CBR', 'Effective subgrade CBR', `${materials.subgradeCBR}%`, 'Input', MODULI.subgrade.ref]]),
@@ -646,8 +661,10 @@ function ruralReport(app, cite) {
   const lane = SP72.lane.options.find((o) => o.id === t.laneId) || SP72.lane.options[0];
   const rain = SP72.surfacingWarrant.rainfall.find((x) => x.id === d.rainfall);
 
-  const trafficRows =
-    t.mode === 'appendixA'
+  const direct = t.mode === 'direct';
+  const trafficRows = direct
+    ? [['N', 'Design traffic', `${inr(t.designEsal || 0)} ESAL`, 'Input', SP72.cumulative.ref]]
+    : t.mode === 'appendixA'
       ? [['CVPD', 'Commercial vehicles per day', inr(t.cvpd), 'Input', SP72.appendixA.ref]]
       : [
           ['HCV', 'Heavy commercial vehicles per day', inr(t.hcv), 'Input', SP72.vdf.ref],
@@ -668,10 +685,10 @@ function ruralReport(app, cite) {
         'strength class; the composition is taken from the design catalogue for that pair and adjusted as the code permits.',
       [
         ['Road category', category?.label],
-        ['Carriageway', `${lane.label}, L = ${lane.value}`],
+        direct ? null : ['Carriageway', `${lane.label}, L = ${lane.value}`],
         ['Design life', `${t.designLifeYears} years`],
         ['Base and sub-base', d.baseType === 'cemented' ? 'Cement treated' : 'Gravel and granular'],
-      ]
+      ].filter(Boolean)
     ),
 
     h('h2', {}, '2. Materials'),
@@ -707,11 +724,11 @@ function ruralReport(app, cite) {
       'Traffic',
       [
         ...trafficRows,
-        ['r', 'Growth rate', `${t.growthPercent}%`, 'Input', SP72.growth.ref],
-        ['x', 'Years from count to opening', String(t.yearsToOpening), 'Input', null],
+        direct ? null : ['r', 'Growth rate', `${t.growthPercent}%`, 'Input', SP72.growth.ref],
+        direct ? null : ['x', 'Years from count to opening', String(t.yearsToOpening), 'Input', null],
         ['n', 'Design life', `${t.designLifeYears} years`, 'Input', SP72.designLife.ref],
-        ['L', 'Lane factor', String(lane.value), 'Code', SP72.lane.ref],
-      ],
+        direct ? null : ['L', 'Lane factor', String(lane.value), 'Code', SP72.lane.ref],
+      ].filter(Boolean),
       cite
     ),
     traffic.steps.map((step) => stepBlock(step, cite)),

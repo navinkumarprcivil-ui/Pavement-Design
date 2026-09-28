@@ -29,7 +29,8 @@ and open its address on the phone over the same network.
 
 1. **Design traffic.** Cumulative standard axles from the commercial vehicle
    count, growth rate, design life, lane distribution factor and vehicle damage
-   factor. Below 2 msa the step offers IRC:SP:72 beside IRC:37; choosing it
+   factor, or entered directly in msa when already known (the CVPD at
+   completion is still asked for the CBR floor of Cl. 6.4.3). Below 2 msa the step offers IRC:SP:72 beside IRC:37; choosing it
    moves the design into the low volume road steps.
 2. **Layer combination.** Bituminous layer (BC over DBM, BC only, SDBC over
    DBM), base (WMM, WBM, CTB, or RAP treated with foamed bitumen or emulsion,
@@ -43,7 +44,10 @@ and open its address on the phone over the same network.
    the share of single, tandem and tridem axles and of each load class. The app
    works out the expected repetitions of every class from the design traffic.
 4. **Inputs.** Subgrade CBR, or a select borrow over the embankment reduced
-   to an effective modulus (Cl. 6.4, reproducing Annex-II.1); reliability,
+   to an effective modulus (Cl. 6.4, reproducing Annex-II.1). The surface
+   deflection of that two-layer system comes from the app's own analysis, or
+   from IITPAVE: the app sets out the entries in IITPAVE's order and takes the
+   deflection read back from it. Reliability,
    80% or 90%; binder grade, pavement temperature, mix modulus from the mix
    design if known, mix volumetrics; construction traffic (dumper axle loads
    and trips); trial thicknesses; and narrative paragraphs for the report.
@@ -81,7 +85,8 @@ design then follows it throughout.
 
 - *Flexible, IRC:SP:72-2015* (below 2 msa). Design traffic in ESAL from HCV and
   MCV counts with the code's VDFs, harvesting seasons (Cl. 3.4.1) and lane
-  factor, or from Appendix A where only the CVPD is known; traffic categories
+  factor, from Appendix A where only the CVPD is known, or entered directly;
+  traffic categories
   T1 – T9 and subgrade classes S1 – S5; the composition from the granular
   (Fig. 4) or cement treated (Fig. 6) catalogue, with surface gravel or a
   surface treatment by rainfall (Table 5), surfacing type (Cl. 7.3.3), part of a
@@ -230,6 +235,7 @@ src/ui/                 Screens and DOM helpers
   lowVolumeProject.js     The low volume designs from the state
   lowVolume.js            The low volume code offered at the traffic step
   iitpave.js              Analyses laid out as IITPAVE inputs
+  iitpaveTables.js        Those inputs drawn as tables and in order of entry
   screens/report.js       The design report, for print, PDF and Word
 tests/                  Node test runner, no dependencies
 docs/VERIFICATION.md    Every value checked against the codes, with pages

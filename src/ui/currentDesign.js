@@ -80,6 +80,7 @@ function rural(app) {
 
 function ruralRigid(app) {
   const r = lvRigidDesignFor(app.state);
+  if (!r.ok) return null;
   const e = r.design.adopted;
   const layers = r.slots.filter((s) => s.thicknessMm > 0);
   return {

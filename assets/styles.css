@@ -628,7 +628,7 @@ h2.section-title {
   padding-bottom: 14px;
 }
 
-.fold[open] .fold-body {
+.fold.opening .fold-body {
   animation: screen-in 0.2s var(--ease) both;
 }
 
@@ -2034,6 +2034,11 @@ body.drawer-open .drawer {
     grid-column: auto;
   }
 
+  /* A choice has a row of its own, so the fields it shows or hides never move it. */
+  .card-body > .field.choice {
+    grid-column: 1 / -1;
+  }
+
   .card-body > .field-row {
     display: contents;
   }
@@ -2889,4 +2894,41 @@ body.drawer-open .drawer {
     padding: 4px 5px;
     overflow-wrap: anywhere;
   }
+}
+
+/* ---------- An IITPAVE run to make, in its order of entry ---------- */
+
+.iitpave-entry {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.iitpave-entry h4 {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  font-weight: 680;
+}
+
+.entry-guide {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 1.4em;
+  font-size: 0.88rem;
+}
+
+.entry-guide span {
+  color: var(--text-dim);
+}
+
+.entry-guide strong {
+  margin-left: 8px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+}
+
+.iitpave-entry .card-actions {
+  margin-top: 8px;
 }
