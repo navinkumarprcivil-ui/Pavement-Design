@@ -14,6 +14,7 @@
 const KEYS = {
   trials: 'pavement-design.trials.v2',
   catalogue: 'pavement-design.sp72-catalogue.v2',
+  projects: 'pavement-design.projects.v1',
 };
 
 export const COLLECTIONS = Object.keys(KEYS);

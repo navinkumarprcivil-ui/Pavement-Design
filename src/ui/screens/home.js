@@ -29,6 +29,12 @@ export default function renderHome(app) {
     { class: 'card-stack' },
     h('h2', { class: 'screen-title' }, 'What are you designing?'),
     choice('Flexible Pavement Design', 'flexible', 'traffic'),
-    choice('Rigid Pavement Design', 'rigid', 'rigidTraffic')
+    choice('Rigid Pavement Design', 'rigid', 'rigidTraffic'),
+    h(
+      'button',
+      { type: 'button', class: 'credit-line', onclick: () => app.open('about') },
+      'Created by ',
+      h('strong', {}, 'Navin Kumar P R')
+    )
   );
 }

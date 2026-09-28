@@ -15,6 +15,11 @@
           "$cellId": {
             ".validate": "newData.hasChildren(['id', 'savedAt'])"
           }
+        },
+        "projects": {
+          "$projectId": {
+            ".validate": "newData.hasChildren(['id', 'savedAt'])"
+          }
         }
       }
     }

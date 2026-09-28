@@ -9,7 +9,9 @@
 
 import { h, clear } from './ui/dom.js';
 import { closeSheet } from './ui/citations.js';
+import { openDrawer, closeDrawer, ICONS } from './ui/drawer.js';
 import { loadProject, saveProject } from './store/trials.js';
+import { getProject, saveProjectRecord } from './store/projects.js';
 import { connectCloud, onCloudChange } from './store/cloud.js';
 import { subscribe as onStoreChange } from './store/sync.js';
 import { BINDER_GRADES } from './data/layerCatalog.js';
@@ -28,6 +30,9 @@ import renderRigidSlab from './ui/screens/rigidSlab.js';
 import renderRigidResult from './ui/screens/rigidResult.js';
 import { defaultRigidState, migrateRigid } from './ui/rigidProject.js';
 import { designStepsScreen } from './ui/screens/designSteps.js';
+import renderProjects from './ui/screens/projects.js';
+import renderMaterialRates from './ui/screens/materialRates.js';
+import renderAbout from './ui/screens/about.js';
 
 const SCREENS = {
   home: { render: renderHome, title: 'IRC Pavement Design', back: null },
@@ -42,10 +47,17 @@ const SCREENS = {
   rigidAxles: { render: renderRigidAxles, title: 'Axle loads', back: 'rigidTraffic' },
   rigidSlab: { render: renderRigidSlab, title: 'Slab design', back: 'rigidAxles' },
   rigidResult: { render: renderRigidResult, title: 'Design result', back: 'rigidSlab' },
-  // Reached from the header, so it returns to wherever it was opened from.
-  designSteps: { render: designStepsScreen('flexible'), title: 'Flexible design steps', back: () => app.designStepsReturn },
-  rigidDesignSteps: { render: designStepsScreen('rigid'), title: 'Rigid design steps', back: () => app.designStepsReturn },
+  // Reached from the header or the side panel, so they return to wherever
+  // they were opened from.
+  designSteps: { render: designStepsScreen('flexible'), title: 'Flexible design steps', back: () => app.returnTo },
+  rigidDesignSteps: { render: designStepsScreen('rigid'), title: 'Rigid design steps', back: () => app.returnTo },
+  projects: { render: renderProjects, title: 'Saved projects', back: () => app.returnTo },
+  materialRates: { render: renderMaterialRates, title: 'Material rates', back: () => app.returnTo },
+  about: { render: renderAbout, title: 'About', back: () => app.returnTo },
 };
+
+/** Screens opened alongside a design rather than as a step of one. */
+const ASIDE_SCREENS = new Set(['designSteps', 'rigidDesignSteps', 'projects', 'materialRates', 'about']);
 
 /** Where each design's steps are offered, in the header. */
 const FLEXIBLE_SCREENS = new Set(['traffic', 'layers', 'inputs', 'results']);
@@ -104,7 +116,34 @@ export const defaultState = () => ({
   pavementType: 'flexible',
   rigid: defaultRigidState(),
   rigidResult: null,
+  /** The saved project these inputs were opened from or last saved as. */
+  projectId: null,
 });
+
+/** The inputs a saved project keeps. Material rates are app-wide, not per project. */
+function projectInputs(state) {
+  const { screen, result, rigidResult, rates, projectId, ...inputs } = state;
+  return structuredClone(inputs);
+}
+
+/**
+ * A comparable form of saved data: keys sorted, and the empty values the cloud
+ * drops on a round trip dropped here too.
+ */
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (!value || typeof value !== 'object') return value;
+  const out = {};
+  for (const key of Object.keys(value).sort()) {
+    const item = canonical(value[key]);
+    const empty = item == null || (typeof item === 'object' && !Object.keys(item).length);
+    if (!empty) out[key] = item;
+  }
+  return out;
+}
+
+const sameInputs = (a, b) =>
+  JSON.stringify(canonical(projectInputs(a))) === JSON.stringify(canonical(projectInputs(b)));
 
 /**
  * Bring a saved project up to the current shape: fill in fields added since it
@@ -131,18 +170,57 @@ const app = {
   root: null,
   header: null,
   actions: null,
-  /** Screen the design steps were opened from. Deliberately not persisted. */
-  designStepsReturn: 'traffic',
+  /** Design screen the aside screens return to. Deliberately not persisted. */
+  returnTo: 'home',
   /** Open/closed state of collapsible sections, for this session only. */
   folds: {},
   entering: false,
 
   go(screen) {
     closeSheet();
+    closeDrawer();
     this.state.screen = screen;
     this.entering = true;
     this.render();
     window.scrollTo({ top: 0 });
+  },
+
+  /** Go to a screen, remembering the design screen an aside was opened from. */
+  open(screen) {
+    if (ASIDE_SCREENS.has(screen) && !ASIDE_SCREENS.has(this.state.screen)) {
+      this.returnTo = this.state.screen;
+    }
+    this.go(screen);
+  },
+
+  /** True when the inputs differ from the saved project, or from a fresh one. */
+  isUnsaved() {
+    const saved = getProject(this.state.projectId);
+    return !sameInputs(this.state, saved ? migrate(saved.state) : defaultState());
+  },
+
+  storeProject() {
+    const saved = getProject(this.state.projectId);
+    const record = saveProjectRecord({
+      id: saved?.id,
+      name: this.state.project.name.trim(),
+      pavementType: this.state.pavementType,
+      state: projectInputs(this.state),
+    });
+    this.state.projectId = record.id;
+    this.persist();
+  },
+
+  openProject(record) {
+    this.state = migrate({ ...record.state, rates: this.state.rates, projectId: record.id });
+    this.persist();
+    this.go(this.state.pavementType === 'rigid' ? 'rigidTraffic' : 'traffic');
+  },
+
+  newProject() {
+    this.state = { ...defaultState(), rates: this.state.rates };
+    this.persist();
+    this.go('home');
   },
 
   /** Merge a patch into state and re-render. */
@@ -186,10 +264,17 @@ const app = {
 
     clear(this.header);
     this.header.appendChild(
-      back
-        ? h('button', { class: 'back-button', 'aria-label': 'Back', onclick: () => this.go(back) }, '‹')
-        : h('span', { class: 'header-mark', 'aria-hidden': 'true' })
+      h('button', {
+        class: 'menu-button',
+        'aria-label': 'Menu',
+        'aria-controls': 'app-drawer',
+        html: ICONS.menu,
+        onclick: (event) => openDrawer(this, event.currentTarget),
+      })
     );
+    if (back) {
+      this.header.appendChild(h('button', { class: 'back-button', 'aria-label': 'Back', onclick: () => this.go(back) }, '‹'));
+    }
     this.header.appendChild(h('h1', {}, screen.title));
     // Top right: the design procedure, readable from anywhere in its design.
     const stepsScreen = designStepsFor(this.state);
@@ -199,10 +284,7 @@ const app = {
           'button',
           {
             class: 'header-button',
-            onclick: () => {
-              this.designStepsReturn = this.state.screen;
-              this.go(stepsScreen);
-            },
+            onclick: () => this.open(stepsScreen),
           },
           'Design Steps'
         )
@@ -236,8 +318,9 @@ function boot() {
 
   // The comparison refreshes when the cloud changes saved trials. Input
   // screens are left alone so a re-render never interrupts typing.
-  const SYNCED_SCREENS = new Set(['trials', 'rural']);
+  const SYNCED_SCREENS = new Set(['trials', 'rural', 'projects']);
   const refreshIfShowingSavedWork = () => {
+    if (document.activeElement?.matches('input, textarea, select')) return;
     if (SYNCED_SCREENS.has(app.state.screen)) app.render();
   };
 

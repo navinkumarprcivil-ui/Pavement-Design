@@ -67,7 +67,11 @@ and drainage layers are not yet in the app.
 The app is offline-first. Everything is written to device storage the moment
 you save it, so it keeps working with no signal — which is the point, on site.
 
-When a network is available, trials and the IRC:SP:72 catalogue are mirrored to
+The side panel (☰ at the top left) holds the saved designs, saved projects —
+named copies of a design's inputs, flexible or rigid — the material rates used
+for costing, the design steps, and About.
+
+When a network is available, trials, projects and the IRC:SP:72 catalogue are mirrored to
 a Firebase Realtime Database so they survive a lost phone and follow you between
 devices. Sign-in is anonymous: each device gets a Firebase uid and its records
 live under `users/{uid}`. Losing the cloud never costs you a design — every
@@ -175,6 +179,7 @@ src/store/
   sync.js                 Offline-first storage with merge and tombstones
   cloud.js                Firebase mirroring, entirely optional
   trials.js               Saved trials and project state
+  projects.js             Saved projects
 src/ui/                 Screens and DOM helpers
 tests/                  Node test runner, no dependencies
 tools/serve.js          Static file server for development
@@ -184,6 +189,11 @@ database.rules.json     Realtime Database security rules to publish
 `src/engine/` and `src/data/` are deliberately free of any browser API. That is
 the part worth keeping when this moves to Android — either wrapped in a WebView
 as it stands, or translated to Kotlin against the same tests.
+
+## Credits
+
+Created by Navin Kumar P R — Transportation Engineering, M.Tech. in Civil
+Engineering, IIT Madras.
 
 ## Where this is going
 
