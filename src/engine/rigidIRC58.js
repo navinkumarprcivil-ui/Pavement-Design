@@ -7,12 +7,10 @@
  * engineering theory, not IRC content, and they give a sound first estimate of
  * slab stresses.
  *
- * What is NOT implemented is the IRC:58-2015 design procedure proper, which
- * uses finite-element-derived regression equations for flexural stress under
- * the combined axle-load-and-temperature cases, and a cumulative fatigue damage
- * summation over the axle load spectrum. Those equations are the content of the
- * code. Supply them and they slot in behind `slabStress` without disturbing
- * anything else.
+ * The IRC:58-2015 procedure proper — regression stresses for the combined
+ * axle-load-and-temperature cases and the cumulative fatigue damage over the
+ * axle load spectrum — is in rigidFatigue.js, checked against Appendix-VII.
+ * The rigid screen does not use it yet.
  *
  * Every result from this module is therefore marked provisional.
  */

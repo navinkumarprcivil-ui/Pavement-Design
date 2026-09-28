@@ -342,3 +342,87 @@ export const THICKNESS_INCREMENTS = {
   granularMm: 10,
   cementedMm: 10,
 };
+
+/* ------------------------------------------------------------------ *
+ * Rigid pavements — IRC:58-2015
+ *
+ * Every value here reproduces the illustrative thickness design of
+ * Appendix-VII: its stresses, allowable repetitions and fatigue damage.
+ * ------------------------------------------------------------------ */
+
+export const RIGID = {
+  concrete: {
+    ref: ref('IRC58', 'Appendix-VII'),
+    verified: true,
+    elasticModulusMPa: 30000,
+    poissonRatio: 0.15,
+    unitWeightKNPerM3: 24,
+    /** Design flexural strength is the 90-day value, 1.1 x the 28-day one. */
+    ninetyDayFactor: 1.1,
+  },
+
+  traffic: {
+    ref: ref('IRC58', 'Appendix-VII'),
+    verified: true,
+    /** Share of the predominant direction's axles in the design lane, multi-lane. */
+    laneShare: 0.25,
+    /** Each 12-hour period is analysed as two 6-hour periods. */
+    sixHourShare: 0.5,
+  },
+
+  /** Night-time differential = day-time differential / 2 + 5 °C. */
+  nightTemperature: {
+    ref: ref('IRC58', 'Appendix-VII'),
+    verified: true,
+    dayFraction: 0.5,
+    addC: 5,
+  },
+
+  /**
+   * Maximum edge stress for bottom-up cracking (Appendix-V, Eq. V.1 – V.12):
+   *   S = a + b (γh²/kl²) + c (Ph/kl⁴) + d ΔT
+   * P in kN, h and l in m, k in MPa/m, γ in kN/m³. Bands are on k.
+   */
+  bottomUpStress: {
+    ref: ref('IRC58', 'Appendix-V', { equation: 'Eq. V.1 – V.12' }),
+    verified: true,
+    kBands: [80, 150],
+    single: {
+      tied: [[0.008, -6.12, 2.36, 0.0266], [0.08, -9.69, 2.09, 0.0409], [0.042, 3.26, 1.62, 0.0522]],
+      untied: [[-0.149, -2.6, 3.13, 0.0297], [-0.119, -2.99, 2.78, 0.0456], [-0.238, 7.02, 2.41, 0.0585]],
+    },
+    tandem: {
+      tied: [[-0.188, 0.93, 1.025, 0.0207], [-0.174, 1.21, 0.87, 0.0364], [-0.21, 3.88, 0.73, 0.0506]],
+      untied: [[-0.223, 2.73, 1.335, 0.0229], [-0.276, 5.78, 1.14, 0.0404], [-0.3, 9.88, 0.965, 0.0543]],
+    },
+  },
+
+  /**
+   * Maximum stress at the top of the slab for top-down cracking (Eq. V.13):
+   *   S = a + b B (Ph/kl⁴) + c (h²/kl²) + d ΔT
+   * P is the whole rear single axle, half a tandem, a third of a tridem.
+   */
+  topDownStress: {
+    ref: ref('IRC58', 'Appendix-V', { equation: 'Eq. V.13' }),
+    verified: true,
+    coefficients: [-0.219, 1.686, 168.48, 0.1089],
+    beta: { doweled: 0.66, undoweled: 0.9 },
+    axleShare: { single: 1, tandem: 0.5, tridem: 1 / 3 },
+  },
+
+  /**
+   * Allowable repetitions from the stress ratio SR:
+   *   SR < 0.45            unlimited
+   *   0.45 ≤ SR ≤ 0.55     N = [4.2577 / (SR − 0.4325)]^3.268
+   *   SR > 0.55            log10 N = (0.9718 − SR) / 0.0828
+   * The middle branch reproduces Tables VII.2 and VII.3. No stress ratio in the
+   * example exceeds 0.55, so the upper branch is not yet read off the code.
+   */
+  fatigue: {
+    ref: ref('IRC58', 'Appendix-VII', { table: 'Table VII.2 / VII.3' }),
+    verified: false,
+    endurance: 0.45,
+    middle: { upper: 0.55, numerator: 4.2577, offset: 0.4325, exponent: 3.268 },
+    upper: { constant: 0.9718, divisor: 0.0828 },
+  },
+};

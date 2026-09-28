@@ -23,7 +23,7 @@ import renderRates from './ui/screens/rates.js';
 import renderTrials from './ui/screens/trials.js';
 import renderRural from './ui/screens/rural.js';
 import renderRigid from './ui/screens/rigid.js';
-import renderDesignSteps from './ui/screens/designSteps.js';
+import { designStepsScreen } from './ui/screens/designSteps.js';
 
 const SCREENS = {
   home: { render: renderHome, title: 'IRC Pavement Design', back: null },
@@ -36,11 +36,15 @@ const SCREENS = {
   rural: { render: renderRural, title: 'Low volume rural road', back: 'traffic' },
   rigid: { render: renderRigid, title: 'Rigid pavement', back: 'home' },
   // Reached from the header, so it returns to wherever it was opened from.
-  designSteps: { render: renderDesignSteps, title: 'Flexible design steps', back: () => app.designStepsReturn },
+  designSteps: { render: designStepsScreen('flexible'), title: 'Flexible design steps', back: () => app.designStepsReturn },
+  rigidDesignSteps: { render: designStepsScreen('rigid'), title: 'Rigid design steps', back: () => app.designStepsReturn },
 };
 
-/** The regular flexible design, where its design steps are offered. */
-const FLEXIBLE_SCREENS = new Set(['traffic', 'layers', 'inputs', 'results', 'rates', 'trials']);
+/** Where each design's steps are offered, in the header. */
+const DESIGN_STEPS_FOR = {
+  ...Object.fromEntries(['traffic', 'layers', 'inputs', 'results', 'rates', 'trials'].map((s) => [s, 'designSteps'])),
+  rigid: 'rigidDesignSteps',
+};
 
 export const defaultState = () => ({
   screen: 'home',
@@ -95,7 +99,6 @@ export const defaultState = () => ({
     slabLengthMm: 4500,
   },
   rigidResult: null,
-  openDesignStep: 0,
 });
 
 /**
@@ -182,8 +185,9 @@ const app = {
         : h('span', { class: 'header-mark', 'aria-hidden': 'true' })
     );
     this.header.appendChild(h('h1', {}, screen.title));
-    // Top right: the design procedure, readable from anywhere in the flexible design.
-    if (FLEXIBLE_SCREENS.has(this.state.screen)) {
+    // Top right: the design procedure, readable from anywhere in its design.
+    const stepsScreen = DESIGN_STEPS_FOR[this.state.screen];
+    if (stepsScreen) {
       this.header.appendChild(
         h(
           'button',
@@ -191,7 +195,7 @@ const app = {
             class: 'header-button',
             onclick: () => {
               this.designStepsReturn = this.state.screen;
-              this.go('designSteps');
+              this.go(stepsScreen);
             },
           },
           'Design Steps'

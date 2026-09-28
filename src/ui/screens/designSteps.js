@@ -1,6 +1,16 @@
 import { h } from '../dom.js';
 import { citationChip } from '../citations.js';
-import { FLEXIBLE_DESIGN_STEPS, WORKED_EXAMPLE } from '../../data/designSteps.js';
+import {
+  FLEXIBLE_DESIGN_STEPS,
+  WORKED_EXAMPLE,
+  RIGID_DESIGN_STEPS,
+  RIGID_WORKED_EXAMPLE,
+} from '../../data/designSteps.js';
+
+const PROCEDURES = {
+  flexible: { example: WORKED_EXAMPLE, steps: FLEXIBLE_DESIGN_STEPS },
+  rigid: { example: RIGID_WORKED_EXAMPLE, steps: RIGID_DESIGN_STEPS },
+};
 
 /**
  * The design procedure, one step at a time.
@@ -10,11 +20,17 @@ import { FLEXIBLE_DESIGN_STEPS, WORKED_EXAMPLE } from '../../data/designSteps.js
  * through it. The first is open on arrival so the screen is never just a list
  * of closed bars.
  */
-export default function renderDesignSteps(app) {
-  if (app.state.openDesignStep == null) app.state.openDesignStep = 0;
+export function designStepsScreen(kind) {
+  const { example, steps } = PROCEDURES[kind];
+  return (app) => renderDesignSteps(app, kind, example, steps);
+}
+
+function renderDesignSteps(app, kind, example, steps) {
+  if (!app.openDesignStep) app.openDesignStep = {};
+  if (!(kind in app.openDesignStep)) app.openDesignStep[kind] = 0;
 
   const step = (item, index) => {
-    const open = app.state.openDesignStep === index;
+    const open = app.openDesignStep[kind] === index;
 
     return h(
       'div',
@@ -26,7 +42,7 @@ export default function renderDesignSteps(app) {
           type: 'button',
           'aria-expanded': String(open),
           onclick: () => {
-            app.state.openDesignStep = open ? null : index;
+            app.openDesignStep[kind] = open ? null : index;
             app.render();
           },
         },
@@ -61,11 +77,11 @@ export default function renderDesignSteps(app) {
     h(
       'div',
       { class: 'card' },
-      h('h2', { class: 'section-title' }, WORKED_EXAMPLE.title),
+      h('h2', { class: 'section-title' }, example.title),
       h(
         'div',
         { class: 'given-list' },
-        WORKED_EXAMPLE.given.map(([label, value]) =>
+        example.given.map(([label, value]) =>
           h(
             'div',
             { class: 'given-row' },
@@ -75,12 +91,12 @@ export default function renderDesignSteps(app) {
         )
       ),
       citationChip({
-        title: WORKED_EXAMPLE.title,
-        ref: WORKED_EXAMPLE.source,
+        title: example.title,
+        ref: example.source,
         verified: true,
       })
     ),
 
-    h('div', { class: 'design-step-list' }, FLEXIBLE_DESIGN_STEPS.map(step))
+    h('div', { class: 'design-step-list' }, steps.map(step))
   );
 }

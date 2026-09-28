@@ -1,11 +1,10 @@
 /**
- * The flexible pavement design procedure, step by step.
+ * The flexible and rigid pavement design procedures, step by step.
  *
- * This is the sequence the mechanistic-empirical design of IRC:37-2018
- * follows, written in plain terms, with the numbers from the worked example
- * for a bituminous pavement on a granular base and sub-base (Annex-II of the
- * code) carried through every step so the procedure can be read against a case
- * whose answer is already known.
+ * Each is the sequence its code follows, written in plain terms, with the
+ * numbers from the code's own worked example carried through every step so
+ * the procedure can be read against a case whose answer is already known:
+ * Annex-II of IRC:37-2018 for flexible, Appendix-VII of IRC:58-2015 for rigid.
  *
  * Wording here is this app's own. Only numeric values and clause citations are
  * taken from the code; no code text is reproduced. Each step names the clause
@@ -139,5 +138,179 @@ export const FLEXIBLE_DESIGN_STEPS = [
       'standard axles a pass; 200 passes are taken as 10,000 standard axles, ' +
       'the floor for this check.',
     ref: ref('IRC37', 'Cl. 7.2.2'),
+  },
+];
+
+/** The case carried through the rigid steps, from Appendix-VII of IRC:58-2015. */
+export const RIGID_WORKED_EXAMPLE = {
+  title: 'Jointed plain concrete pavement on a DLC sub-base',
+  source: ref('IRC58', 'Appendix-VII', { note: 'Illustrative example of thickness design' }),
+  given: [
+    ['Carriageway', 'Four lane divided National Highway'],
+    ['Traffic at completion', '3,000 CVPD each way'],
+    ['Growth rate', '7.5% a year'],
+    ['Design period', '30 years'],
+    ['Axle mix', 'Front 45%, rear single 15%, tandem 25%, tridem 15%'],
+    ['Axles per vehicle', '2.35'],
+    ['Travelling at night', '60%'],
+    ['Wheel base under 4.5 m', '55%'],
+    ['Transverse joint spacing', '4.5 m'],
+    ['Effective subgrade CBR', '8%'],
+    ['Day-time temperature differential', '16.8 °C'],
+  ],
+};
+
+export const RIGID_DESIGN_STEPS = [
+  {
+    title: 'Build the foundation and find its k',
+    what:
+      'Get the modulus of subgrade reaction from the subgrade CBR, then the ' +
+      'effective k of the whole foundation once the granular sub-base and ' +
+      'the DLC are on it. A polythene sheet separates the slab from the DLC ' +
+      'unless the two are to act bonded.',
+    example:
+      'CBR 8% gives k = 50.3 MPa/m. With 150 mm GSB and 150 mm DLC of 7 MPa ' +
+      '7-day strength, the combined foundation gives k = 285 MPa/m by ' +
+      'interpolation. Debonding layer: 125 micron polythene.',
+    ref: ref('IRC58', null, { table: 'Table 2 / Table 4' }),
+  },
+  {
+    title: 'Fix the design flexural strength',
+    what:
+      'Specify the concrete by its 28-day flexural strength and design with ' +
+      'the 90-day value, taken as 1.1 times the 28-day one.',
+    example:
+      'M40 concrete, 4.5 MPa at 28 days, so 4.5 x 1.1 = 4.95 MPa for design. ' +
+      'E = 30,000 MPa, µ = 0.15, unit weight 24 kN/m³.',
+    ref: ref('IRC58', 'Appendix-VII'),
+  },
+  {
+    title: 'Count the axles over the design period',
+    what:
+      'Grow the two-way commercial traffic over the design period, convert ' +
+      'vehicles to axles, take the predominant direction, then the share ' +
+      'that runs along the slab edge.',
+    example:
+      '6,000 CVPD at 7.5% for 30 years is 226.4 million vehicles. At 2.35 ' +
+      'axles each that is 532.1 million axles; half go each way, 266.1 million, ' +
+      'and 25% of those on a multi-lane road gives 66.5 million design axles.',
+    ref: ref('IRC58', 'Appendix-VII'),
+  },
+  {
+    title: 'Split them into the two six-hour periods',
+    what:
+      'Bottom-up cracking is checked with the day-time traffic, top-down with ' +
+      'the night-time traffic. Each 12-hour period is analysed as two six-hour ' +
+      'ones. Top-down only counts vehicles short enough to have both axles on ' +
+      'one slab.',
+    example:
+      'Day: 40% of 66.5 million, halved, is 13.30 million for bottom-up. ' +
+      'Night: 60%, halved, is 19.96 million; 55% have a wheel base under ' +
+      '4.5 m, giving 10.98 million for top-down.',
+    ref: ref('IRC58', 'Appendix-VII'),
+  },
+  {
+    title: 'Share them across the axle load spectrum',
+    what:
+      'Split each total by axle type, then by load class using the axle load ' +
+      'survey. Stresses are worked out at the mid-point of each class. Front ' +
+      'axles do no bottom-up damage and are left out of that check.',
+    example:
+      'Rear single axles are 15%: 1.996 million for bottom-up and 1.646 million ' +
+      'for top-down. The heaviest single class, 185–195 kN, is 18.15% of them: ' +
+      '362,191 repetitions at 190 kN.',
+    ref: ref('IRC58', 'Appendix-VII', { table: 'Table VII.1' }),
+  },
+  {
+    title: 'Take the temperature differentials',
+    what:
+      'Use the maximum day-time differential for the region for bottom-up ' +
+      'cracking. For top-down, the night-time differential is half the ' +
+      'day-time one plus 5 °C.',
+    example: 'Bihar: 16.8 °C by day, so 16.8 / 2 + 5 = 13.4 °C at night.',
+    ref: ref('IRC58', 'Appendix-VII'),
+  },
+  {
+    title: 'Pick a trial slab and find l',
+    what:
+      'Choose a trial thickness and work out the radius of relative ' +
+      'stiffness, l = [Eh³ / 12k(1 − µ²)]^0.25. It enters every stress ' +
+      'equation.',
+    example:
+      'h = 0.28 m on k = 285 MPa/m gives l = 0.666 m. The appendix prints ' +
+      '0.78758 m here, but 0.666 m is the value that reproduces its stresses.',
+    ref: ref('IRC58', 'Appendix-VII'),
+  },
+  {
+    title: 'Stress for bottom-up cracking',
+    what:
+      'For each rear single and tandem axle class, compute the edge stress ' +
+      'under the load and the day-time differential. The equation depends on ' +
+      'the axle type, whether a tied concrete shoulder is provided, and the ' +
+      'band k falls in.',
+    example:
+      'Tied shoulders, k above 150 MPa/m: a 190 kN single axle gives 2.503 MPa, ' +
+      'a 390 kN tandem 2.118 MPa.',
+    ref: ref('IRC58', 'Appendix-V', { equation: 'Eq. V.1 – V.12' }),
+  },
+  {
+    title: 'Stress for top-down cracking',
+    what:
+      'For each rear axle class, compute the stress at the top of the slab ' +
+      'under the night-time differential. One slab carries the whole single ' +
+      'axle, half a tandem or a third of a tridem. The joint factor B is 0.66 ' +
+      'with dowel bars and 0.90 without.',
+    example:
+      'With dowels: 190 kN single 2.399 MPa, 390 kN tandem 2.427 MPa, ' +
+      '545 kN tridem 2.353 MPa.',
+    ref: ref('IRC58', 'Appendix-V', { equation: 'Eq. V.13' }),
+  },
+  {
+    title: 'Allowable repetitions for each class',
+    what:
+      'Divide each stress by the design flexural strength. Below a stress ' +
+      'ratio of 0.45 the concrete takes unlimited repetitions; above it the ' +
+      'fatigue equation gives the number allowed. Damage is expected over ' +
+      'allowed.',
+    example:
+      '2.503 / 4.95 = 0.506, allowing 588,331 repetitions against 362,191 ' +
+      'expected: damage 0.616 from that one class.',
+    ref: ref('IRC58', 'Appendix-VII', { table: 'Table VII.2 / VII.3' }),
+  },
+  {
+    title: 'Sum the damage and settle the thickness',
+    what:
+      'Add the damage of every class, for bottom-up and top-down together. ' +
+      'The total must not exceed 1. If it does, thicken the slab and repeat ' +
+      'from l.',
+    example:
+      '280 mm: 0.976 + 0.274 + 0.445 + 0.036 = 1.731, not adequate. 290 mm: ' +
+      '0.527, adequate. With two retexturings over 30 years, 300 mm.',
+    ref: ref('IRC58', 'Appendix-VII', { table: 'Table VII.4' }),
+  },
+  {
+    title: 'Without shoulders or dowels',
+    what:
+      'Without a tied concrete shoulder the bottom-up equations for a free ' +
+      'edge apply, and without dowels B rises to 0.90, so the slab must be ' +
+      'thicker. Dowels are needed on heavy traffic regardless. A lane widened ' +
+      'by 0.5–0.6 m relieves the edge about as much as a tied shoulder.',
+    example:
+      '330 mm gives 0.935 bottom-up and 0.654 top-down, 1.589 in all, so 340 mm ' +
+      'is needed. A widened outer lane takes the 290 mm of option i.',
+    ref: ref('IRC58', 'Appendix-VII'),
+  },
+  {
+    title: 'Bonded to the DLC',
+    what:
+      'A slab bonded to a DLC of at least 10 MPa 7-day strength acts with it. ' +
+      'Design the unbonded slab first, then find a thinner slab whose ' +
+      'stiffness, added to the DLC\'s about the common neutral axis, is at ' +
+      'least that of the unbonded one.',
+    example:
+      '250 mm GSB gives k = 72 MPa/m and a 300 mm unbonded slab: 69.05 MN·m. ' +
+      'A 235 mm slab on 150 mm DLC (E 13,600 MPa, µ 0.20) has its neutral axis ' +
+      'at 0.16 m and gives 46.65 + 23.28 = 69.93 MN·m, so it is adequate.',
+    ref: ref('IRC58', 'Appendix-VII', { equation: 'Eq. 10 – 13' }),
   },
 ];
