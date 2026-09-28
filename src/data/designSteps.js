@@ -172,7 +172,7 @@ export const RIGID_DESIGN_STEPS = [
       'CBR 8% gives k = 50.3 MPa/m. With 150 mm GSB and 150 mm DLC of 7 MPa ' +
       '7-day strength, the combined foundation gives k = 285 MPa/m by ' +
       'interpolation. Debonding layer: 125 micron polythene.',
-    ref: ref('IRC58', null, { table: 'Table 2 / Table 4' }),
+    ref: ref('IRC58', 'Cl. 5.7.3.4 / 5.7.4.4', { table: 'Table 2 / Table 4' }),
   },
   {
     title: 'Fix the design flexural strength',
@@ -182,7 +182,7 @@ export const RIGID_DESIGN_STEPS = [
     example:
       'M40 concrete, 4.5 MPa at 28 days, so 4.5 x 1.1 = 4.95 MPa for design. ' +
       'E = 30,000 MPa, µ = 0.15, unit weight 24 kN/m³.',
-    ref: ref('IRC58', 'Appendix-VII'),
+    ref: ref('IRC58', 'Cl. 5.8.2 / 5.8.4.1'),
   },
   {
     title: 'Count the axles over the design period',
@@ -194,7 +194,7 @@ export const RIGID_DESIGN_STEPS = [
       '6,000 CVPD at 7.5% for 30 years is 226.4 million vehicles. At 2.35 ' +
       'axles each that is 532.1 million axles; half go each way, 266.1 million, ' +
       'and 25% of those on a multi-lane road gives 66.5 million design axles.',
-    ref: ref('IRC58', 'Appendix-VII'),
+    ref: ref('IRC58', 'Cl. 5.5.2.3 / 5.5.2.7', { equation: 'Eq. 1' }),
   },
   {
     title: 'Split them into the two six-hour periods',
@@ -207,7 +207,7 @@ export const RIGID_DESIGN_STEPS = [
       'Day: 40% of 66.5 million, halved, is 13.30 million for bottom-up. ' +
       'Night: 60%, halved, is 19.96 million; 55% have a wheel base under ' +
       '4.5 m, giving 10.98 million for top-down.',
-    ref: ref('IRC58', 'Appendix-VII'),
+    ref: ref('IRC58', 'Cl. 5.5.2.4 / 6.3.3'),
   },
   {
     title: 'Share them across the axle load spectrum',
@@ -219,7 +219,7 @@ export const RIGID_DESIGN_STEPS = [
       'Rear single axles are 15%: 1.996 million for bottom-up and 1.646 million ' +
       'for top-down. The heaviest single class, 185–195 kN, is 18.15% of them: ' +
       '362,191 repetitions at 190 kN.',
-    ref: ref('IRC58', 'Appendix-VII', { table: 'Table VII.1' }),
+    ref: ref('IRC58', 'Cl. 5.2 / 5.5.2.6'),
   },
   {
     title: 'Take the temperature differentials',
@@ -228,7 +228,7 @@ export const RIGID_DESIGN_STEPS = [
       'cracking. For top-down, the night-time differential is half the ' +
       'day-time one plus 5 °C.',
     example: 'Bihar: 16.8 °C by day, so 16.8 / 2 + 5 = 13.4 °C at night.',
-    ref: ref('IRC58', 'Appendix-VII'),
+    ref: ref('IRC58', 'Cl. 5.6.1.1 / 5.6.2.3', { table: 'Table 1' }),
   },
   {
     title: 'Pick a trial slab and find l',
@@ -239,7 +239,7 @@ export const RIGID_DESIGN_STEPS = [
     example:
       'h = 0.28 m on k = 285 MPa/m gives l = 0.666 m. The appendix prints ' +
       '0.78758 m here, but 0.666 m is the value that reproduces its stresses.',
-    ref: ref('IRC58', 'Appendix-VII'),
+    ref: ref('IRC58', 'Appendix-V'),
   },
   {
     title: 'Stress for bottom-up cracking',
@@ -251,7 +251,7 @@ export const RIGID_DESIGN_STEPS = [
     example:
       'Tied shoulders, k above 150 MPa/m: a 190 kN single axle gives 2.503 MPa, ' +
       'a 390 kN tandem 2.118 MPa.',
-    ref: ref('IRC58', 'Appendix-V', { equation: 'Eq. V.1 – V.12' }),
+    ref: ref('IRC58', 'Cl. 6.2.7 / Appendix-V', { equation: 'Eq. V.1 – V.12' }),
   },
   {
     title: 'Stress for top-down cracking',
@@ -263,7 +263,7 @@ export const RIGID_DESIGN_STEPS = [
     example:
       'With dowels: 190 kN single 2.399 MPa, 390 kN tandem 2.427 MPa, ' +
       '545 kN tridem 2.353 MPa.',
-    ref: ref('IRC58', 'Appendix-V', { equation: 'Eq. V.13' }),
+    ref: ref('IRC58', 'Cl. 6.2.7 / Appendix-V', { equation: 'Eq. V.13' }),
   },
   {
     title: 'Allowable repetitions for each class',
@@ -275,7 +275,7 @@ export const RIGID_DESIGN_STEPS = [
     example:
       '2.503 / 4.95 = 0.506, allowing 588,331 repetitions against 362,191 ' +
       'expected: damage 0.616 from that one class.',
-    ref: ref('IRC58', 'Appendix-VII', { table: 'Table VII.2 / VII.3' }),
+    ref: ref('IRC58', 'Cl. 5.8.6.1', { equation: 'Eq. 5 / 6' }),
   },
   {
     title: 'Sum the damage and settle the thickness',
@@ -286,7 +286,7 @@ export const RIGID_DESIGN_STEPS = [
     example:
       '280 mm: 0.976 + 0.274 + 0.445 + 0.036 = 1.731, not adequate. 290 mm: ' +
       '0.527, adequate. With two retexturings over 30 years, 300 mm.',
-    ref: ref('IRC58', 'Appendix-VII', { table: 'Table VII.4' }),
+    ref: ref('IRC58', 'Cl. 6.3.4.1', { equation: 'Eq. 7 / 8' }),
   },
   {
     title: 'Without shoulders or dowels',
@@ -298,7 +298,7 @@ export const RIGID_DESIGN_STEPS = [
     example:
       '330 mm gives 0.935 bottom-up and 0.654 top-down, 1.589 in all, so 340 mm ' +
       'is needed. A widened outer lane takes the 290 mm of option i.',
-    ref: ref('IRC58', 'Appendix-VII'),
+    ref: ref('IRC58', 'Cl. 6.2.5 / 6.6.1'),
   },
   {
     title: 'Bonded to the DLC',
@@ -311,6 +311,6 @@ export const RIGID_DESIGN_STEPS = [
       '250 mm GSB gives k = 72 MPa/m and a 300 mm unbonded slab: 69.05 MN·m. ' +
       'A 235 mm slab on 150 mm DLC (E 13,600 MPa, µ 0.20) has its neutral axis ' +
       'at 0.16 m and gives 46.65 + 23.28 = 69.93 MN·m, so it is adequate.',
-    ref: ref('IRC58', 'Appendix-VII', { equation: 'Eq. 10 – 13' }),
+    ref: ref('IRC58', 'Cl. 6.7', { equation: 'Eq. 10 – 13' }),
   },
 ];

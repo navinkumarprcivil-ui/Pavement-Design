@@ -1,6 +1,6 @@
 /**
- * Progress through the flexible design, shown at the top of each step. Steps
- * already reachable can be tapped to jump straight to them.
+ * Progress through the design, shown at the top of each step. Steps already
+ * reachable can be tapped to jump straight to them.
  */
 
 import { h } from './dom.js';
@@ -15,15 +15,30 @@ const FLEXIBLE_STEPS = [
   { screen: 'trials', label: 'Compare' },
 ];
 
+const RIGID_STEPS = [
+  { screen: 'rigidTraffic', label: 'Traffic' },
+  { screen: 'rigidAxles', label: 'Axles' },
+  { screen: 'rigidSlab', label: 'Slab' },
+  { screen: 'rigidResult', label: 'Result' },
+  { screen: 'rates', label: 'Cost' },
+  { screen: 'trials', label: 'Compare' },
+];
+
 function reachable(app, screen) {
   switch (screen) {
     case 'traffic':
     case 'layers':
     case 'inputs':
+    case 'rigidTraffic':
+    case 'rigidAxles':
+    case 'rigidSlab':
       return true;
     case 'results':
-    case 'rates':
       return Boolean(app.state.result);
+    case 'rigidResult':
+      return Boolean(app.state.rigidResult);
+    case 'rates':
+      return Boolean(app.state.pavementType === 'rigid' ? app.state.rigidResult : app.state.result);
     case 'trials':
       return listTrials().length > 0;
     default:
@@ -32,12 +47,13 @@ function reachable(app, screen) {
 }
 
 export function stepper(app) {
-  const current = FLEXIBLE_STEPS.findIndex((s) => s.screen === app.state.screen);
+  const steps = app.state.pavementType === 'rigid' ? RIGID_STEPS : FLEXIBLE_STEPS;
+  const current = steps.findIndex((s) => s.screen === app.state.screen);
 
   return h(
     'nav',
     { class: 'stepper', 'aria-label': 'Design steps' },
-    FLEXIBLE_STEPS.map((step, index) => {
+    steps.map((step, index) => {
       const state = index < current ? 'done' : index === current ? 'current' : 'todo';
       const enabled = index !== current && reachable(app, step.screen);
       return h(

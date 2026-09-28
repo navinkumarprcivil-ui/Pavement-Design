@@ -1,21 +1,22 @@
-import { h, card, numberField, metric, notice, button, msa } from '../dom.js';
+import { h, card, numberField, metric, notice, button } from '../dom.js';
 import { stepper } from '../stepper.js';
+import { currentDesign } from '../currentDesign.js';
 import { costSection, formatCurrency, formatNumber } from '../../engine/costing.js';
-import { combinationName } from '../../data/layerCatalog.js';
 import { saveTrial } from '../../store/trials.js';
 
 export default function renderRates(app) {
-  const result = app.state.result;
-  if (!result) {
+  const design = currentDesign(app);
+  if (!design) {
+    const inputs = app.state.pavementType === 'rigid' ? 'rigidSlab' : 'inputs';
     return h(
       'div',
       { class: 'card-stack' },
       stepper(app),
-      h('div', { class: 'empty-state' }, h('p', {}, 'No design yet.'), button('Go to inputs', () => app.go('inputs')))
+      h('div', { class: 'empty-state' }, h('p', {}, 'No design yet.'), button('Go to inputs', () => app.go(inputs)))
     );
   }
 
-  const slots = result.slots.filter((s) => s.thicknessMm > 0);
+  const slots = design.slots.filter((s) => s.thicknessMm > 0);
   const summary = h('div', {});
 
   const recompute = () => {
@@ -63,21 +64,12 @@ export default function renderRates(app) {
 
   const save = () => {
     const cost = recompute();
-    const { combination } = app.state;
     saveTrial({
-      name: combinationName(combination),
-      combination: { ...combination },
-      thicknesses: { ...app.state.thicknesses },
-      materials: { ...app.state.materials },
-      mix: { ...app.state.mix },
-      roadCategory: app.state.project.roadCategory,
+      ...design.record(),
+      name: design.name,
       projectName: app.state.project.name,
-      designTrafficMsa: result.designTrafficMsa,
-      totalThicknessMm: result.totalThicknessMm,
-      governingLifeMsa: result.governingLifeMsa,
-      safe: result.safe,
-      reliability: result.reliability,
-      slots: result.slots.map((s) => ({
+      safe: design.safe,
+      slots: design.slots.map((s) => ({
         slotId: s.slotId,
         materialId: s.materialId,
         label: s.label,
@@ -107,10 +99,9 @@ export default function renderRates(app) {
     h(
       'div',
       { class: 'summary-chips' },
-      h('span', { class: `chip ${result.safe ? 'pass' : 'fail'}` }, result.safe ? 'Safe' : 'Not safe'),
-      h('span', { class: 'chip' }, combinationName(app.state.combination)),
-      h('span', { class: 'chip' }, `${result.totalThicknessMm} mm`),
-      h('span', { class: 'chip' }, msa(result.governingLifeMsa))
+      h('span', { class: `chip ${design.safe ? 'pass' : 'fail'}` }, design.safe ? 'Safe' : 'Not safe'),
+      h('span', { class: 'chip' }, design.name),
+      design.chips.map((text) => h('span', { class: 'chip' }, text))
     ),
 
     card(

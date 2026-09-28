@@ -17,6 +17,7 @@
   --layer-bituminous: #3c4552;
   --layer-granular: #c9a227;
   --layer-cemented: #8fa3b8;
+  --layer-concrete: #d3d8de;
   --layer-subgrade: #a9805a;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 4px 12px rgba(16, 24, 40, 0.06);
@@ -1273,6 +1274,11 @@ table.data td:first-child {
   color: #10161d;
 }
 
+.layer-chip.concrete {
+  background: var(--layer-concrete);
+  color: #10161d;
+}
+
 .trial-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1466,4 +1472,82 @@ table.data td:first-child {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ---------- Rigid: axle load spectrum ---------- */
+
+.spectrum-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 40px;
+  gap: 8px;
+  align-items: end;
+}
+
+.spectrum-row .field {
+  margin-bottom: 8px;
+}
+
+.spectrum-row .field-label:empty {
+  display: none;
+}
+
+.row-remove {
+  min-height: var(--tap);
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.spectrum-total {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 2px;
+  border-top: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.spectrum-total .total-off {
+  color: var(--danger);
+}
+
+.spectrum-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.paste-area {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: 0.95rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+}
+
+.readout {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-variant-numeric: tabular-nums;
+  font-weight: 620;
+}
+
+.class-table + .class-table {
+  margin-top: 14px;
+}
+
+.class-table h4 {
+  margin: 0 0 6px;
+  font-size: 0.86rem;
 }

@@ -346,36 +346,98 @@ export const THICKNESS_INCREMENTS = {
 /* ------------------------------------------------------------------ *
  * Rigid pavements — IRC:58-2015
  *
- * Every value here reproduces the illustrative thickness design of
- * Appendix-VII: its stresses, allowable repetitions and fatigue damage.
+ * Checked against the code's clauses and against its illustrative design in
+ * Appendix-VII, whose stresses, allowable repetitions and fatigue damage the
+ * engine reproduces.
  * ------------------------------------------------------------------ */
 
 export const RIGID = {
+  /** The guidelines apply above this many commercial vehicles a day. */
+  scope: {
+    ref: ref('IRC58', 'Cl. 2.1 / 6.2.5 / 7.2.6'),
+    verified: true,
+    minimumCVPD: 450,
+  },
+
   concrete: {
-    ref: ref('IRC58', 'Appendix-VII'),
+    ref: ref('IRC58', 'Cl. 5.8.2 / 5.8.4.1'),
     verified: true,
     elasticModulusMPa: 30000,
     poissonRatio: 0.15,
     unitWeightKNPerM3: 24,
-    /** Design flexural strength is the 90-day value, 1.1 x the 28-day one. */
+    /** Design flexural strength may be the 90-day value, 1.1 x the 28-day one. */
     ninetyDayFactor: 1.1,
+    minimumFlexural28MPa: 4.5,
   },
 
   traffic: {
-    ref: ref('IRC58', 'Appendix-VII'),
+    ref: ref('IRC58', 'Cl. 5.5.2.3 / 5.5.2.4 / 6.3.3'),
     verified: true,
-    /** Share of the predominant direction's axles in the design lane, multi-lane. */
+    minimumGrowthRatePercent: 5,
+    /** 25% of two-way traffic on two-lane roads, of the predominant direction on divided roads. */
     laneShare: 0.25,
     /** Each 12-hour period is analysed as two 6-hour periods. */
     sixHourShare: 0.5,
+    /** Share with wheel base under the joint spacing, when no survey says otherwise. */
+    defaultShortWheelBaseShare: 0.5,
+    /** Load class widths for the axle load spectrum, kN. */
+    classWidthKN: { single: 10, tandem: 20, tridem: 30 },
   },
 
-  /** Night-time differential = day-time differential / 2 + 5 °C. */
+  /**
+   * Maximum day-time temperature differential by zone, °C, against slab
+   * thickness (Table 1). The last column covers 300 to 400 mm.
+   */
+  temperature: {
+    ref: ref('IRC58', 'Cl. 5.6.1.1', { table: 'Table 1' }),
+    verified: true,
+    thicknessesMm: [150, 200, 250, 300],
+    zones: [
+      { id: 'I', label: 'I · Hilly regions', values: [12.5, 13.1, 14.3, 15.8] },
+      { id: 'II', label: 'II · Punjab, UP, Gujarat, Rajasthan, Haryana, North MP', values: [12.5, 13.1, 14.3, 15.8] },
+      { id: 'III', label: 'III · Bihar, Jharkhand, West Bengal, Assam, East Orissa', values: [15.6, 16.4, 16.6, 16.8] },
+      { id: 'IV', label: 'IV · Maharashtra, Karnataka, South MP, Chhattisgarh, AP, West Orissa, North TN', values: [17.3, 19.0, 20.3, 21.0] },
+      { id: 'V', label: 'V · Kerala, South Tamil Nadu', values: [15.0, 16.4, 17.6, 18.1] },
+      { id: 'VI', label: 'VI · Coast bounded by hills', values: [14.6, 15.8, 16.2, 17.0] },
+      { id: 'VII', label: 'VII · Coast unbounded by hills', values: [15.5, 17.0, 19.0, 19.2] },
+    ],
+  },
+
+  /** Night-time differential = day-time / 2, plus 5 °C of built-in curl. */
   nightTemperature: {
-    ref: ref('IRC58', 'Appendix-VII'),
+    ref: ref('IRC58', 'Cl. 5.6.1.1 / 5.6.2.3'),
     verified: true,
     dayFraction: 0.5,
     addC: 5,
+  },
+
+  /** k of a homogeneous subgrade from its soaked CBR (Table 2). */
+  subgradeK: {
+    ref: ref('IRC58', 'Cl. 5.7.3.4', { table: 'Table 2' }),
+    verified: true,
+    cbr: [2, 3, 4, 5, 7, 10, 15, 20, 50, 100],
+    k: [21, 28, 35, 42, 48, 55, 62, 69, 140, 220],
+    minimumCBR: 8,
+  },
+
+  /** Effective k over untreated granular and cement treated sub-bases (Table 3). */
+  subBaseK: {
+    ref: ref('IRC58', 'Cl. 5.7.4.4', { table: 'Table 3' }),
+    verified: true,
+    subgradeK: [28, 56, 84],
+    granular: { thicknessesMm: [150, 225, 300], k: [[39, 44, 53], [63, 75, 88], [92, 102, 119]] },
+    cementTreated: { thicknessesMm: [100, 150, 200], k: [[76, 108, 141], [127, 173, 225]] },
+  },
+
+  /** Effective k over a DLC sub-base; the GSB below it is ignored (Table 4). */
+  dlcK: {
+    ref: ref('IRC58', 'Cl. 5.7.4.4', { table: 'Table 4' }),
+    verified: true,
+    subgradeK: [21, 28, 42, 48, 55, 62],
+    thicknessesMm: [100, 150],
+    k: [[56, 97, 166, 208, 278, 300], [97, 138, 208, 277, 300, 300]],
+    maximumK: 300,
+    minimumThicknessMm: 150,
   },
 
   /**
@@ -384,7 +446,7 @@ export const RIGID = {
    * P in kN, h and l in m, k in MPa/m, γ in kN/m³. Bands are on k.
    */
   bottomUpStress: {
-    ref: ref('IRC58', 'Appendix-V', { equation: 'Eq. V.1 – V.12' }),
+    ref: ref('IRC58', 'Cl. 6.2.7 / Appendix-V', { equation: 'Eq. V.1 – V.12' }),
     verified: true,
     kBands: [80, 150],
     single: {
@@ -403,7 +465,7 @@ export const RIGID = {
    * P is the whole rear single axle, half a tandem, a third of a tridem.
    */
   topDownStress: {
-    ref: ref('IRC58', 'Appendix-V', { equation: 'Eq. V.13' }),
+    ref: ref('IRC58', 'Cl. 6.2.7 / Appendix-V', { equation: 'Eq. V.13' }),
     verified: true,
     coefficients: [-0.219, 1.686, 168.48, 0.1089],
     beta: { doweled: 0.66, undoweled: 0.9 },
@@ -415,14 +477,36 @@ export const RIGID = {
    *   SR < 0.45            unlimited
    *   0.45 ≤ SR ≤ 0.55     N = [4.2577 / (SR − 0.4325)]^3.268
    *   SR > 0.55            log10 N = (0.9718 − SR) / 0.0828
-   * The middle branch reproduces Tables VII.2 and VII.3. No stress ratio in the
-   * example exceeds 0.55, so the upper branch is not yet read off the code.
+   * The code prints the last condition as SR < 0.55; it can only mean > 0.55.
    */
   fatigue: {
-    ref: ref('IRC58', 'Appendix-VII', { table: 'Table VII.2 / VII.3' }),
-    verified: false,
+    ref: ref('IRC58', 'Cl. 5.8.6.1', { equation: 'Eq. 5 / 6' }),
+    verified: true,
     endurance: 0.45,
     middle: { upper: 0.55, numerator: 4.2577, offset: 0.4325, exponent: 3.268 },
     upper: { constant: 0.9718, divisor: 0.0828 },
+  },
+
+  /** CFD(BUC) + CFD(TDC) ≤ 1; 10 mm may be added for retexturing and grinding. */
+  criterion: {
+    ref: ref('IRC58', 'Cl. 6.3.4.1', { equation: 'Eq. 7 / 8' }),
+    verified: true,
+    maximumCFD: 1,
+    retexturingMm: 10,
+  },
+
+  /** Dowel bars by slab thickness: [slab, diameter, length, spacing] mm (Table 5). */
+  dowels: {
+    ref: ref('IRC58', 'Cl. 7.2.6', { table: 'Table 5' }),
+    verified: true,
+    minimumSlabMm: 200,
+    rows: [
+      [200, 25, 360, 300],
+      [230, 30, 400, 300],
+      [250, 32, 450, 300],
+      [280, 36, 450, 300],
+      [300, 38, 500, 300],
+      [350, 38, 500, 300],
+    ],
   },
 };

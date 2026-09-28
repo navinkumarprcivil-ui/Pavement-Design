@@ -22,7 +22,11 @@ import renderResults from './ui/screens/results.js';
 import renderRates from './ui/screens/rates.js';
 import renderTrials from './ui/screens/trials.js';
 import renderRural from './ui/screens/rural.js';
-import renderRigid from './ui/screens/rigid.js';
+import renderRigidTraffic from './ui/screens/rigidTraffic.js';
+import renderRigidAxles from './ui/screens/rigidAxles.js';
+import renderRigidSlab from './ui/screens/rigidSlab.js';
+import renderRigidResult from './ui/screens/rigidResult.js';
+import { defaultRigidState, migrateRigid } from './ui/rigidProject.js';
 import { designStepsScreen } from './ui/screens/designSteps.js';
 
 const SCREENS = {
@@ -31,20 +35,30 @@ const SCREENS = {
   layers: { render: renderLayers, title: 'Layers', back: 'traffic' },
   inputs: { render: renderInputs, title: 'Design inputs', back: 'layers' },
   results: { render: renderResults, title: 'Design result', back: 'inputs' },
-  rates: { render: renderRates, title: 'Cost', back: 'results' },
+  rates: { render: renderRates, title: 'Cost', back: () => (app.state.pavementType === 'rigid' ? 'rigidResult' : 'results') },
   trials: { render: renderTrials, title: 'Compare trials', back: 'home' },
   rural: { render: renderRural, title: 'Low volume rural road', back: 'traffic' },
-  rigid: { render: renderRigid, title: 'Rigid pavement', back: 'home' },
+  rigidTraffic: { render: renderRigidTraffic, title: 'Design traffic', back: 'home' },
+  rigidAxles: { render: renderRigidAxles, title: 'Axle loads', back: 'rigidTraffic' },
+  rigidSlab: { render: renderRigidSlab, title: 'Slab design', back: 'rigidAxles' },
+  rigidResult: { render: renderRigidResult, title: 'Design result', back: 'rigidSlab' },
   // Reached from the header, so it returns to wherever it was opened from.
   designSteps: { render: designStepsScreen('flexible'), title: 'Flexible design steps', back: () => app.designStepsReturn },
   rigidDesignSteps: { render: designStepsScreen('rigid'), title: 'Rigid design steps', back: () => app.designStepsReturn },
 };
 
 /** Where each design's steps are offered, in the header. */
-const DESIGN_STEPS_FOR = {
-  ...Object.fromEntries(['traffic', 'layers', 'inputs', 'results', 'rates', 'trials'].map((s) => [s, 'designSteps'])),
-  rigid: 'rigidDesignSteps',
-};
+const FLEXIBLE_SCREENS = new Set(['traffic', 'layers', 'inputs', 'results']);
+const RIGID_SCREENS = new Set(['rigidTraffic', 'rigidAxles', 'rigidSlab', 'rigidResult']);
+const SHARED_SCREENS = new Set(['rates', 'trials']);
+
+function designStepsFor(state) {
+  const { screen, pavementType } = state;
+  if (FLEXIBLE_SCREENS.has(screen)) return 'designSteps';
+  if (RIGID_SCREENS.has(screen)) return 'rigidDesignSteps';
+  if (SHARED_SCREENS.has(screen)) return pavementType === 'rigid' ? 'rigidDesignSteps' : 'designSteps';
+  return null;
+}
 
 export const defaultState = () => ({
   screen: 'home',
@@ -87,17 +101,8 @@ export const defaultState = () => ({
     carriagewayWidthM: 7,
     lengthKm: 1,
   },
-  rigid: {
-    slabThicknessMm: 280,
-    elasticModulusMPa: 30000,
-    poissonRatio: 0.15,
-    flexuralStrengthMPa: 4.5,
-    modulusOfSubgradeReactionMPaPerM: 80,
-    wheelLoadN: 20000,
-    tyrePressureMPa: 0.8,
-    temperatureDifferentialC: 16,
-    slabLengthMm: 4500,
-  },
+  pavementType: 'flexible',
+  rigid: defaultRigidState(),
   rigidResult: null,
 });
 
@@ -109,10 +114,11 @@ function migrate(saved) {
   const defaults = defaultState();
   const state = { ...defaults, ...saved, screen: 'home' };
   for (const [key, value] of Object.entries(defaults)) {
-    if (value && typeof value === 'object' && !Array.isArray(value) && key !== 'thicknesses' && key !== 'rates') {
+    if (value && typeof value === 'object' && !Array.isArray(value) && !['thicknesses', 'rates', 'rigid'].includes(key)) {
       state[key] = { ...value, ...(saved[key] || {}) };
     }
   }
+  state.rigid = migrateRigid(saved.rigid);
   if (state.traffic.vdfMode === 'manual') state.traffic.vdfMode = 'survey';
   if (!BINDER_GRADES.includes(state.materials.binderGrade)) {
     state.materials.binderGrade = defaults.materials.binderGrade;
@@ -186,7 +192,7 @@ const app = {
     );
     this.header.appendChild(h('h1', {}, screen.title));
     // Top right: the design procedure, readable from anywhere in its design.
-    const stepsScreen = DESIGN_STEPS_FOR[this.state.screen];
+    const stepsScreen = designStepsFor(this.state);
     if (stepsScreen) {
       this.header.appendChild(
         h(

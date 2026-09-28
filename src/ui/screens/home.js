@@ -9,6 +9,7 @@ export default function renderHome(app) {
         class: 'choice-card',
         onclick: () => {
           app.state.pavementType = pavementType;
+          app.persist();
           app.go(screen);
         },
       },
@@ -28,6 +29,6 @@ export default function renderHome(app) {
     { class: 'card-stack' },
     h('h2', { class: 'screen-title' }, 'What are you designing?'),
     choice('Flexible Pavement Design', 'flexible', 'traffic'),
-    choice('Rigid Pavement Design', 'rigid', 'rigid')
+    choice('Rigid Pavement Design', 'rigid', 'rigidTraffic')
   );
 }

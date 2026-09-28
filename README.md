@@ -53,12 +53,14 @@ banding are implemented. The design catalogue itself is code content, so it is
 not shipped — the app gives you the catalogue structure and you enter the cells
 from your own copy. Entries are stored on the device and reused from then on.
 
-**Rigid pavement (IRC:58-2015).** Partial. Radius of relative stiffness,
-Westergaard edge/interior/corner load stresses, and warping stress by Bradbury's
-coefficient are implemented and are sound classical theory. The IRC:58 design
-procedure proper — finite-element derived flexural stress equations and
-cumulative fatigue damage over the axle load spectrum — is not, so the app
-reports stresses without claiming a pass or fail.
+**Rigid pavement (IRC:58-2015).** The full fatigue design of a jointed plain
+concrete slab: foundation k from Tables 2 – 4, temperature differentials from
+Table 1, six-hour design repetitions, the Appendix-V stress equations for
+bottom-up and top-down cracking, and cumulative fatigue damage over the axle
+load spectrum. The thinnest slab with CFD ≤ 1 is found in 10 mm steps, with
+dowel bars from Table 5. It reproduces the illustrative design of Appendix-VII
+(290 mm with tied shoulders and dowels, 340 mm without). Bonded slabs, tie bars
+and drainage layers are not yet in the app.
 
 ## Saved work and cloud sync
 
@@ -164,7 +166,8 @@ src/engine/             Calculation core — no browser APIs
   criteria.js             Fatigue and rutting
   flexibleDesign.js       Trial evaluation and thickness search
   ruralSP72.js            Low volume rural roads
-  rigidIRC58.js           Rigid pavement (partial)
+  rigidFatigue.js         IRC:58 stresses, fatigue and repetitions
+  rigidDesign.js          IRC:58 foundation, temperature and slab search
   costing.js              Quantities and cost
 src/data/               IRC constants with citations; layer catalogue
 src/config/firebase.js  Firebase project config (public, not a secret)
@@ -189,6 +192,5 @@ rural roads across several IRC design methods. Next up:
 
 - The IRC:37 design catalogue as a second route alongside the
   mechanistic-empirical one already built.
-- The IRC:58 fatigue damage procedure, to turn the rigid screen from stresses
-  into a design.
+- IRC:58 bonded slabs, tie bars and drainage layers.
 - Verifying the constant groups against controlled copies of the codes.

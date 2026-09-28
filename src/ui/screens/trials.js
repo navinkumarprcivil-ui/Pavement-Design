@@ -2,6 +2,7 @@ import { h, metric, badge, button, msa } from '../dom.js';
 import { stepper } from '../stepper.js';
 import { formatCompactCurrency } from '../../engine/costing.js';
 import { listTrials, deleteTrial, setChosenTrial } from '../../store/trials.js';
+import { migrateRigid } from '../rigidProject.js';
 
 /** Safe before unsafe, then cheapest, then thinnest. */
 function rank(a, b) {
@@ -15,7 +16,8 @@ function rank(a, b) {
 export default function renderTrials(app) {
   const trials = listTrials();
 
-  app.setActions(button('New trial', () => app.go('layers')));
+  const rigidFlow = app.state.pavementType === 'rigid';
+  app.setActions(button('New trial', () => app.go(rigidFlow ? 'rigidSlab' : 'layers')));
 
   if (!trials.length) {
     return h(
@@ -31,6 +33,15 @@ export default function renderTrials(app) {
 
   /** Load a saved trial back into the design, to adjust it. */
   const edit = (trial) => {
+    if (trial.pavementType === 'rigid') {
+      app.state.pavementType = 'rigid';
+      app.state.rigid = migrateRigid(structuredClone(trial.rigid));
+      app.state.rigidResult = null;
+      app.persist();
+      app.go('rigidSlab');
+      return;
+    }
+    app.state.pavementType = 'flexible';
     app.state.combination = { ...trial.combination };
     app.state.thicknesses = { ...trial.thicknesses };
     app.state.materials = { ...app.state.materials, ...trial.materials };
@@ -79,7 +90,9 @@ export default function renderTrials(app) {
         'div',
         { class: 'metric-grid three' },
         metric('Total', `${trial.totalThicknessMm} mm`),
-        metric('Life', msa(trial.governingLifeMsa)),
+        trial.pavementType === 'rigid'
+          ? metric('CFD', Number.isFinite(trial.cfd) ? trial.cfd.toFixed(2) : '—')
+          : metric('Life', msa(trial.governingLifeMsa)),
         metric('Per km', trial.cost?.costPerKm > 0 ? formatCompactCurrency(trial.cost.costPerKm) : '—')
       ),
       h(

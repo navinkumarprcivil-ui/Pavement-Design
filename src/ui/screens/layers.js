@@ -13,6 +13,7 @@ const LAYER_COLOURS = {
   bituminous: '#3c4552',
   granular: '#c9a227',
   cemented: '#8fa3b8',
+  concrete: '#d3d8de',
   subgrade: '#a9805a',
 };
 
@@ -37,7 +38,7 @@ export function sectionDiagram(slots) {
           class: `section-layer ${slot.behaviour}`,
           style: {
             background: LAYER_COLOURS[slot.behaviour] || '#ccc',
-            color: slot.behaviour === 'granular' ? '#10161d' : '#f5f8fb',
+            color: slot.behaviour === 'granular' || slot.behaviour === 'concrete' ? '#10161d' : '#f5f8fb',
             minHeight: height,
           },
         },
