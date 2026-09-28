@@ -5,6 +5,9 @@
 
 import { RIGID, ref } from '../data/ircConstants.js';
 import { rigidTraffic, foundationK, evaluateSlab, designSlab, dowelBars } from '../engine/rigidDesign.js';
+import { AXLES, defaultSpectrum, frontAxlePercent, spectrumTotal } from './spectrum.js';
+
+export { AXLES, frontAxlePercent, spectrumTotal, parseSpectrum } from './spectrum.js';
 
 export const SUB_BASES = [
   { value: 'dlc', label: 'DLC', materialId: 'DLC', behaviour: 'cemented', name: 'Dry lean concrete' },
@@ -17,19 +20,6 @@ export const SHOULDERS = [
   { value: 'widened', label: 'Widened lane' },
   { value: 'none', label: 'None' },
 ];
-
-export const AXLES = [
-  { id: 'single', label: 'Rear single' },
-  { id: 'tandem', label: 'Tandem' },
-  { id: 'tridem', label: 'Tridem' },
-];
-
-/** Class mid-points to start a spectrum from, at the class widths of Cl. 5.2. */
-function classes(from, to, width) {
-  const rows = [];
-  for (let load = to; load >= from; load -= width) rows.push({ loadKN: load, percent: null });
-  return rows;
-}
 
 export const defaultRigidState = () => ({
   traffic: {
@@ -44,11 +34,7 @@ export const defaultRigidState = () => ({
     axlesPerVehicle: 2.35,
     axleMix: { single: 15, tandem: 25, tridem: 15 },
   },
-  spectrum: {
-    single: classes(80, 200, RIGID.traffic.classWidthKN.single),
-    tandem: classes(160, 400, RIGID.traffic.classWidthKN.tandem),
-    tridem: classes(230, 560, RIGID.traffic.classWidthKN.tridem),
-  },
+  spectrum: defaultSpectrum(),
   foundation: {
     subgradeCBR: 8,
     subBase: 'dlc',
@@ -82,32 +68,6 @@ export function migrateRigid(saved) {
 
 export function subBaseOption(value) {
   return SUB_BASES.find((o) => o.value === value) || SUB_BASES[0];
-}
-
-/** Front axles are whatever the three rear categories leave of 100%. */
-export function frontAxlePercent(mix) {
-  return 100 - (mix.single || 0) - (mix.tandem || 0) - (mix.tridem || 0);
-}
-
-export function spectrumTotal(rows) {
-  return rows.reduce((sum, r) => sum + (Number(r.percent) || 0), 0);
-}
-
-/**
- * Rows from text pasted out of a spreadsheet. A line with two numbers is a
- * load and a share; with three, a class range and a share, taken at the
- * range's mid-point.
- */
-export function parseSpectrum(text) {
-  return text
-    .split(/\r?\n/)
-    .map((line) => (line.match(/\d+(?:\.\d+)?/g) || []).map(Number))
-    .filter((nums) => nums.length >= 2)
-    .map((nums) =>
-      nums.length >= 3
-        ? { loadKN: (nums[0] + nums[1]) / 2, percent: nums[2] }
-        : { loadKN: nums[0], percent: nums[1] }
-    );
 }
 
 export function rigidTrafficFor(rigid) {

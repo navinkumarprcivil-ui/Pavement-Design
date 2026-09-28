@@ -35,11 +35,21 @@ and open its address on the phone over the same network.
    DBM), base (WMM, WBM or CTB), sub-base (GSB or CTSB), on a fixed subgrade.
    Choosing a cement treated base brings up the crack relief interlayer it
    requires.
-3. **Inputs.** Subgrade CBR, binder grade, pavement temperature, mix
+3. **Axle loads** (cement treated base only). CTB material and 28-day UCS,
+   which give the modulus of rupture (Cl. 8.2.2), and the axle load spectrum:
+   the share of single, tandem and tridem axles and of each load class. The app
+   works out the expected repetitions of every class from the design traffic.
+4. **Inputs.** Subgrade CBR, binder grade, pavement temperature, mix
    volumetrics, and trial thicknesses.
-4. **Result.** Fatigue and rutting checks with a safe/unsafe verdict, the
+5. **Result.** Fatigue and rutting checks with a safe/unsafe verdict, the
    governing life, the computed strains, every layer modulus with its working,
    and the traffic calculation — each step citing the clause it came from.
+   A cement treated base is checked for fatigue (Eq. 3.5) and for cumulative
+   fatigue damage over the axle load spectrum (Eq. 3.6 / 3.7): tandem and
+   tridem axles as two and three single axles, the CTB stress for each class
+   from the elastic analysis at 0.80 MPa, and CFD ≤ 1. The CTB is sized to
+   pass both. The stresses reproduce the Annex-II example (0.70 MPa under the
+   190 kN single axle).
 
 You can either check a trial section you have entered, or let the app find the
 thinnest safe bituminous thickness for the foundation you have set.
@@ -174,6 +184,7 @@ src/engine/             Calculation core — no browser APIs
   materials.js            Layer moduli
   criteria.js             Fatigue and rutting
   flexibleDesign.js       Trial evaluation and thickness search
+  ctbDamage.js            Cumulative fatigue damage of a CTB
   ruralSP72.js            Low volume rural roads
   rigidFatigue.js         IRC:58 stresses, fatigue and repetitions
   rigidDesign.js          IRC:58 foundation, temperature and slab search
@@ -189,6 +200,8 @@ src/ui/                 Screens and DOM helpers
   modules.js              The design modules and their codes
   drawer.js               The side panel
   stepper.js              Numbered step tabs for each module
+  spectrum.js             Axle load spectrum editors, rigid and CTB
+  ctbProject.js           CTB axle loads and strength for the design
   screens/report.js       The design report, for print, PDF and Word
 tests/                  Node test runner, no dependencies
 tools/serve.js          Static file server for development

@@ -1,5 +1,6 @@
 import { h, card, numberField, segmented, notice, button, msa } from '../dom.js';
 import { designTraffic, subgradeWarning } from '../project.js';
+import { hasCTB, ctbDamageInput } from '../ctbProject.js';
 import { describeCombination, BINDER_GRADES, BEHAVIOUR } from '../../data/layerCatalog.js';
 import { evaluateTrial, designSection } from '../../engine/flexibleDesign.js';
 import { MODULI, CRITERIA, MINIMUM_THICKNESS } from '../../data/ircConstants.js';
@@ -25,6 +26,7 @@ export default function renderInputs(app) {
     mix,
     designTrafficMsa,
     roadCategory: project.roadCategory,
+    ctbDamage: hasCTB(app.state) ? ctbDamageInput(app.state, traffic).engineInput : null,
   });
 
   const status = h('div', {});

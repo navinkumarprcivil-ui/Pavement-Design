@@ -2,6 +2,8 @@ import { h, card, keyResult, badge, notice, button, msa, micro } from '../dom.js
 import { stepCard, clauseChip, formatCitation } from '../citations.js';
 import { designTraffic } from '../project.js';
 import { sectionDiagram } from './layers.js';
+import { hasCTB, ctbDamageInput } from '../ctbProject.js';
+import { AXLES } from '../spectrum.js';
 import { TRAFFIC } from '../../data/ircConstants.js';
 
 const ALLOWABLE_LABEL = {
@@ -12,6 +14,7 @@ const ALLOWABLE_LABEL = {
 
 /** One performance check: the computed strain against the allowable one. */
 export function checkTile(check) {
+  if (check.kind === 'damage') return damageTile(check);
   const compressive = check.compressive === true;
   const ratio =
     check.allowableMicro > 0 ? check.strainMicro / check.allowableMicro : check.utilisation;
@@ -43,15 +46,81 @@ export function checkTile(check) {
   );
 }
 
+/** The damage summed over the axle load classes against its limit of one. */
+function damageTile(check) {
+  return h(
+    'div',
+    { class: 'check-tile', 'data-safe': String(check.safe) },
+    h(
+      'div',
+      { class: 'check-head' },
+      h('strong', {}, check.title),
+      badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail')
+    ),
+    h('span', { class: 'check-sub' }, check.strainLabel, clauseChip(check.title, check.ref)),
+    h(
+      'div',
+      { class: 'check-figures' },
+      h('span', { class: 'check-actual' }, `CFD ${check.damage.toFixed(3)}`),
+      h('span', { class: 'check-allowable' }, `of ${check.allowableDamage.toFixed(2)} allowable`)
+    ),
+    h('div', { class: 'meter', role: 'presentation' }, h('span', { style: { width: `${Math.min(100, Math.max(2, check.damage * 100))}%` } }))
+  );
+}
+
 /** A check's arithmetic, as a calculation step. */
 export function checkStep(check) {
   return {
     title: check.title,
     formula: check.formula,
     substitution: check.substitution,
-    result: `Allowable ${msa(check.allowableMsa)} against ${msa(check.demandMsa)}`,
+    result: check.stepResult ?? `Allowable ${msa(check.allowableMsa)} against ${msa(check.demandMsa)}`,
     ref: check.ref,
   };
+}
+
+const count = (value) => Math.round(value).toLocaleString('en-IN');
+
+/**
+ * Rows of the CTB damage table for one axle type: the load, its passes as
+ * single axles, the stress, stress ratio, fatigue life and damage.
+ */
+export function damageRows(check, axle) {
+  return check.rows
+    .filter((r) => r.axle === axle)
+    .map((r) => [
+      String(r.loadKN),
+      count(r.singleRepetitions),
+      r.stressMPa.toFixed(3),
+      r.stressRatio.toFixed(3),
+      r.life.toExponential(2),
+      r.damage.toFixed(3),
+    ]);
+}
+
+
+/** The damage check's working, one table per axle type. */
+function damageCard(check) {
+  const tableFor = (axle) => {
+    const rows = damageRows(check, axle.id);
+    if (!rows.length) return null;
+    return h(
+      'div',
+      { class: 'class-table' },
+      h('h4', {}, `${axle.label} axles · ${check.byAxle[axle.id].toFixed(3)}`),
+      h(
+        'div',
+        { class: 'table-scroll' },
+        h(
+          'table',
+          { class: 'data' },
+          h('thead', {}, h('tr', {}, ['kN', 'ni', 'MPa', 'SR', 'Nf', 'Damage'].map((c) => h('th', {}, c)))),
+          h('tbody', {}, rows.map((row) => h('tr', {}, row.map((cell) => h('td', { class: 'numeric' }, cell)))))
+        )
+      )
+    );
+  };
+  return card('CTB damage by load class', AXLES.map(tableFor));
 }
 
 /** The layer system analysed: thickness, modulus and Poisson's ratio. */
@@ -126,6 +195,7 @@ export default function renderResults(app) {
   }
 
   const traffic = designTraffic(app.state);
+  const damage = result.checks.find((c) => c.kind === 'damage');
 
   app.setActions(
     button('Edit', () => app.go('inputs'), { kind: 'secondary' }),
@@ -150,6 +220,7 @@ export default function renderResults(app) {
       result.checks
         .filter((c) => c.allowableMicro != null)
         .map((c) => keyResult(ALLOWABLE_LABEL[c.id] || c.title, c.allowableMicro.toFixed(1), 'µε', c.ref)),
+      damage ? keyResult('CFD, CTB', damage.damage.toFixed(3), null, damage.ref) : null,
       keyResult('Reliability', String(result.reliability), '%', null)
     ),
 
@@ -171,10 +242,13 @@ export default function renderResults(app) {
 
     card('Computed strains', strainTable(result.responses)),
 
+    damage ? damageCard(damage) : null,
+
     card(
       'Calculation steps',
       stepGroup('Design traffic', traffic.result.steps),
       stepGroup('Layer moduli', result.modulusSteps),
+      damage && hasCTB(app.state) ? stepGroup('CTB axle loads', ctbDamageInput(app.state, traffic).steps) : null,
       stepGroup('Performance criteria', result.checks.map(checkStep))
     )
   );

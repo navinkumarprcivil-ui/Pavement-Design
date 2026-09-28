@@ -300,6 +300,24 @@ export const CRITERIA = {
   cementedDamage: {
     ref: ref('IRC37', 'Cl. 3.6.3.2', { equation: 'Eq. 3.6 / 3.7' }),
     verified: true,
+    intercept: 0.972,
+    slope: 0.0825,
+    allowableDamage: 1,
+    tyrePressureMPa: 0.8,
+    /** A tandem counts as two single axles at half its load, a tridem as three at a third. */
+    singleAxlesPer: { single: 1, tandem: 2, tridem: 3 },
+  },
+
+  /** Modulus of rupture of the CTB: a share of the 28-day UCS, up to a cap per material. */
+  ctbRupture: {
+    ref: ref('IRC37', 'Cl. 8.2.2'),
+    verified: true,
+    ucsShare: 0.2,
+    materials: [
+      { id: 'aggregate', label: 'Cement stabilised aggregate', short: 'Stabilised aggregate', maxMPa: 1.4 },
+      { id: 'limeFlyash', label: 'Lime-flyash-soil', short: 'Lime-flyash-soil', maxMPa: 1.05 },
+      { id: 'soilCement', label: 'Soil-cement', short: 'Soil-cement', maxMPa: 0.7 },
+    ],
   },
 
   /** 90% on important roads, and on others from 20 msa; 80% below. */

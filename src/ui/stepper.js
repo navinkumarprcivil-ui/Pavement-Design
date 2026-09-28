@@ -5,10 +5,12 @@
 
 import { h } from './dom.js';
 import { listTrials } from '../store/trials.js';
+import { hasCTB } from './ctbProject.js';
 
 const FLEXIBLE_STEPS = [
   { screen: 'traffic', label: 'Traffic' },
   { screen: 'layers', label: 'Composition' },
+  { screen: 'ctbAxles', label: 'Axle loads', when: hasCTB },
   { screen: 'inputs', label: 'Inputs' },
   { screen: 'results', label: 'Result' },
   { screen: 'report', label: 'Report' },
@@ -56,7 +58,7 @@ function reachable(app, screen) {
 }
 
 export function stepper(app) {
-  const steps = STEPS[app.state.pavementType] || FLEXIBLE_STEPS;
+  const steps = (STEPS[app.state.pavementType] || FLEXIBLE_STEPS).filter((s) => !s.when || s.when(app.state));
   const current = steps.findIndex((s) => s.screen === app.state.screen);
 
   const nav = h(

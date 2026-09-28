@@ -28,9 +28,11 @@ import renderTrials from './ui/screens/trials.js';
 import renderRural from './ui/screens/rural.js';
 import renderRigidTraffic from './ui/screens/rigidTraffic.js';
 import renderRigidAxles from './ui/screens/rigidAxles.js';
+import renderCtbAxles from './ui/screens/ctbAxles.js';
 import renderRigidSlab from './ui/screens/rigidSlab.js';
 import renderRigidResult from './ui/screens/rigidResult.js';
 import { defaultRigidState, migrateRigid } from './ui/rigidProject.js';
+import { defaultCtbState, hasCTB } from './ui/ctbProject.js';
 import { designStepsScreen } from './ui/screens/designSteps.js';
 import renderProjects from './ui/screens/projects.js';
 import renderMaterialRates from './ui/screens/materialRates.js';
@@ -48,7 +50,8 @@ const SCREENS = {
   home: { render: renderHome, title: 'New pavement design', back: null },
   traffic: { render: renderTraffic, title: 'Design traffic', back: 'home' },
   layers: { render: renderLayers, title: 'Pavement composition', back: 'traffic' },
-  inputs: { render: renderInputs, title: 'Design inputs', back: 'layers' },
+  ctbAxles: { render: renderCtbAxles, title: 'Axle load spectrum', back: 'layers' },
+  inputs: { render: renderInputs, title: 'Design inputs', back: () => (hasCTB(app.state) ? 'ctbAxles' : 'layers') },
   results: { render: renderResults, title: 'Design result', back: 'inputs' },
   report: { render: renderReport, title: 'Design report', back: () => RESULT_SCREEN[app.state.pavementType] },
   rates: { render: renderRates, title: 'Cost', back: () => 'report' },
@@ -105,6 +108,8 @@ export const defaultState = () => ({
     crackReliefId: 'AGG_INTERLAYER',
   },
   thicknesses: {},
+  /** Strength and axle loads of a cement treated base, for its cumulative damage. */
+  ctb: defaultCtbState(),
   materials: {
     subgradeCBR: 8,
     binderGrade: 'VG40',

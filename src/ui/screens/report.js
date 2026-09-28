@@ -12,7 +12,8 @@ import { formatCitation } from '../citations.js';
 import { designTraffic } from '../project.js';
 import { currentDesign } from '../currentDesign.js';
 import { AXLES, SUB_BASES, SHOULDERS } from '../rigidProject.js';
-import { checkStep } from './results.js';
+import { checkStep, damageRows } from './results.js';
+import { ctbDamageInput } from '../ctbProject.js';
 import { CODES, RIGID, TRAFFIC, STANDARD_AXLE, MODULI, CRITERIA, roadCategory } from '../../data/ircConstants.js';
 import { combinationName } from '../../data/layerCatalog.js';
 import { CATALOGUE_REF } from '../../engine/ruralSP72.js';
@@ -223,6 +224,48 @@ function trafficGiven(app, traffic, cite) {
   );
 }
 
+/** The CTB's cumulative fatigue damage: axle loads, working and one table per axle type. */
+function ctbDamageSection(app, damage, ctb, cite) {
+  const state = app.state.ctb;
+  return [
+    h('h3', {}, '3.5 Cumulative fatigue damage of the CTB'),
+    para(
+      'Every axle load class expected over the design period uses up part of the fatigue life of the cement treated ' +
+        'base. Tandem and tridem axles are taken as two and three single axles sharing the load. The tensile stress at ' +
+        `the underside of the CTB is computed for each class on dual wheels at ${CRITERIA.cementedDamage.tyrePressureMPa.toFixed(2)} MPa ` +
+        'contact pressure, and the damage of all classes is summed. ',
+      cite(damage.ref)
+    ),
+    givenTable(
+      'Axle load inputs',
+      [
+        ...AXLES.map((a) => ['', `${a.label} axles, share of all axles`, `${state.axleMix[a.id] || 0}%`, 'Input']),
+        ['', 'Axles per commercial vehicle', String(state.axlesPerVehicle), 'Input'],
+      ],
+      cite
+    ),
+    ctb.steps.map((step) => stepBlock(step, cite)),
+    AXLES.map((a) => {
+      const rows = damageRows(damage, a.id);
+      if (!rows.length) return null;
+      return [
+        table(
+          `${a.label} axles`,
+          ['Load, kN', 'ni, as single axles', 'σt, MPa', 'σt / MRup', 'Nfi', 'ni / Nfi'],
+          rows
+        ),
+        para(`Damage from ${a.label.toLowerCase()} axles: ${damage.byAxle[a.id].toFixed(3)}.`),
+      ];
+    }),
+    para(
+      h('strong', {}, `CFD = ${damage.damage.toFixed(3)}`),
+      damage.safe
+        ? `, within the limit of ${damage.allowableDamage}.`
+        : `, over the limit of ${damage.allowableDamage}: the CTB would crack before the end of the design period.`
+    ),
+  ];
+}
+
 function flexibleReport(app, cite) {
   const result = app.state.result;
   const traffic = designTraffic(app.state);
@@ -236,6 +279,11 @@ function flexibleReport(app, cite) {
   const bituminousSlots = result.slots.filter((s) => s.behaviour === 'bituminous' && s.thicknessMm > 0);
   if (bituminousSlots.length) marks[bituminousSlots[bituminousSlots.length - 1].slotId] = '◂ εt, bottom of bituminous layer';
   if (result.slots.some((s) => s.slotId === 'BASE' && s.behaviour === 'cemented')) marks.BASE = '◂ εt, bottom of CTB';
+
+  const damage = result.checks.find((c) => c.kind === 'damage');
+  const ctb = damage ? ctbDamageInput(app.state, traffic) : null;
+  const rupture = CRITERIA.ctbRupture;
+  const verdictNumber = damage ? '3.6' : '3.5';
 
   return [
     header(app, 'IRC37', 'Flexible pavement'),
@@ -263,6 +311,13 @@ function flexibleReport(app, cite) {
         ['Va', 'Air voids, bottom bituminous layer', `${mix.airVoidsPercent}%`, 'Input', CRITERIA.bituminousFatigue.ref],
         ['Vbe', 'Effective binder, bottom bituminous layer', `${mix.effectiveBinderPercent}%`, 'Input', CRITERIA.bituminousFatigue.ref],
         ['R', 'Reliability', `${result.reliability}%`, 'Code', CRITERIA.reliability?.ref],
+        ...(ctb
+          ? [
+              ['', 'Cement treated base material', ctb.rupture.material.label, 'Input', rupture.ref],
+              ['UCS', '28-day UCS of the CTB', `${app.state.ctb.ucsMPa} MPa`, 'Input', rupture.ref],
+              ['MRup', 'Modulus of rupture of the CTB', `${ctb.rupture.value.toFixed(2)} MPa`, 'Derived', rupture.ref],
+            ]
+          : []),
       ],
       cite
     ),
@@ -308,14 +363,16 @@ function flexibleReport(app, cite) {
     h('h3', {}, '3.4 Performance criteria'),
     result.checks.map((check) => stepBlock(checkStep(check), cite)),
 
-    h('h3', {}, '3.5 Verdict'),
+    damage ? ctbDamageSection(app, damage, ctb, cite) : null,
+
+    h('h3', {}, `${verdictNumber} Verdict`),
     table(
-      'Allowable against computed strains',
-      ['Check', 'Allowable, µε', 'Computed, µε', 'Life', 'Verdict'],
+      'Allowable against computed values',
+      ['Check', 'Allowable', 'Computed', 'Life', 'Verdict'],
       result.checks.map((c) => [
         c.title,
-        c.allowableMicro != null ? c.allowableMicro.toFixed(1) : '—',
-        c.strainMicro != null ? c.strainMicro.toFixed(1) : '—',
+        c.kind === 'damage' ? `CFD ${c.allowableDamage.toFixed(2)}` : c.allowableMicro != null ? `${c.allowableMicro.toFixed(1)} µε` : '—',
+        c.kind === 'damage' ? `CFD ${c.damage.toFixed(3)}` : c.strainMicro != null ? `${c.strainMicro.toFixed(1)} µε` : '—',
         msa(c.allowableMsa),
         h('strong', { class: c.safe ? 'r-pass' : 'r-fail' }, c.safe ? 'Pass' : 'Fail'),
       ])

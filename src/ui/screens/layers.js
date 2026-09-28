@@ -1,4 +1,5 @@
 import { h, card, segmented, button } from '../dom.js';
+import { hasCTB } from '../ctbProject.js';
 import {
   BITUMINOUS_OPTIONS,
   BASE_OPTIONS,
@@ -84,7 +85,11 @@ export default function renderLayers(app) {
   const bituminousSlots = (id) => (findOption(BITUMINOUS_OPTIONS, id)?.courses || []).map((c) => c.id);
   const bituminous = findOption(BITUMINOUS_OPTIONS, combination.bituminousId) || BITUMINOUS_OPTIONS[0];
 
-  app.setActions(button('Continue to inputs', () => app.go('inputs')));
+  app.setActions(
+    hasCTB(app.state)
+      ? button('Continue to axle loads', () => app.go('ctbAxles'))
+      : button('Continue to inputs', () => app.go('inputs'))
+  );
 
   const compositionCard = ({ base, relief, subBase }) => {
     const selected =

@@ -13,7 +13,7 @@ import { MODULES, MODULE_ORDER } from './modules.js';
 
 /** Screens that belong to a design module rather than standing aside from one. */
 export const FLOW_SCREENS = new Set([
-  'traffic', 'layers', 'inputs', 'results', 'rural', 'report', 'rates', 'trials',
+  'traffic', 'layers', 'ctbAxles', 'inputs', 'results', 'rural', 'report', 'rates', 'trials',
   'rigidTraffic', 'rigidAxles', 'rigidSlab', 'rigidResult',
 ]);
 

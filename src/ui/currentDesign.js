@@ -5,6 +5,7 @@
 
 import { msa } from './dom.js';
 import { combinationName } from '../data/layerCatalog.js';
+import { hasCTB } from './ctbProject.js';
 
 function flexible(app) {
   const result = app.state.result;
@@ -23,6 +24,7 @@ function flexible(app) {
       thicknesses: { ...app.state.thicknesses },
       materials: { ...app.state.materials },
       mix: { ...app.state.mix },
+      ctb: hasCTB(app.state) ? structuredClone(app.state.ctb) : null,
       roadCategory: app.state.project.roadCategory,
       designTrafficMsa: result.designTrafficMsa,
       totalThicknessMm: result.totalThicknessMm,

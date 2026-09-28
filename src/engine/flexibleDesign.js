@@ -10,6 +10,7 @@
  */
 
 import { analyze } from './elastic.js';
+import { cumulativeDamage } from './ctbDamage.js';
 import { buildLayerStack, granularModulus, subgradeModulus } from './materials.js';
 import {
   bituminousFatigueLife,
@@ -81,6 +82,10 @@ function check(fields) {
  * @param {number} input.designTrafficMsa
  * @param {string} [input.roadCategory]
  * @param {80|90} [input.reliability]
+ * @param {object} [input.ctbDamage]  {classes, modulusOfRuptureMPa}: the axle
+ *        load classes for the CTB's cumulative fatigue damage.
+ * @param {boolean} [input.skipDamage]  Leave the damage sum out, for searches
+ *        that cannot change it.
  */
 export function evaluateTrial(input) {
   const { combination, thicknesses, materials, mix, designTrafficMsa, roadCategory } = input;
@@ -195,6 +200,23 @@ export function evaluateTrial(input) {
     );
   }
 
+  const spectrum = input.ctbDamage;
+  const damageReady = ctbIndex >= 0 && spectrum?.classes?.length > 0 && spectrum.modulusOfRuptureMPa > 0;
+  if (damageReady && !input.skipDamage) {
+    checks.push(
+      damageCheck(
+        cumulativeDamage({
+          layers: elasticLayers,
+          ctbIndex,
+          depthMm: depths[ctbIndex],
+          modulusOfRuptureMPa: spectrum.modulusOfRuptureMPa,
+          classes: spectrum.classes,
+        }),
+        designTrafficMsa
+      )
+    );
+  }
+
   const construction = constructionTrafficCheck(layers, reliability);
   if (construction) checks.push(construction);
 
@@ -217,8 +239,8 @@ export function evaluateTrial(input) {
   }
 
   const notChecked =
-    ctbIndex >= 0
-      ? [{ title: 'Cumulative fatigue damage of the CTB', ref: CRITERIA.cementedDamage.ref }]
+    ctbIndex >= 0 && !damageReady
+      ? [{ title: 'Cumulative fatigue damage of the CTB, no axle load spectrum', ref: CRITERIA.cementedDamage.ref }]
       : [];
 
   return {
@@ -236,6 +258,35 @@ export function evaluateTrial(input) {
     thicknessWarnings,
     notChecked,
     designTrafficMsa,
+  };
+}
+
+/** The damage sum as a check, with the life it leaves in msa for comparison. */
+function damageCheck(damage, designTrafficMsa) {
+  const fixed = (value) => value.toFixed(3);
+  return {
+    id: 'cemented-damage',
+    kind: 'damage',
+    title: 'Cumulative fatigue damage of the CTB',
+    strainLabel: `Σ ni/Nfi over ${damage.rows.length} axle load classes at ${CRITERIA.cementedDamage.tyrePressureMPa.toFixed(2)} MPa`,
+    damage: damage.total,
+    allowableDamage: CRITERIA.cementedDamage.allowableDamage,
+    demandMsa: designTrafficMsa,
+    // The same traffic mix could grow until the damage reached 1.
+    allowableMsa: damage.total > 0 ? designTrafficMsa / damage.total : Infinity,
+    utilisation: damage.total,
+    safe: damage.safe,
+    inService: true,
+    formula: damage.formula,
+    substitution:
+      `CFD = ${fixed(damage.byAxle.single)} (single) + ${fixed(damage.byAxle.tandem)} (tandem) + ` +
+      `${fixed(damage.byAxle.tridem)} (tridem),  MRup = ${damage.modulusOfRuptureMPa.toFixed(2)} MPa`,
+    stepResult: `CFD = ${fixed(damage.total)} ${damage.safe ? '≤' : '>'} ${CRITERIA.cementedDamage.allowableDamage}`,
+    ref: damage.ref,
+    verified: damage.verified,
+    rows: damage.rows,
+    byAxle: damage.byAxle,
+    modulusOfRuptureMPa: damage.modulusOfRuptureMPa,
   };
 }
 
@@ -335,8 +386,10 @@ export function findMinimumBituminous(input, onProgress) {
       : { ...thicknesses, [adjustableSlot]: value };
 
   const attempts = [];
+  // More bituminous cover only relieves the CTB, so the damage sum, the
+  // costliest part of a trial, is left to the final section.
   const tryThickness = (value) => {
-    const trial = evaluateTrial({ ...input, thicknesses: withThickness(value) });
+    const trial = evaluateTrial({ ...input, skipDamage: true, thicknesses: withThickness(value) });
     attempts.push({ thickness: value, safe: trial.serviceSafe, governingLifeMsa: trial.governingLifeMsa });
     return trial;
   };
@@ -368,16 +421,13 @@ export function findMinimumBituminous(input, onProgress) {
   }
 
   let best = bracketHigh;
-  let bestTrial = null;
   for (let t = bracketLow; t <= bracketHigh; t += step) {
-    const trial = tryThickness(t);
-    if (trial.serviceSafe) {
+    if (tryThickness(t).serviceSafe) {
       best = t;
-      bestTrial = trial;
       break;
     }
   }
-  if (!bestTrial) bestTrial = tryThickness(best);
+  const bestTrial = evaluateTrial({ ...input, thicknesses: withThickness(best) });
 
   return {
     found: true,
@@ -395,7 +445,8 @@ export function findMinimumBituminous(input, onProgress) {
  *
  *   1. a granular sub-base just thick enough to carry the construction
  *      traffic, and a cement treated one at its minimum;
- *   2. a cement treated base just thick enough for its own fatigue, with the
+ *   2. a cement treated base just thick enough for its own fatigue and
+ *      cumulative damage, with the
  *      bituminous layers at their minimum over it;
  *   3. the thinnest bituminous layer that passes fatigue and rutting.
  *
@@ -458,7 +509,8 @@ export function designSection(input) {
     let sized = null;
     for (let t = described.base.minMm; t <= 400; t += step) {
       const trial = evaluateTrial({ ...input, reliability, thicknesses: { ...thicknesses, BASE: t } });
-      if (trial.checks.find((c) => c.id === 'cemented-fatigue').safe) {
+      const ctbChecks = trial.checks.filter((c) => c.id === 'cemented-fatigue' || c.id === 'cemented-damage');
+      if (ctbChecks.every((c) => c.safe)) {
         sized = t;
         break;
       }
@@ -466,7 +518,7 @@ export function designSection(input) {
     if (sized == null) {
       return {
         found: false,
-        message: 'No cement treated base up to 400 mm passes fatigue. Check the design traffic and the CTB modulus.',
+        message: 'No cement treated base up to 400 mm passes fatigue and cumulative damage. Check the design traffic, the axle loads and the CTB strength.',
       };
     }
     thicknesses.BASE = sized;
