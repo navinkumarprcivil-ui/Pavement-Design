@@ -13,6 +13,7 @@ const FLEXIBLE_STEPS = [
   { screen: 'ctbAxles', label: 'Axle loads', when: hasCTB },
   { screen: 'inputs', label: 'Inputs' },
   { screen: 'results', label: 'Result' },
+  { screen: 'iitpave', label: 'IITPAVE' },
   { screen: 'report', label: 'Report' },
   { screen: 'rates', label: 'Cost' },
   { screen: 'trials', label: 'Compare' },
@@ -44,6 +45,7 @@ export const RESULT_KEY = { flexible: 'result', rigid: 'rigidResult', rural: 'ru
 function reachable(app, screen) {
   switch (screen) {
     case 'results':
+    case 'iitpave':
       return Boolean(app.state.result);
     case 'rigidResult':
       return Boolean(app.state.rigidResult);

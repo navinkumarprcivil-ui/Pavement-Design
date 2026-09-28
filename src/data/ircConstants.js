@@ -70,7 +70,8 @@ export const ROAD_CATEGORIES = {
     { id: 'sh', label: 'State Highway', important: true, designPeriodYears: 20 },
     { id: 'urban', label: 'Urban road', important: true, designPeriodYears: 20 },
     { id: 'mdr', label: 'Major District Road', important: false, designPeriodYears: 15 },
-    { id: 'other', label: 'Other road', important: false, designPeriodYears: 15 },
+    { id: 'odr', label: 'Other District Road', important: false, designPeriodYears: 15 },
+    { id: 'village', label: 'Village Road', important: false, designPeriodYears: 15 },
   ],
 };
 
@@ -176,6 +177,19 @@ export const MODULI = {
     capMPa: 100,
   },
 
+  /**
+   * A select borrow subgrade over a weaker embankment is replaced by one
+   * layer giving the same surface deflection under a single wheel.
+   */
+  effectiveSubgrade: {
+    ref: ref('IRC37', 'Cl. 6.4.1', { equation: 'Eq. 6.3' }),
+    verified: true,
+    wheelLoadN: 40000,
+    tyrePressureMPa: 0.56,
+    poissonRatio: 0.35,
+    subgradeThicknessMm: 500,
+  },
+
   /** Effective CBR floor for roads above a traffic volume. */
   minimumCBR: {
     percent: 5,
@@ -234,6 +248,14 @@ export const MODULI = {
     verified: true,
     ctbModulusMPa: 5000,
     ctsbModulusMPa: 600,
+  },
+
+  /** Reclaimed asphalt base treated with foamed bitumen or bitumen emulsion. */
+  rapBase: {
+    ref: ref('IRC37', 'Cl. 8.4'),
+    verified: true,
+    modulusMPa: 800,
+    poissonRatio: 0.35,
   },
 
   poissonRatios: {
@@ -332,6 +354,23 @@ export const CRITERIA = {
     minimumRepetitions: 10000,
     ref: ref('IRC37', 'Cl. 7.2.2'),
     verified: true,
+    /** Dumper loads and trips to start from, as in the Annex-II examples. */
+    dumper: { rearTandemKN: 240, frontKN: 80, subBaseTrips: 200, ctbTrips: 70 },
+    /** Equivalence of a dumper's axles to standard axles, as the examples work it. */
+    vdf: {
+      ref: ref('IRC37', 'Annex-II', { note: 'Example II.2' }),
+      singleAxleKN: 80,
+      singleWheelAxleKN: 65,
+      exponent: 4,
+    },
+  },
+
+  /** A freshly laid CTB carries the dumpers bringing the layer above it. */
+  ctbConstruction: {
+    ref: ref('IRC37', 'Cl. 8.2.1', { note: 'Annex-II, Example II.4' }),
+    verified: true,
+    /** 7-day flexural strength as a share of the 28-day modulus of rupture. */
+    sevenDayShare: 0.7,
   },
 };
 
@@ -347,6 +386,7 @@ export const MINIMUM_THICKNESS = {
   crackReliefLayerMm: 100,
   cementTreatedBaseMm: 100,
   cementTreatedSubBaseMm: 200,
+  rapBaseMm: 100,
   /** Bituminous layers over a CTB, above this design traffic. */
   bituminousOverCTB: { mm: 100, aboveMsa: 20 },
 };

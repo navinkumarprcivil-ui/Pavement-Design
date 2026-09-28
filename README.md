@@ -32,16 +32,26 @@ and open its address on the phone over the same network.
    factor. This comes first because it decides which guideline applies: at or
    above 2 msa the design goes to IRC:37, below it to IRC:SP:72.
 2. **Layer combination.** Bituminous layer (BC over DBM, BC only, SDBC over
-   DBM), base (WMM, WBM or CTB), sub-base (GSB or CTSB), on a fixed subgrade.
-   Choosing a cement treated base brings up the crack relief interlayer it
-   requires.
+   DBM), base (WMM, WBM, CTB, or RAP treated with foamed bitumen or emulsion,
+   Cl. 8.4), sub-base (GSB or CTSB), on a fixed subgrade. Choosing a cement
+   treated base brings up the crack relief interlayer it requires. The
+   materials and conditions ticked for the site (aggregates, cement, CTSB
+   plant, SAMI, cold recycling, existing bituminous layer) limit the
+   compositions offered.
 3. **Axle loads** (cement treated base only). CTB material and 28-day UCS,
    which give the modulus of rupture (Cl. 8.2.2), and the axle load spectrum:
    the share of single, tandem and tridem axles and of each load class. The app
    works out the expected repetitions of every class from the design traffic.
-4. **Inputs.** Subgrade CBR, binder grade, pavement temperature, mix
-   volumetrics, and trial thicknesses.
-5. **Result.** Fatigue and rutting checks with a safe/unsafe verdict, the
+4. **Inputs.** Subgrade CBR, or a select borrow over the embankment reduced
+   to an effective modulus (Cl. 6.4, reproducing Annex-II.1); reliability,
+   80% or 90%; binder grade, pavement temperature, mix modulus from the mix
+   design if known, mix volumetrics; construction traffic (dumper axle loads
+   and trips); trial thicknesses; and narrative paragraphs for the report.
+5. **Result.** Fatigue and rutting checks, and the construction traffic
+   checks: the granular sub-base under the dumper traffic or 10,000 standard
+   axles, whichever is more (Cl. 7.2.2), and a freshly laid CTB at its 7-day
+   flexural strength under the dumpers bringing the layer above it (Cl. 8.2.1,
+   reproducing Annex-II.4). Also with a safe/unsafe verdict, the
    governing life, the computed strains, every layer modulus with its working,
    and the traffic calculation — each step citing the clause it came from.
    A cement treated base is checked for fatigue (Eq. 3.5) and for cumulative
@@ -50,6 +60,13 @@ and open its address on the phone over the same network.
    from the elastic analysis at 0.80 MPa, and CFD ≤ 1. The CTB is sized to
    pass both. The stresses reproduce the Annex-II example (0.70 MPa under the
    190 kN single axle).
+
+6. **IITPAVE.** Every analysis behind the design laid out as IITPAVE's
+   inputs (layers, moduli, Poisson's ratios, thicknesses, wheel load, tyre
+   pressure, analysis points, wheel set), with a copy button. Outputs read
+   from IITPAVE can be entered, are compared with the app's own, and can be
+   used for the verdict in their place, including the CTB stress of each axle
+   load class. The report carries the inputs as an appendix.
 
 You can either check a trial section you have entered, or let the app find the
 thinnest safe bituminous thickness for the foundation you have set.
@@ -185,6 +202,7 @@ src/engine/             Calculation core — no browser APIs
   criteria.js             Fatigue and rutting
   flexibleDesign.js       Trial evaluation and thickness search
   ctbDamage.js            Cumulative fatigue damage of a CTB
+  construction.js         Construction traffic: dumper axles, CTB stress
   ruralSP72.js            Low volume rural roads
   rigidFatigue.js         IRC:58 stresses, fatigue and repetitions
   rigidDesign.js          IRC:58 foundation, temperature and slab search
@@ -202,6 +220,8 @@ src/ui/                 Screens and DOM helpers
   stepper.js              Numbered step tabs for each module
   spectrum.js             Axle load spectrum editors, rigid and CTB
   ctbProject.js           CTB axle loads and strength for the design
+  flexibleProject.js      The flexible design's engine input from the state
+  iitpave.js              Analyses laid out as IITPAVE inputs
   screens/report.js       The design report, for print, PDF and Word
 tests/                  Node test runner, no dependencies
 tools/serve.js          Static file server for development

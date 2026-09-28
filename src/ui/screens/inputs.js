@@ -1,12 +1,48 @@
-import { h, card, numberField, segmented, notice, button, msa } from '../dom.js';
+import { h, card, numberField, segmented, notice, button, msa, keyResult, fold, textArea } from '../dom.js';
 import { designTraffic, subgradeWarning } from '../project.js';
-import { hasCTB, ctbDamageInput } from '../ctbProject.js';
+import { hasCTB, ctbSevenDay } from '../ctbProject.js';
+import { flexibleInput, reliabilityOf } from '../flexibleProject.js';
 import { describeCombination, BINDER_GRADES, BEHAVIOUR } from '../../data/layerCatalog.js';
 import { evaluateTrial, designSection } from '../../engine/flexibleDesign.js';
+import { effectiveSubgrade, bituminousModulus } from '../../engine/materials.js';
 import { MODULI, CRITERIA, MINIMUM_THICKNESS } from '../../data/ircConstants.js';
 
+/** Dumpers on the granular sub-base and on the CTB, for the construction checks. */
+function constructionCard(app, described) {
+  const c = app.state.construction;
+  const granularSubBase = described.subBase.behaviour === BEHAVIOUR.GRANULAR;
+  const ctb = hasCTB(app.state);
+  if (!granularSubBase && !ctb) return null;
+
+  const field = (label, key, suffix, ref, extra = {}) =>
+    numberField({
+      label,
+      ref,
+      value: c[key],
+      suffix,
+      min: 0,
+      onInput: (value) => app.patch('construction', { [key]: value }),
+      ...extra,
+    });
+
+  const trafficRef = CRITERIA.constructionTraffic.ref;
+  const ctbRef = CRITERIA.ctbConstruction.ref;
+  return card(
+    'Construction traffic',
+    field('Dumper rear tandem axle', 'rearTandemKN', 'kN', CRITERIA.constructionTraffic.vdf.ref),
+    field('Dumper front axle', 'frontKN', 'kN', CRITERIA.constructionTraffic.vdf.ref),
+    granularSubBase ? field('Dumper trips on the sub-base', 'subBaseTrips', null, trafficRef) : null,
+    ctb ? field('Dumper trips on the CTB', 'ctbTrips', null, ctbRef) : null,
+    ctb
+      ? field('CTB 7-day flexural strength', 'ctbSevenDayMPa', 'MPa', ctbRef, {
+          placeholder: ctbSevenDay(app.state).derived.toFixed(2),
+        })
+      : null
+  );
+}
+
 export default function renderInputs(app) {
-  const { combination, materials, mix, project } = app.state;
+  const { combination, materials, mix } = app.state;
   const traffic = designTraffic(app.state);
   const designTrafficMsa = traffic.result.msa;
   const described = describeCombination(combination);
@@ -19,16 +55,6 @@ export default function renderInputs(app) {
   }
   app.state.thicknesses = thicknesses;
 
-  const designInput = () => ({
-    combination,
-    thicknesses: app.state.thicknesses,
-    materials,
-    mix,
-    designTrafficMsa,
-    roadCategory: project.roadCategory,
-    ctbDamage: hasCTB(app.state) ? ctbDamageInput(app.state, traffic).engineInput : null,
-  });
-
   const status = h('div', {});
   const cbrWarning = h('div', {});
   const showCbrWarning = () => {
@@ -37,7 +63,7 @@ export default function renderInputs(app) {
   };
 
   const check = () => {
-    app.state.result = evaluateTrial(designInput());
+    app.state.result = evaluateTrial(flexibleInput(app.state));
     app.go('results');
   };
 
@@ -45,7 +71,7 @@ export default function renderInputs(app) {
     status.replaceChildren(h('div', { class: 'progress indeterminate' }, h('span')));
     // Yield so the progress bar paints before the search runs.
     setTimeout(() => {
-      const outcome = designSection(designInput());
+      const outcome = designSection(flexibleInput(app.state));
       if (!outcome.found) {
         status.replaceChildren(notice('danger', 'No safe section', outcome.message));
         status.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -65,6 +91,53 @@ export default function renderInputs(app) {
 
   showCbrWarning();
 
+  const reliability = reliabilityOf(app.state, traffic);
+  const layered = materials.layeredSubgrade;
+
+  // Select borrow over the embankment: the effective CBR follows from the two.
+  const effectiveHost = h('div', { class: 'key-results' });
+  const showEffective = () => {
+    if (!(layered.borrowCBR > 0 && layered.embankmentCBR > 0)) {
+      effectiveHost.replaceChildren();
+      return;
+    }
+    const e = effectiveSubgrade(layered);
+    app.state.materials.subgradeCBR = Math.round(e.cbr * 100) / 100;
+    app.persist();
+    effectiveHost.replaceChildren(
+      keyResult('Surface deflection', e.deflection.toFixed(3), 'mm', MODULI.effectiveSubgrade.ref),
+      keyResult('Effective MR', e.value.toFixed(1), 'MPa', MODULI.effectiveSubgrade.ref),
+      keyResult('Effective CBR', e.cbr.toFixed(1), '%', MODULI.subgrade.ref)
+    );
+    showCbrWarning();
+  };
+  const layeredField = (label, key, suffix) =>
+    numberField({
+      label,
+      ref: MODULI.effectiveSubgrade.ref,
+      value: layered[key],
+      suffix,
+      min: 0,
+      onInput: (value) => {
+        layered[key] = value;
+        app.persist();
+        showEffective();
+      },
+    });
+  if (layered.enabled) showEffective();
+
+  const tableModulus = bituminousModulus(materials.binderGrade, materials.pavementTemperatureC);
+  const narratives = app.state.narratives;
+  const narrative = (label, key) =>
+    textArea({
+      label,
+      value: narratives[key],
+      onInput: (value) => {
+        narratives[key] = value;
+        app.persist();
+      },
+    });
+
   return h(
     'div',
     { class: 'card-stack' },
@@ -73,24 +146,62 @@ export default function renderInputs(app) {
       'div',
       { class: 'summary-chips' },
       h('span', { class: 'chip' }, msa(designTrafficMsa)),
-      h('span', { class: 'chip' }, `${traffic.reliability}% reliability`),
+      h('span', { class: 'chip' }, `${reliability.value}% reliability`),
       traffic.category ? h('span', { class: 'chip' }, traffic.category.label) : null
     ),
 
     card(
-      'Subgrade',
-      numberField({
-        label: 'Effective CBR',
-        ref: MODULI.subgrade.ref,
-        value: materials.subgradeCBR,
-        suffix: '%',
-        min: 1,
-        max: 100,
-        onInput: (value) => {
-          app.patch('materials', { subgradeCBR: value });
-          showCbrWarning();
+      'Subgrade and reliability',
+      segmented({
+        label: 'Subgrade',
+        ref: MODULI.effectiveSubgrade.ref,
+        value: layered.enabled ? 'layered' : 'single',
+        options: [
+          { value: 'single', label: 'Single layer' },
+          { value: 'layered', label: 'Select borrow over embankment' },
+        ],
+        onChange: (value) => {
+          layered.enabled = value === 'layered';
+          app.persist();
+          app.render();
         },
       }),
+      layered.enabled
+        ? [
+            layeredField('Select borrow CBR', 'borrowCBR', '%'),
+            layeredField('Select borrow thickness', 'borrowMm', 'mm'),
+            layeredField('Embankment CBR', 'embankmentCBR', '%'),
+            effectiveHost,
+          ]
+        : numberField({
+            label: 'Effective CBR',
+            ref: MODULI.subgrade.ref,
+            value: materials.subgradeCBR,
+            suffix: '%',
+            min: 1,
+            max: 100,
+            onInput: (value) => {
+              app.patch('materials', { subgradeCBR: value });
+              showCbrWarning();
+            },
+          }),
+      segmented({
+        label: 'Reliability',
+        ref: CRITERIA.reliability.ref,
+        value: reliability.value,
+        options: [
+          { value: 80, label: '80%' },
+          { value: 90, label: '90%' },
+        ],
+        onChange: (value) => {
+          app.state.reliabilityChoice = value === reliability.code ? null : value;
+          app.persist();
+          app.render();
+        },
+      }),
+      reliability.value < reliability.code
+        ? notice('warn', null, `90% reliability applies to this road and traffic · ${CRITERIA.reliability.ref.clause}`)
+        : null,
       cbrWarning
     ),
 
@@ -111,27 +222,34 @@ export default function renderInputs(app) {
         max: 50,
         onInput: (value) => app.patch('materials', { pavementTemperatureC: value }),
       }),
-      h(
-        'div',
-        { class: 'field-row' },
-        numberField({
-          label: 'Air voids, Va',
-          ref: CRITERIA.bituminousFatigue.ref,
-          value: mix.airVoidsPercent,
-          suffix: '%',
-          min: 0,
-          onInput: (value) => app.patch('mix', { airVoidsPercent: value }),
-        }),
-        numberField({
-          label: 'Effective binder, Vbe',
-          ref: CRITERIA.bituminousFatigue.ref,
-          value: mix.effectiveBinderPercent,
-          suffix: '%',
-          min: 0,
-          onInput: (value) => app.patch('mix', { effectiveBinderPercent: value }),
-        })
-      )
+      numberField({
+        label: 'Bituminous modulus, MRm',
+        ref: MODULI.bituminous.ref,
+        value: materials.bituminousModulusMPa,
+        placeholder: tableModulus.toFixed(0),
+        suffix: 'MPa',
+        min: 0,
+        onInput: (value) => app.patch('materials', { bituminousModulusMPa: value }),
+      }),
+      numberField({
+        label: 'Air voids, Va',
+        ref: CRITERIA.bituminousFatigue.ref,
+        value: mix.airVoidsPercent,
+        suffix: '%',
+        min: 0,
+        onInput: (value) => app.patch('mix', { airVoidsPercent: value }),
+      }),
+      numberField({
+        label: 'Effective binder, Vbe',
+        ref: CRITERIA.bituminousFatigue.ref,
+        value: mix.effectiveBinderPercent,
+        suffix: '%',
+        min: 0,
+        onInput: (value) => app.patch('mix', { effectiveBinderPercent: value }),
+      })
     ),
+
+    constructionCard(app, described),
 
     card(
       'Thicknesses',
@@ -150,6 +268,24 @@ export default function renderInputs(app) {
           },
         })
       )
+    ),
+
+    h(
+      'section',
+      { class: 'card' },
+      fold({
+        title: 'Narrative summaries for the report',
+        memory: app.folds,
+        key: 'narratives',
+        children: h(
+          'div',
+          { class: 'narratives' },
+          narrative('Traffic survey', 'traffic'),
+          narrative('Subgrade and borrow soil', 'subgrade'),
+          narrative('Bituminous mix design', 'mix'),
+          narrative('Other materials', 'materials')
+        ),
+      })
     ),
 
     status

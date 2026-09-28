@@ -25,6 +25,7 @@ function flexible(app) {
       materials: { ...app.state.materials },
       mix: { ...app.state.mix },
       ctb: hasCTB(app.state) ? structuredClone(app.state.ctb) : null,
+      construction: { ...app.state.construction },
       roadCategory: app.state.project.roadCategory,
       designTrafficMsa: result.designTrafficMsa,
       totalThicknessMm: result.totalThicknessMm,

@@ -1,18 +1,21 @@
-import { h, card, segmented, button } from '../dom.js';
+import { h, card, segmented, button, notice } from '../dom.js';
 import { hasCTB } from '../ctbProject.js';
 import {
   BITUMINOUS_OPTIONS,
   BASE_OPTIONS,
   SUB_BASE_OPTIONS,
   CRACK_RELIEF_OPTIONS,
+  SITE_CONDITIONS,
   describeCombination,
   findOption,
+  feasible,
 } from '../../data/layerCatalog.js';
 
 const LAYER_COLOURS = {
   bituminous: '#3c4552',
   granular: '#c9a227',
   cemented: '#8fa3b8',
+  treated: '#5b4a3a',
   concrete: '#d3d8de',
   subgrade: '#a9805a',
 };
@@ -51,13 +54,14 @@ export function sectionDiagram(slots) {
   );
 }
 
-/** Every base, crack relief and sub-base combination the catalogue offers. */
-function compositions() {
+/** Every base, crack relief and sub-base combination the site can build. */
+function compositions(conditions) {
+  const can = (option) => feasible(option.id, conditions);
   const list = [];
-  for (const base of BASE_OPTIONS) {
-    const reliefs = base.requiresCrackRelief ? CRACK_RELIEF_OPTIONS : [null];
+  for (const base of BASE_OPTIONS.filter(can)) {
+    const reliefs = base.requiresCrackRelief ? CRACK_RELIEF_OPTIONS.filter(can) : [null];
     for (const relief of reliefs) {
-      for (const subBase of SUB_BASE_OPTIONS) {
+      for (const subBase of SUB_BASE_OPTIONS.filter(can)) {
         list.push({ base, relief, subBase });
       }
     }
@@ -65,9 +69,32 @@ function compositions() {
   return list;
 }
 
-const KIND = { granular: 'Granular', cemented: 'Cemented' };
+const KIND = { granular: 'Granular', cemented: 'Cemented', treated: 'Bitumen treated' };
 
 export default function renderLayers(app) {
+  const { conditions } = app.state;
+  const available = compositions(conditions);
+  const isChosen = ({ base, relief, subBase }, c) =>
+    c.baseId === base.id &&
+    c.subBaseId === subBase.id &&
+    (!relief || (c.crackReliefId || CRACK_RELIEF_OPTIONS[0].id) === relief.id);
+
+  // A composition the site can no longer build gives way to the first it can.
+  if (available.length && !available.some((option) => isChosen(option, app.state.combination))) {
+    const first = available[0];
+    app.state.combination = {
+      ...app.state.combination,
+      baseId: first.base.id,
+      subBaseId: first.subBase.id,
+      ...(first.relief ? { crackReliefId: first.relief.id } : {}),
+    };
+    const thicknesses = { ...app.state.thicknesses };
+    for (const slotId of ['BASE', 'CRACK_RELIEF', 'SUB_BASE']) delete thicknesses[slotId];
+    app.state.thicknesses = thicknesses;
+    app.state.result = null;
+    app.persist();
+  }
+
   const { combination } = app.state;
   const described = describeCombination(combination);
 
@@ -92,10 +119,7 @@ export default function renderLayers(app) {
   );
 
   const compositionCard = ({ base, relief, subBase }) => {
-    const selected =
-      combination.baseId === base.id &&
-      combination.subBaseId === subBase.id &&
-      (!relief || (combination.crackReliefId || CRACK_RELIEF_OPTIONS[0].id) === relief.id);
+    const selected = isChosen({ base, relief, subBase }, combination);
     const layers = [
       { name: bituminous.short, behaviour: 'bituminous' },
       relief ? { name: relief.short, behaviour: relief.behaviour || 'membrane' } : null,
@@ -130,9 +154,27 @@ export default function renderLayers(app) {
     );
   };
 
+  const conditionBox = ({ key, label }) =>
+    h(
+      'label',
+      { class: 'check-option' },
+      h('input', {
+        type: 'checkbox',
+        checked: Boolean(conditions[key]),
+        onchange: (event) => {
+          app.state.conditions = { ...app.state.conditions, [key]: event.target.checked };
+          app.persist();
+          app.render();
+        },
+      }),
+      h('span', {}, label)
+    );
+
   return h(
     'div',
     { class: 'card-stack' },
+
+    card('Materials and conditions', h('div', { class: 'check-options' }, SITE_CONDITIONS.map(conditionBox))),
 
     card(
       'Bituminous layers',
@@ -145,7 +187,14 @@ export default function renderLayers(app) {
       })
     ),
 
-    h('section', { class: 'card' }, h('h2', { class: 'section-title' }, 'Composition'), h('div', { class: 'composition-list' }, compositions().map(compositionCard))),
+    h(
+      'section',
+      { class: 'card' },
+      h('h2', { class: 'section-title' }, 'Composition'),
+      available.length
+        ? h('div', { class: 'composition-list' }, available.map(compositionCard))
+        : notice('warn', null, 'No composition can be built with the materials ticked')
+    ),
 
     card('Section', sectionDiagram(described.slots.map((s) => ({ ...s, thicknessMm: null }))))
   );

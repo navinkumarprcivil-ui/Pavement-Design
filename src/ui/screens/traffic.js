@@ -15,6 +15,7 @@ import { stepCard } from '../citations.js';
 import { designTraffic } from '../project.js';
 import { laneDistributionOptions } from '../../engine/traffic.js';
 import { ROAD_CATEGORIES, TRAFFIC, roadCategory } from '../../data/ircConstants.js';
+import { CONSTRUCTION_TYPES, FACILITY_TYPES } from '../modules.js';
 
 export default function renderTraffic(app) {
   const { traffic, project } = app.state;
@@ -110,6 +111,18 @@ export default function renderTraffic(app) {
           onInput: (value) => app.patch('project', { [key]: value }),
         })
       ),
+      segmented({
+        label: 'Construction type',
+        value: project.constructionType,
+        options: CONSTRUCTION_TYPES,
+        onChange: (value) => app.patch('project', { constructionType: value }, { rerender: true }),
+      }),
+      segmented({
+        label: 'Facility',
+        value: project.facility,
+        options: FACILITY_TYPES,
+        onChange: (value) => app.patch('project', { facility: value }, { rerender: true }),
+      }),
       segmented({
         label: 'Road category',
         ref: ROAD_CATEGORIES.ref,

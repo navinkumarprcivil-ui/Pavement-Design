@@ -6,6 +6,7 @@
 import { describeCombination, BEHAVIOUR } from '../data/layerCatalog.js';
 import { CRITERIA, TRAFFIC } from '../data/ircConstants.js';
 import { axleRepetitions, modulusOfRupture } from '../engine/ctbDamage.js';
+import { sevenDayFlexural } from '../engine/construction.js';
 import { AXLES, defaultSpectrum, frontAxlePercent, spectrumTotal } from './spectrum.js';
 
 export const defaultCtbState = () => ({
@@ -15,6 +16,24 @@ export const defaultCtbState = () => ({
   axleMix: { single: 15, tandem: 25, tridem: 15 },
   spectrum: defaultSpectrum(),
 });
+
+/** Dumper loads and trips; a blank 7-day strength is taken from the modulus of rupture. */
+export const defaultConstructionState = () => ({
+  ...CRITERIA.constructionTraffic.dumper,
+  ctbSevenDayMPa: null,
+});
+
+/** 7-day flexural strength of the CTB: as entered, or its share of the modulus of rupture. */
+export function ctbSevenDay(state) {
+  const entered = state.construction.ctbSevenDayMPa;
+  const derived = sevenDayFlexural(modulusOfRupture(state.ctb.ucsMPa, state.ctb.material).value);
+  return { value: entered > 0 ? entered : derived, derived, entered: entered > 0 };
+}
+
+/** What the design engine takes for construction traffic. */
+export function constructionInput(state) {
+  return { ...state.construction, ctbSevenDayMPa: hasCTB(state) ? ctbSevenDay(state).value : null };
+}
 
 /** Whether the chosen composition has a cement treated base. */
 export function hasCTB(state) {

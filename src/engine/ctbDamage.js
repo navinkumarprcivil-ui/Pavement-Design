@@ -34,6 +34,11 @@ export function modulusOfRupture(ucsMPa, materialId) {
   };
 }
 
+/** The key a stress read for one equivalent single axle load is filed under. */
+export function stressKey(singleKN) {
+  return String(Math.round(singleKN * 10) / 10);
+}
+
 /** Repetitions of one axle class the CTB can carry, at a given stress ratio. */
 export function ctbFatigueLife(stressRatio) {
   return Math.pow(10, (SPEC.intercept - stressRatio) / SPEC.slope);
@@ -90,14 +95,20 @@ function ctbStress(layers, ctbIndex, depthMm, axleKN) {
  * @param {number} input.depthMm  Depth to the underside of the CTB.
  * @param {number} input.modulusOfRuptureMPa
  * @param {Array<{axle:string,loadKN:number,repetitions:number}>} input.classes
+ * @param {Object<string,number>} [input.stresses]  Stresses read from IITPAVE,
+ *        keyed by stressKey(single axle load), in place of the computed ones.
  */
-export function cumulativeDamage({ layers, ctbIndex, depthMm, modulusOfRuptureMPa, classes }) {
+export function cumulativeDamage({ layers, ctbIndex, depthMm, modulusOfRuptureMPa, classes, stresses: measured = {} }) {
   // Classes that share an equivalent single axle load share one analysis.
   const stresses = new Map();
-  const stressAt = (singleKN) => {
-    const key = singleKN.toFixed(3);
+  const computedAt = (singleKN) => {
+    const key = stressKey(singleKN);
     if (!stresses.has(key)) stresses.set(key, ctbStress(layers, ctbIndex, depthMm, singleKN));
     return stresses.get(key);
+  };
+  const stressAt = (singleKN) => {
+    const entered = measured[stressKey(singleKN)];
+    return entered > 0 ? entered : computedAt(singleKN);
   };
 
   const rows = classes.map((c) => {
@@ -105,9 +116,11 @@ export function cumulativeDamage({ layers, ctbIndex, depthMm, modulusOfRuptureMP
     const singleKN = c.loadKN / count;
     const repetitions = c.repetitions * count;
     const stressMPa = Math.max(0, stressAt(singleKN));
+    const source = measured[stressKey(singleKN)] > 0 ? 'IITPAVE' : null;
+    const computedMPa = Math.max(0, computedAt(singleKN));
     const stressRatio = stressMPa / modulusOfRuptureMPa;
     const life = ctbFatigueLife(stressRatio);
-    return { ...c, singleKN, singleRepetitions: repetitions, stressMPa, stressRatio, life, damage: repetitions / life };
+    return { ...c, singleKN, singleRepetitions: repetitions, stressMPa, stressRatio, life, damage: repetitions / life, source, computedMPa };
   });
 
   const byAxle = Object.fromEntries(

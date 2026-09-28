@@ -12,9 +12,13 @@ const ALLOWABLE_LABEL = {
   'cemented-fatigue': 'Allowable εt, CTB',
 };
 
+/** Whether any of a check's values were read from IITPAVE. */
+export const fromIitpave = (check) => check.source === 'IITPAVE' || Boolean(check.rows?.some((r) => r.source === 'IITPAVE'));
+
 /** One performance check: the computed strain against the allowable one. */
 export function checkTile(check) {
   if (check.kind === 'damage') return damageTile(check);
+  if (check.kind === 'stress') return stressTile(check);
   const compressive = check.compressive === true;
   const ratio =
     check.allowableMicro > 0 ? check.strainMicro / check.allowableMicro : check.utilisation;
@@ -27,7 +31,7 @@ export function checkTile(check) {
       'div',
       { class: 'check-head' },
       h('strong', {}, check.title),
-      badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail')
+      h('span', { class: 'badges' }, fromIitpave(check) ? badge('info', 'IITPAVE') : null, badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail'))
     ),
     h('span', { class: 'check-sub' }, check.strainLabel, clauseChip(check.title, check.ref)),
     compressive
@@ -46,6 +50,33 @@ export function checkTile(check) {
   );
 }
 
+/** A stress against the stress allowed. */
+function stressTile(check) {
+  return h(
+    'div',
+    { class: 'check-tile', 'data-safe': String(check.safe) },
+    h(
+      'div',
+      { class: 'check-head' },
+      h('strong', {}, check.title),
+      h('span', { class: 'badges' }, fromIitpave(check) ? badge('info', 'IITPAVE') : null, badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail'))
+    ),
+    h('span', { class: 'check-sub' }, check.strainLabel, clauseChip(check.title, check.ref)),
+    h(
+      'div',
+      { class: 'check-figures' },
+      h('span', { class: 'check-actual' }, `${check.stress.toFixed(3)} MPa`),
+      h('span', { class: 'check-allowable' }, `of ${check.allowableStress.toFixed(3)} MPa allowable`)
+    ),
+    h('div', { class: 'meter', role: 'presentation' }, h('span', { style: { width: `${Math.min(100, Math.max(2, check.utilisation * 100))}%` } }))
+  );
+}
+
+/** A check's working: any steps that lead to it, then its own. */
+export function checkSteps(check) {
+  return [...(check.preSteps || []), checkStep(check)];
+}
+
 /** The damage summed over the axle load classes against its limit of one. */
 function damageTile(check) {
   return h(
@@ -55,7 +86,7 @@ function damageTile(check) {
       'div',
       { class: 'check-head' },
       h('strong', {}, check.title),
-      badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail')
+      h('span', { class: 'badges' }, fromIitpave(check) ? badge('info', 'IITPAVE') : null, badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail'))
     ),
     h('span', { class: 'check-sub' }, check.strainLabel, clauseChip(check.title, check.ref)),
     h(
@@ -210,7 +241,12 @@ export default function renderResults(app) {
       'section',
       { class: `verdict ${result.safe ? 'safe' : 'unsafe'}` },
       h('h2', {}, result.safe ? 'Safe' : 'Not safe'),
-      h('p', {}, `${result.totalThicknessMm} mm section · life ${msa(result.governingLifeMsa)} against ${msa(result.designTrafficMsa)}`)
+      h(
+        'p',
+        {},
+        `${result.totalThicknessMm} mm section · life ${msa(result.governingLifeMsa)} against ${msa(result.designTrafficMsa)}` +
+          (result.checks.some(fromIitpave) ? ' · IITPAVE values' : '')
+      )
     ),
 
     h(
@@ -249,7 +285,7 @@ export default function renderResults(app) {
       stepGroup('Design traffic', traffic.result.steps),
       stepGroup('Layer moduli', result.modulusSteps),
       damage && hasCTB(app.state) ? stepGroup('CTB axle loads', ctbDamageInput(app.state, traffic).steps) : null,
-      stepGroup('Performance criteria', result.checks.map(checkStep))
+      stepGroup('Performance criteria', result.checks.flatMap(checkSteps))
     )
   );
 }

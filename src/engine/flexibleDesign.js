@@ -10,7 +10,8 @@
  */
 
 import { analyze } from './elastic.js';
-import { cumulativeDamage } from './ctbDamage.js';
+import { cumulativeDamage, ctbFatigueLife } from './ctbDamage.js';
+import { subBaseConstructionTraffic, allowableCtbStress } from './construction.js';
 import { buildLayerStack, granularModulus, subgradeModulus } from './materials.js';
 import {
   bituminousFatigueLife,
@@ -86,6 +87,11 @@ function check(fields) {
  *        load classes for the CTB's cumulative fatigue damage.
  * @param {boolean} [input.skipDamage]  Leave the damage sum out, for searches
  *        that cannot change it.
+ * @param {object} [input.construction]  Dumper loads and trips:
+ *        {rearTandemKN, frontKN, subBaseTrips, ctbTrips, ctbSevenDayMPa}.
+ *        Without it the sub-base is checked at the code's floor of repetitions.
+ * @param {object} [input.measured]  Strains read from IITPAVE for this section,
+ *        used in place of the computed ones: {bituminous, subgrade, ctb}.
  */
 export function evaluateTrial(input) {
   const { combination, thicknesses, materials, mix, designTrafficMsa, roadCategory } = input;
@@ -142,10 +148,14 @@ export function evaluateTrial(input) {
     );
   }
 
+  // A strain read from IITPAVE stands in for the computed one.
+  const measured = (key) => (input.measured?.[key] > 0 ? input.measured[key] : null);
+  const sourceOf = (key) => (measured(key) != null ? 'IITPAVE' : null);
+
   const checks = [];
 
   if (lastBituminous >= 0) {
-    const strain = worst(responses, 'bituminous-tension', (r) => r.maxHorizontalStrain);
+    const strain = measured('bituminous') ?? worst(responses, 'bituminous-tension', (r) => r.maxHorizontalStrain);
     const fatigue = bituminousFatigueLife({
       tensileStrain: strain,
       modulusMPa: layers[lastBituminous].E,
@@ -157,6 +167,7 @@ export function evaluateTrial(input) {
     checks.push(
       check({
         id: 'bituminous-fatigue',
+        source: sourceOf('bituminous'),
         title: 'Fatigue of the bituminous layer',
         strainLabel: 'Tensile strain, bottom of bituminous layer',
         strain: Math.max(strain, 0),
@@ -167,10 +178,11 @@ export function evaluateTrial(input) {
     );
   }
 
-  const verticalStrain = worst(responses, 'subgrade-compression', (r) => r.verticalCompressiveStrain);
+  const verticalStrain = measured('subgrade') ?? worst(responses, 'subgrade-compression', (r) => r.verticalCompressiveStrain);
   checks.push(
     check({
       id: 'subgrade-rutting',
+      source: sourceOf('subgrade'),
       title: 'Rutting of the subgrade',
       strainLabel: 'Vertical strain, top of subgrade',
       strain: verticalStrain,
@@ -181,11 +193,12 @@ export function evaluateTrial(input) {
   );
 
   if (ctbIndex >= 0) {
-    const strain = worst(responses, 'cemented-tension', (r) => r.maxHorizontalStrain);
+    const strain = measured('ctb') ?? worst(responses, 'cemented-tension', (r) => r.maxHorizontalStrain);
     const reliabilityFactor = ctbReliabilityFactor(designTrafficMsa, roadCategory);
     checks.push(
       check({
         id: 'cemented-fatigue',
+        source: sourceOf('ctb'),
         title: 'Fatigue of the cement treated base',
         strainLabel: 'Tensile strain, bottom of CTB at 0.80 MPa',
         strain: Math.max(strain, 0),
@@ -211,14 +224,17 @@ export function evaluateTrial(input) {
           depthMm: depths[ctbIndex],
           modulusOfRuptureMPa: spectrum.modulusOfRuptureMPa,
           classes: spectrum.classes,
+          stresses: spectrum.stresses,
         }),
         designTrafficMsa
       )
     );
   }
 
-  const construction = constructionTrafficCheck(layers, reliability);
+  const construction = constructionTrafficCheck(layers, reliability, input.construction, measured('construction'));
   if (construction) checks.push(construction);
+  const ctbConstruction = ctbConstructionCheck(layers, ctbIndex, input.construction, measured('ctbConstruction'));
+  if (ctbConstruction) checks.push(ctbConstruction);
 
   const inServiceChecks = checks.filter((c) => c.inService);
   const governingLifeMsa = Math.min(...inServiceChecks.map((c) => c.allowableMsa));
@@ -293,23 +309,23 @@ function damageCheck(damage, designTrafficMsa) {
 /**
  * The granular sub-base carries loaded tippers before anything is laid on it.
  * It is checked as a two-layer system on the subgrade for subgrade rutting
- * under the construction traffic, taken as the code's floor of repetitions.
+ * under the dumper traffic, or the code's floor of repetitions if that is more.
  */
-function constructionTrafficCheck(layers, reliability) {
+function constructionTrafficCheck(layers, reliability, construction, measuredStrain) {
   const subBase = layers.find((l) => l.slotId === 'SUB_BASE');
   if (!subBase || subBase.behaviour !== BEHAVIOUR.GRANULAR || !(subBase.thicknessMm > 0)) {
     return null;
   }
   const subgrade = layers[layers.length - 1];
-  return subBaseCheck(subBase.thicknessMm, subgrade.E, reliability);
+  return subBaseCheck(subBase.thicknessMm, subgrade.E, reliability, construction, measuredStrain);
 }
 
 /** Two-layer check of a granular sub-base of given thickness on the subgrade. */
-function subBaseCheck(thicknessMm, subgradeMPa, reliability) {
+function subBaseCheck(thicknessMm, subgradeMPa, reliability, construction, measuredStrain) {
   const nu = 0.35;
   const modulus = granularModulus(thicknessMm, subgradeMPa);
   const pts = pointsAt(thicknessMm, 1, 'construction');
-  const strain = worst(
+  const computedStrain = worst(
     analyze({
       layers: [
         { h: thicknessMm, E: modulus, nu },
@@ -322,9 +338,24 @@ function subBaseCheck(thicknessMm, subgradeMPa, reliability) {
     (r) => r.verticalCompressiveStrain
   );
 
-  const repetitions = CRITERIA.constructionTraffic.minimumRepetitions;
+  const strain = measuredStrain ?? computedStrain;
+  const traffic = construction ? subBaseConstructionTraffic(construction) : null;
+  const repetitions = traffic ? traffic.repetitions : CRITERIA.constructionTraffic.minimumRepetitions;
   const rutting = subgradeRuttingLife(strain, reliability, repetitions);
   return check({
+    source: measuredStrain != null ? 'IITPAVE' : null,
+    computed: computedStrain,
+    preSteps: traffic ? [traffic.step] : [],
+    analysis: {
+      layers: [
+        { label: 'Granular sub-base', h: thicknessMm, E: modulus, nu },
+        { label: 'Subgrade', h: null, E: subgradeMPa, nu },
+      ],
+      wheelLoadN: STANDARD_AXLE.wheelLoadN,
+      tyrePressureMPa: STANDARD_AXLE.tyrePressureMPa,
+      dualSpacingMm: STANDARD_AXLE.dualSpacingMm,
+      points: OFFSETS.map((o) => ({ z: thicknessMm, r: o.x })),
+    },
     id: 'construction-traffic',
     title: 'Sub-base under construction traffic',
     strainLabel: `Vertical strain, top of subgrade, ${thicknessMm} mm GSB alone`,
@@ -338,6 +369,72 @@ function subBaseCheck(thicknessMm, subgradeMPa, reliability) {
       `GSB modulus = 0.2 x ${thicknessMm}^0.45 x ${subgradeMPa.toFixed(0)} = ` +
       `${modulus.toFixed(0)} MPa;  ${rutting.substitution ?? ''}`,
   });
+}
+
+/**
+ * A freshly laid CTB carries the dumpers bringing the layer above it, before
+ * that layer can spread their load and before the CTB has its full strength.
+ * The CTB, the layers under it and the subgrade are analysed under the rear
+ * tandem taken as two single axles, at the CTB contact stress, and the stress
+ * at its underside is held to what Eq. 3.6 allows for those passes at the
+ * 7-day flexural strength.
+ */
+function ctbConstructionCheck(layers, ctbIndex, construction, measuredStress) {
+  if (ctbIndex < 0 || !construction) return null;
+  const { rearTandemKN, ctbTrips, ctbSevenDayMPa } = construction;
+  if (!(ctbTrips > 0) || !(rearTandemKN > 0) || !(ctbSevenDayMPa > 0)) return null;
+
+  const spec = CRITERIA.ctbConstruction;
+  const stage = layers.slice(ctbIndex);
+  const ctb = stage[0];
+  const singleKN = rearTandemKN / 2;
+  const passes = ctbTrips * 2;
+  const pressure = CRITERIA.cementedDamage.tyrePressureMPa;
+
+  const computedStress = Math.max(
+    0,
+    ...analyze({
+      layers: stage.map((l) => ({ h: l.thicknessMm, E: l.E, nu: l.nu })),
+      load: { wheelLoadN: (singleKN * 1000) / 4, tyrePressureMPa: pressure, dualSpacingMm: STANDARD_AXLE.dualSpacingMm },
+      points: OFFSETS.map((o) => ({ x: o.x, y: 0, z: ctb.thicknessMm, layerIndex: 0 })),
+    }).map((r) => Math.max(r.sigmaXX, r.sigmaYY))
+  );
+  const stress = measuredStress ?? computedStress;
+  const allowable = allowableCtbStress(passes, ctbSevenDayMPa);
+  const life = ctbFatigueLife(stress / ctbSevenDayMPa);
+  const safe = stress <= allowable;
+  const below = stage.slice(1, -1).map((l) => l.label.match(/\(([^)]+)\)$/)?.[1] ?? l.label).join(', ');
+
+  return {
+    id: 'ctb-construction',
+    kind: 'stress',
+    source: measuredStress != null ? 'IITPAVE' : null,
+    computed: computedStress,
+    singleKN,
+    analysis: {
+      layers: stage.map((l, i) => ({ label: l.label, h: i === stage.length - 1 ? null : l.thicknessMm, E: l.E, nu: l.nu })),
+      wheelLoadN: (singleKN * 1000) / 4,
+      tyrePressureMPa: pressure,
+      dualSpacingMm: STANDARD_AXLE.dualSpacingMm,
+      points: OFFSETS.map((o) => ({ z: ctb.thicknessMm, r: o.x })),
+    },
+    title: 'CTB under construction traffic',
+    strainLabel: `Tensile stress, bottom of CTB, ${singleKN} kN axle on the CTB${below ? `, ${below}` : ''} and subgrade`,
+    stress,
+    allowableStress: allowable,
+    demandMsa: passes / 1e6,
+    allowableMsa: life / 1e6,
+    utilisation: stress / allowable,
+    safe,
+    inService: false,
+    formula: 'σ allowable = MR(7 day) x (0.972 - 0.0825 x log10 n),  n = 2 x dumper trips',
+    substitution:
+      `σ allowable = ${ctbSevenDayMPa.toFixed(2)} x (0.972 - 0.0825 x log10 ${passes}) = ${allowable.toFixed(3)} MPa;  ` +
+      `σt under a ${singleKN} kN axle at ${pressure.toFixed(2)} MPa = ${stress.toFixed(3)} MPa`,
+    stepResult: `σt = ${stress.toFixed(3)} MPa ${safe ? '≤' : '>'} ${allowable.toFixed(3)} MPa`,
+    ref: spec.ref,
+    verified: spec.verified,
+  };
 }
 
 /**
@@ -445,8 +542,8 @@ export function findMinimumBituminous(input, onProgress) {
  *
  *   1. a granular sub-base just thick enough to carry the construction
  *      traffic, and a cement treated one at its minimum;
- *   2. a cement treated base just thick enough for its own fatigue and
- *      cumulative damage, with the
+ *   2. a cement treated base just thick enough for its own fatigue,
+ *      cumulative damage and construction traffic, with the
  *      bituminous layers at their minimum over it;
  *   3. the thinnest bituminous layer that passes fatigue and rutting.
  *
@@ -472,7 +569,7 @@ export function designSection(input) {
     const step = THICKNESS_INCREMENTS.granularMm;
     let sized = null;
     for (let t = subBase.minMm; t <= 600; t += step) {
-      if (subBaseCheck(t, subgradeMPa, reliability).safe) {
+      if (subBaseCheck(t, subgradeMPa, reliability, input.construction).safe) {
         sized = t;
         break;
       }
@@ -509,7 +606,9 @@ export function designSection(input) {
     let sized = null;
     for (let t = described.base.minMm; t <= 400; t += step) {
       const trial = evaluateTrial({ ...input, reliability, thicknesses: { ...thicknesses, BASE: t } });
-      const ctbChecks = trial.checks.filter((c) => c.id === 'cemented-fatigue' || c.id === 'cemented-damage');
+      const ctbChecks = trial.checks.filter((c) =>
+        ['cemented-fatigue', 'cemented-damage', 'ctb-construction'].includes(c.id)
+      );
       if (ctbChecks.every((c) => c.safe)) {
         sized = t;
         break;
@@ -518,7 +617,7 @@ export function designSection(input) {
     if (sized == null) {
       return {
         found: false,
-        message: 'No cement treated base up to 400 mm passes fatigue and cumulative damage. Check the design traffic, the axle loads and the CTB strength.',
+        message: 'No cement treated base up to 400 mm passes fatigue, cumulative damage and construction traffic. Check the design traffic, the axle loads and the CTB strength.',
       };
     }
     thicknesses.BASE = sized;

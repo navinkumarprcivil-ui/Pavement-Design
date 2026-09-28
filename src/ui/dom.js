@@ -76,7 +76,7 @@ function fieldLabel(label, { ref, aside, forId } = {}) {
  * A labelled numeric input that reports every edit.
  * `aside` is a short value shown against the label, such as a minimum.
  */
-export function numberField({ label, aside, ref, value, suffix, min, max, step = 'any', onInput }) {
+export function numberField({ label, aside, ref, value, suffix, min, max, step = 'any', placeholder, onInput }) {
   const id = nextId();
   const input = h('input', {
     id,
@@ -86,6 +86,7 @@ export function numberField({ label, aside, ref, value, suffix, min, max, step =
     min,
     max,
     step,
+    placeholder,
     oninput: (event) => {
       const raw = event.target.value;
       onInput(raw === '' ? null : Number(raw), event.target);
@@ -106,6 +107,16 @@ export function textField({ label, value, onInput }) {
     { class: 'field' },
     fieldLabel(label, { forId: id }),
     h('input', { id, type: 'text', value: value ?? '', oninput: (e) => onInput(e.target.value) })
+  );
+}
+
+export function textArea({ label, value, onInput }) {
+  const id = nextId();
+  return h(
+    'div',
+    { class: 'field wide' },
+    fieldLabel(label, { forId: id }),
+    h('textarea', { id, class: 'text-area', rows: 4, value: value ?? '', oninput: (e) => onInput(e.target.value) })
   );
 }
 

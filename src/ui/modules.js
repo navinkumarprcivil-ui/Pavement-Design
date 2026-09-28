@@ -10,3 +10,22 @@ export const MODULES = {
 };
 
 export const MODULE_ORDER = ['flexible', 'rigid', 'rural'];
+
+/** What the project is, for the record and the report. */
+export const CONSTRUCTION_TYPES = [
+  { value: 'greenfield', label: 'Greenfield (new construction)' },
+  { value: 'widening', label: 'Widening' },
+  { value: 'overlay', label: 'Overlay' },
+  { value: 'rehabilitation', label: 'Rehabilitation' },
+  { value: 'other', label: 'Other' },
+];
+
+export const FACILITY_TYPES = [
+  { value: 'main', label: 'Main carriageway' },
+  { value: 'service', label: 'Service road' },
+  { value: 'slip', label: 'Slip road' },
+  { value: 'parikrama', label: 'Parikrama path' },
+  { value: 'other', label: 'Other' },
+];
+
+export const optionLabel = (options, value) => options.find((o) => o.value === value)?.label ?? '';

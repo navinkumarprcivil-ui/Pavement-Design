@@ -15,6 +15,8 @@ export const BEHAVIOUR = {
   BITUMINOUS: 'bituminous',
   GRANULAR: 'granular',
   CEMENTED: 'cemented',
+  /** Bitumen treated: a fixed modulus, not a fatigue layer of its own. */
+  TREATED: 'treated',
   SUBGRADE: 'subgrade',
 };
 
@@ -73,6 +75,14 @@ export const BASE_OPTIONS = [
     defaultMm: 150,
     requiresCrackRelief: true,
   },
+  {
+    id: 'RAP',
+    label: 'Foamed bitumen / emulsion treated RAP',
+    short: 'RAP',
+    behaviour: BEHAVIOUR.TREATED,
+    minMm: MINIMUM_THICKNESS.rapBaseMm,
+    defaultMm: 180,
+  },
 ];
 
 export const SUB_BASE_OPTIONS = [
@@ -113,6 +123,50 @@ export const CRACK_RELIEF_OPTIONS = [
     defaultMm: 0,
   },
 ];
+
+/** What the site can supply, which decides the materials a design may use. */
+export const SITE_CONDITIONS = [
+  { key: 'granular', label: 'Granular aggregates (WMM / GSB quality)' },
+  { key: 'cement', label: 'Cement for stabilisation' },
+  { key: 'stabilisable', label: 'Aggregates suitable for stabilisation' },
+  { key: 'ctsbPlant', label: 'CTSB plant / mix feasible' },
+  { key: 'sami', label: 'SAMI product available' },
+  { key: 'rehabilitation', label: 'Rehabilitation project' },
+  { key: 'coldRecycling', label: 'Cold recycling capability' },
+  { key: 'existingBituminous', label: 'Existing bituminous layer present' },
+];
+
+export const defaultConditions = () => ({
+  granular: true,
+  cement: true,
+  stabilisable: true,
+  ctsbPlant: true,
+  sami: false,
+  rehabilitation: false,
+  coldRecycling: false,
+  existingBituminous: false,
+});
+
+/** Whether a base, sub-base or crack relief option can be built with what the site has. */
+export function feasible(optionId, c) {
+  switch (optionId) {
+    case 'WMM':
+    case 'WBM':
+    case 'GSB':
+    case 'AGG_INTERLAYER':
+      return Boolean(c.granular);
+    case 'CTB':
+      return Boolean(c.cement && c.stabilisable);
+    case 'CTSB':
+      return Boolean(c.cement && c.ctsbPlant);
+    case 'SAMI':
+      return Boolean(c.sami);
+    case 'RAP':
+      return Boolean(c.coldRecycling && (c.existingBituminous || c.rehabilitation));
+    default:
+      return true;
+  }
+}
 
 /** Binder of the bottom bituminous layer, which sets the design modulus. */
 export const BINDER_GRADES = ['VG40', 'VG30', 'VG10'];

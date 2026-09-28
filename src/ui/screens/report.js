@@ -12,8 +12,11 @@ import { formatCitation } from '../citations.js';
 import { designTraffic } from '../project.js';
 import { currentDesign } from '../currentDesign.js';
 import { AXLES, SUB_BASES, SHOULDERS } from '../rigidProject.js';
-import { checkStep, damageRows } from './results.js';
-import { ctbDamageInput } from '../ctbProject.js';
+import { checkSteps, damageRows, fromIitpave } from './results.js';
+import { iitpaveCases } from '../iitpave.js';
+import { ctbDamageInput, ctbSevenDay } from '../ctbProject.js';
+import { reliabilityOf } from '../flexibleProject.js';
+import { CONSTRUCTION_TYPES, FACILITY_TYPES, optionLabel } from '../modules.js';
 import { CODES, RIGID, TRAFFIC, STANDARD_AXLE, MODULI, CRITERIA, roadCategory } from '../../data/ircConstants.js';
 import { combinationName } from '../../data/layerCatalog.js';
 import { CATALOGUE_REF } from '../../engine/ruralSP72.js';
@@ -23,6 +26,7 @@ const LAYER_COLOURS = {
   bituminous: '#3c4552',
   granular: '#c9a227',
   cemented: '#8fa3b8',
+  treated: '#5b4a3a',
   concrete: '#d3d8de',
   subgrade: '#a9805a',
 };
@@ -168,6 +172,8 @@ function header(app, codeId, kind) {
           ['Location', p.location],
           ['Client', p.client],
           ['Designer', p.designer],
+          ['Construction', optionLabel(CONSTRUCTION_TYPES, p.constructionType)],
+          ['Facility', optionLabel(FACILITY_TYPES, p.facility)],
           ['Pavement', `${kind} to ${CODES[codeId].designation}`],
           ['Date', today],
         ].map(([k, v]) => h('tr', {}, h('th', {}, k), h('td', {}, v || '—')))
@@ -219,6 +225,78 @@ function trafficGiven(app, traffic, cite) {
       ['D', `Lane distribution factor, ${traffic.lane.label.toLowerCase()}`, String(traffic.lane.value), 'Code', TRAFFIC.laneDistributionFactors.ref],
       traffic.lane.directional ? ['', 'Share in the design direction', `${t.directionalSplitPercent}%`, 'Input'] : null,
       ['F', 'Vehicle damage factor', traffic.vdf.toFixed(2), surveyed ? 'Input' : 'Code', surveyed ? null : TRAFFIC.indicativeVDF.ref],
+    ].filter(Boolean),
+    cite
+  );
+}
+
+/** Every analysis behind the design, as the inputs IITPAVE takes. */
+function iitpaveAppendix(app) {
+  const result = app.state.result;
+  const cases = iitpaveCases(result, app.state);
+  return [
+    h('h2', {}, 'Appendix A. IITPAVE inputs'),
+    cases.map((c, i) => [
+      h('h3', {}, `A.${i + 1} ${c.title}`),
+      table(
+        null,
+        ['Layer', 'E, MPa', 'μ', 'h, mm'],
+        c.layers.map((l) => [l.label, l.E.toFixed(1), l.nu.toFixed(2), l.h == null ? '∞' : String(l.h)])
+      ),
+      table(
+        null,
+        ['Input', 'Value'],
+        [
+          ['No. of layers', String(c.layers.length)],
+          c.wheelLoadN != null
+            ? ['Wheel load', `${Math.round(c.wheelLoadN)} N`]
+            : ['Wheel loads', c.classes.map((k) => `${Math.round(k.wheelLoadN)} N`).join(', ')],
+          ['Tyre pressure', `${c.tyrePressureMPa.toFixed(2)} MPa`],
+          ['Wheel set', c.dualSpacingMm > 0 ? `Dual, ${c.dualSpacingMm} mm c/c` : 'Single'],
+          ['Analysis points (z, r), mm', c.points.map((p) => `(${p.z.toFixed(0)}, ${p.r.toFixed(0)})`).join(', ')],
+        ]
+      ),
+    ]),
+  ];
+}
+
+/** The allowable value of a check, in its own terms. */
+function allowableCell(c) {
+  if (c.kind === 'damage') return `CFD ${c.allowableDamage.toFixed(2)}`;
+  if (c.kind === 'stress') return `${c.allowableStress.toFixed(3)} MPa`;
+  return c.allowableMicro != null ? `${c.allowableMicro.toFixed(1)} µε` : '—';
+}
+
+function computedCell(c) {
+  if (c.kind === 'damage') return `CFD ${c.damage.toFixed(3)}`;
+  if (c.kind === 'stress') return `${c.stress.toFixed(3)} MPa`;
+  return c.strainMicro != null ? `${c.strainMicro.toFixed(1)} µε` : '—';
+}
+
+/** Dumper loads and trips behind the construction traffic checks. */
+function constructionGiven(app, result, cite) {
+  const onSubBase = result.checks.some((c) => c.id === 'construction-traffic' && c.preSteps?.length);
+  const onCtb = result.checks.some((c) => c.id === 'ctb-construction');
+  if (!onSubBase && !onCtb) return null;
+  const c = app.state.construction;
+  const vdfRef = CRITERIA.constructionTraffic.vdf.ref;
+  const seven = onCtb ? ctbSevenDay(app.state) : null;
+  return givenTable(
+    'Construction traffic inputs',
+    [
+      ['Pt', 'Dumper rear tandem axle', `${c.rearTandemKN} kN`, 'Input', vdfRef],
+      ['Pf', 'Dumper front axle', `${c.frontKN} kN`, 'Input', vdfRef],
+      onSubBase ? ['', 'Dumper trips on the sub-base', String(c.subBaseTrips), 'Input', CRITERIA.constructionTraffic.ref] : null,
+      onCtb ? ['', 'Dumper trips on the CTB', String(c.ctbTrips), 'Input', CRITERIA.ctbConstruction.ref] : null,
+      onCtb
+        ? [
+            'MR(7)',
+            'CTB 7-day flexural strength',
+            `${seven.value.toFixed(2)} MPa`,
+            seven.entered ? 'Input' : 'Derived',
+            CRITERIA.ctbConstruction.ref,
+          ]
+        : null,
     ].filter(Boolean),
     cite
   );
@@ -281,6 +359,9 @@ function flexibleReport(app, cite) {
   if (result.slots.some((s) => s.slotId === 'BASE' && s.behaviour === 'cemented')) marks.BASE = '◂ εt, bottom of CTB';
 
   const damage = result.checks.find((c) => c.kind === 'damage');
+  const layered = materials.layeredSubgrade?.enabled ? materials.layeredSubgrade : null;
+  const narratives = app.state.narratives || {};
+  const narrative = (key) => (narratives[key]?.trim() ? narratives[key].trim().split(/\n{2,}/).map((text) => para(text)) : null);
   const ctb = damage ? ctbDamageInput(app.state, traffic) : null;
   const rupture = CRITERIA.ctbRupture;
   const verdictNumber = damage ? '3.6' : '3.5';
@@ -305,12 +386,22 @@ function flexibleReport(app, cite) {
     givenTable(
       'Material inputs',
       [
-        ['CBR', 'Effective subgrade CBR', `${materials.subgradeCBR}%`, 'Input', MODULI.subgrade.ref],
+        ...(layered
+          ? [
+              ['CBR', 'Select borrow CBR', `${layered.borrowCBR}%`, 'Input', MODULI.effectiveSubgrade.ref],
+              ['', 'Select borrow thickness', `${layered.borrowMm} mm`, 'Input', MODULI.effectiveSubgrade.ref],
+              ['CBR', 'Embankment CBR', `${layered.embankmentCBR}%`, 'Input', MODULI.effectiveSubgrade.ref],
+              ['CBR', 'Effective subgrade CBR', `${Number(materials.subgradeCBR).toFixed(1)}%`, 'Derived', MODULI.effectiveSubgrade.ref],
+            ]
+          : [['CBR', 'Effective subgrade CBR', `${materials.subgradeCBR}%`, 'Input', MODULI.subgrade.ref]]),
         ['', 'Binder of the bottom bituminous layer', materials.binderGrade, 'Input', MODULI.bituminous.ref],
         ['T', 'Average annual pavement temperature', `${materials.pavementTemperatureC} °C`, 'Input', MODULI.bituminous.ref],
+        materials.bituminousModulusMPa > 0
+          ? ['MRm', 'Bituminous mix modulus, from the mix design', `${materials.bituminousModulusMPa} MPa`, 'Input', MODULI.bituminous.ref]
+          : null,
         ['Va', 'Air voids, bottom bituminous layer', `${mix.airVoidsPercent}%`, 'Input', CRITERIA.bituminousFatigue.ref],
         ['Vbe', 'Effective binder, bottom bituminous layer', `${mix.effectiveBinderPercent}%`, 'Input', CRITERIA.bituminousFatigue.ref],
-        ['R', 'Reliability', `${result.reliability}%`, 'Code', CRITERIA.reliability?.ref],
+        ['R', 'Reliability', `${result.reliability}%`, reliabilityOf(app.state).chosen ? 'Input' : 'Code', CRITERIA.reliability?.ref],
         ...(ctb
           ? [
               ['', 'Cement treated base material', ctb.rupture.material.label, 'Input', rupture.ref],
@@ -318,12 +409,16 @@ function flexibleReport(app, cite) {
               ['MRup', 'Modulus of rupture of the CTB', `${ctb.rupture.value.toFixed(2)} MPa`, 'Derived', rupture.ref],
             ]
           : []),
-      ],
+      ].filter(Boolean),
       cite
     ),
+    narrative('subgrade'),
+    narrative('mix'),
+    narrative('materials'),
 
     h('h2', {}, '3. Design'),
     h('h3', {}, '3.1 Design traffic'),
+    narrative('traffic'),
     trafficGiven(app, traffic, cite),
     traffic.result.steps.map((step) => stepBlock(step, cite)),
 
@@ -361,7 +456,8 @@ function flexibleReport(app, cite) {
     ),
 
     h('h3', {}, '3.4 Performance criteria'),
-    result.checks.map((check) => stepBlock(checkStep(check), cite)),
+    constructionGiven(app, result, cite),
+    result.checks.flatMap(checkSteps).map((step) => stepBlock(step, cite)),
 
     damage ? ctbDamageSection(app, damage, ctb, cite) : null,
 
@@ -371,8 +467,8 @@ function flexibleReport(app, cite) {
       ['Check', 'Allowable', 'Computed', 'Life', 'Verdict'],
       result.checks.map((c) => [
         c.title,
-        c.kind === 'damage' ? `CFD ${c.allowableDamage.toFixed(2)}` : c.allowableMicro != null ? `${c.allowableMicro.toFixed(1)} µε` : '—',
-        c.kind === 'damage' ? `CFD ${c.damage.toFixed(3)}` : c.strainMicro != null ? `${c.strainMicro.toFixed(1)} µε` : '—',
+        allowableCell(c),
+        fromIitpave(c) ? [computedCell(c), ' (IITPAVE)'] : computedCell(c),
         msa(c.allowableMsa),
         h('strong', { class: c.safe ? 'r-pass' : 'r-fail' }, c.safe ? 'Pass' : 'Fail'),
       ])
@@ -599,7 +695,8 @@ export function buildReport(app) {
   const refs = citations();
   const body = BUILDERS[design.type](app, refs.cite);
   const cost = costSectionBlock(5, design.slots, app);
-  return h('article', { class: 'report' }, body, cost, referencesSection(cost ? 6 : 5, refs), closing());
+  const appendix = design.type === 'flexible' ? iitpaveAppendix(app) : null;
+  return h('article', { class: 'report' }, body, cost, referencesSection(cost ? 6 : 5, refs), appendix, closing());
 }
 
 /* ---------- Export ---------- */

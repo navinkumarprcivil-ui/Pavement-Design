@@ -16,7 +16,7 @@ import { loadProject, saveProject } from './store/trials.js';
 import { getProject, saveProjectRecord } from './store/projects.js';
 import { connectCloud, onCloudChange } from './store/cloud.js';
 import { subscribe as onStoreChange } from './store/sync.js';
-import { BINDER_GRADES } from './data/layerCatalog.js';
+import { BINDER_GRADES, defaultConditions } from './data/layerCatalog.js';
 
 import renderHome from './ui/screens/home.js';
 import renderTraffic from './ui/screens/traffic.js';
@@ -29,10 +29,12 @@ import renderRural from './ui/screens/rural.js';
 import renderRigidTraffic from './ui/screens/rigidTraffic.js';
 import renderRigidAxles from './ui/screens/rigidAxles.js';
 import renderCtbAxles from './ui/screens/ctbAxles.js';
+import renderIitpave from './ui/screens/iitpave.js';
 import renderRigidSlab from './ui/screens/rigidSlab.js';
 import renderRigidResult from './ui/screens/rigidResult.js';
 import { defaultRigidState, migrateRigid } from './ui/rigidProject.js';
-import { defaultCtbState, hasCTB } from './ui/ctbProject.js';
+import { defaultCtbState, defaultConstructionState, hasCTB } from './ui/ctbProject.js';
+import { defaultLayeredSubgrade, defaultNarratives } from './ui/flexibleProject.js';
 import { designStepsScreen } from './ui/screens/designSteps.js';
 import renderProjects from './ui/screens/projects.js';
 import renderMaterialRates from './ui/screens/materialRates.js';
@@ -53,6 +55,7 @@ const SCREENS = {
   ctbAxles: { render: renderCtbAxles, title: 'Axle load spectrum', back: 'layers' },
   inputs: { render: renderInputs, title: 'Design inputs', back: () => (hasCTB(app.state) ? 'ctbAxles' : 'layers') },
   results: { render: renderResults, title: 'Design result', back: 'inputs' },
+  iitpave: { render: renderIitpave, title: 'IITPAVE', back: 'results' },
   report: { render: renderReport, title: 'Design report', back: () => RESULT_SCREEN[app.state.pavementType] },
   rates: { render: renderRates, title: 'Cost', back: () => 'report' },
   trials: { render: renderTrials, title: 'Compare trials', back: 'home' },
@@ -86,6 +89,8 @@ export const defaultState = () => ({
     location: '',
     client: '',
     designer: '',
+    constructionType: 'greenfield',
+    facility: 'main',
     roadCategory: 'nh',
     terrain: 'plain',
   },
@@ -108,13 +113,26 @@ export const defaultState = () => ({
     crackReliefId: 'AGG_INTERLAYER',
   },
   thicknesses: {},
+  /** What the site can supply; it limits the compositions offered. */
+  conditions: defaultConditions(),
   /** Strength and axle loads of a cement treated base, for its cumulative damage. */
   ctb: defaultCtbState(),
+  /** Dumpers on the sub-base and on the CTB while the layers above are laid. */
+  construction: defaultConstructionState(),
   materials: {
     subgradeCBR: 8,
     binderGrade: 'VG40',
     pavementTemperatureC: 35,
+    /** From the mix design; blank takes the table value. */
+    bituminousModulusMPa: null,
+    layeredSubgrade: defaultLayeredSubgrade(),
   },
+  /** 80 or 90 chosen by the designer; null takes the code's. */
+  reliabilityChoice: null,
+  /** The designer's own paragraphs, placed in the report. */
+  narratives: defaultNarratives(),
+  /** Outputs read from IITPAVE for the section last designed. */
+  iitpave: { key: '', values: {}, stresses: {}, use: false },
   mix: {
     airVoidsPercent: 3.5,
     effectiveBinderPercent: 11.5,
@@ -172,6 +190,7 @@ function migrate(saved) {
   }
   state.rigid = migrateRigid(saved.rigid);
   if (state.traffic.vdfMode === 'manual') state.traffic.vdfMode = 'survey';
+  if (state.project.roadCategory === 'other') state.project.roadCategory = 'odr';
   if (!BINDER_GRADES.includes(state.materials.binderGrade)) {
     state.materials.binderGrade = defaults.materials.binderGrade;
   }

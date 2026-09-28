@@ -19,6 +19,7 @@
   --layer-bituminous: #3c4552;
   --layer-granular: #c9a227;
   --layer-cemented: #8fa3b8;
+  --layer-treated: #5b4a3a;
   --layer-concrete: #d3d8de;
   --layer-subgrade: #a9805a;
   --radius: 14px;
@@ -2253,6 +2254,7 @@ body.drawer-open .drawer {
 .stack-band.granular { background: var(--layer-granular); }
 .stack-band.cemented { background: var(--layer-cemented); height: 9px; }
 .stack-band.membrane { background: var(--text-dim); height: 2px; }
+.stack-band.treated { background: var(--layer-treated); height: 8px; }
 
 .composition-text {
   flex: 1;
@@ -2789,5 +2791,102 @@ body.drawer-open .drawer {
 
   .title-short {
     display: inline;
+  }
+}
+
+/* ---------- Checkbox options ---------- */
+
+.check-options {
+  display: grid;
+  gap: 4px 20px;
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 600px) {
+  .check-options { grid-template-columns: 1fr 1fr; }
+}
+
+.check-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.check-option input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.text-area {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.narratives {
+  display: grid;
+  gap: 14px;
+  padding-top: 8px;
+}
+
+.badges {
+  display: inline-flex;
+  gap: 6px;
+  flex: none;
+}
+
+/* ---------- IITPAVE ---------- */
+
+.case-ref {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data.kv th {
+  width: 40%;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.data.kv td {
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-input {
+  width: 100%;
+  min-width: 72px;
+  padding: 6px 8px;
+  font: inherit;
+  text-align: right;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Report tables stay inside a phone's width. */
+@media (max-width: 599px) {
+  .r-table {
+    font-size: 0.76rem;
+  }
+
+  .r-table th,
+  .r-table td {
+    padding: 4px 5px;
+    overflow-wrap: anywhere;
   }
 }

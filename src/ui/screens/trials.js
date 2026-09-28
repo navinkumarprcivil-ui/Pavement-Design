@@ -2,7 +2,7 @@ import { h, metric, badge, button, msa } from '../dom.js';
 import { formatCompactCurrency } from '../../engine/costing.js';
 import { listTrials, deleteTrial, setChosenTrial } from '../../store/trials.js';
 import { migrateRigid } from '../rigidProject.js';
-import { defaultCtbState } from '../ctbProject.js';
+import { defaultCtbState, defaultConstructionState } from '../ctbProject.js';
 
 /** Safe before unsafe, then cheapest, then thinnest. */
 function rank(a, b) {
@@ -55,6 +55,7 @@ export default function renderTrials(app) {
     app.state.materials = { ...app.state.materials, ...trial.materials };
     app.state.mix = { ...app.state.mix, ...trial.mix };
     if (trial.ctb) app.state.ctb = { ...defaultCtbState(), ...structuredClone(trial.ctb) };
+    if (trial.construction) app.state.construction = { ...defaultConstructionState(), ...trial.construction };
     app.state.result = null;
     app.persist();
     app.go('inputs');
