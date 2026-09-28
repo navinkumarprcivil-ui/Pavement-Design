@@ -1,6 +1,7 @@
 import { h, card, numberField, segmented, fold, metric, notice, button } from '../dom.js';
 import { stepCard } from '../citations.js';
 import { rigidTrafficFor } from '../rigidProject.js';
+import { lowVolumeChoice } from '../lowVolume.js';
 import { ref, RIGID } from '../../data/ircConstants.js';
 
 const million = (n) => `${(n / 1e6).toFixed(n >= 1e8 ? 0 : n >= 1e7 ? 1 : 2)} M`;
@@ -31,7 +32,14 @@ export default function renderRigidTraffic(app) {
           metric('TDC', million(traffic.topDown)),
           metric('CVPD', Math.round(traffic.openingCVPD).toLocaleString('en-IN'))
         ),
-        h('div', { class: 'guideline' }, h('span', {}, 'Guideline'), h('strong', {}, 'IRC:58-2015')),
+        traffic.openingCVPD <= RIGID.scope.minimumCVPD
+          ? lowVolumeChoice(app, {
+              label: `Low volume road · ${RIGID.scope.minimumCVPD} CVPD or fewer`,
+              current: 'rigid',
+              regular: { value: 'rigid', label: 'IRC:58-2015' },
+              low: { value: 'ruralRigid', label: 'IRC:SP:62-2014' },
+            })
+          : h('div', { class: 'guideline' }, h('span', {}, 'Guideline'), h('strong', {}, 'IRC:58-2015')),
         traffic.warnings.length
           ? h('div', { class: 'warning-list' }, traffic.warnings.map((w) => notice('warn', null, w)))
           : null,
@@ -44,7 +52,7 @@ export default function renderRigidTraffic(app) {
               title: 'Commercial vehicles over the design period',
               formula: 'C = 365 A [(1 + r)^n − 1] / r',
               result: `${(traffic.vehicles / 1e6).toFixed(2)} million vehicles`,
-              ref: ref('IRC58', 'Cl. 5.5.2.7', { equation: 'Eq. 1' }),
+              ref: ref('IRC58', 'Cl. 5.5.2.7', { equation: 'Eq. 1', page: 6 }),
             }),
             stepCard({
               title: 'Design lane',
@@ -53,13 +61,13 @@ export default function renderRigidTraffic(app) {
                   ? '25% of the axles in the predominant direction'
                   : '25% of the two-way axles',
               result: `${(traffic.laneAxles / 1e6).toFixed(2)} million axles`,
-              ref: ref('IRC58', 'Cl. 5.5.2.3'),
+              ref: ref('IRC58', 'Cl. 5.5.2.3', { page: 5 }),
             }),
             stepCard({
               title: 'Six-hour periods',
               formula: 'Day traffic for bottom-up; night traffic with a short wheel base for top-down',
               result: `${million(traffic.bottomUp)} bottom-up · ${million(traffic.topDown)} top-down`,
-              ref: ref('IRC58', 'Cl. 5.5.2.4 / 6.3.3'),
+              ref: ref('IRC58', 'Cl. 5.5.2.4 / 6.3.3', { page: '5, 18' }),
             }),
           ],
         })

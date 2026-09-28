@@ -19,7 +19,9 @@ import { reliabilityOf } from '../flexibleProject.js';
 import { CONSTRUCTION_TYPES, FACILITY_TYPES, optionLabel } from '../modules.js';
 import { CODES, RIGID, TRAFFIC, STANDARD_AXLE, MODULI, CRITERIA, roadCategory } from '../../data/ircConstants.js';
 import { combinationName } from '../../data/layerCatalog.js';
-import { CATALOGUE_REF } from '../../engine/ruralSP72.js';
+import { ruralDesignFor, lvRigidDesignFor } from '../lowVolumeProject.js';
+import { SP72 } from '../../data/sp72.js';
+import { SP62 } from '../../data/sp62.js';
 import { costSection, formatCurrency, formatNumber } from '../../engine/costing.js';
 
 const LAYER_COLOURS = {
@@ -46,7 +48,7 @@ function citations() {
       if (!ref) return null;
       const text = formatCitation(ref);
       if (!seen.has(text)) seen.set(text, ref);
-      return h('span', { class: 'r-cite' }, `(${[ref.clause, ref.table, ref.equation].filter(Boolean).join(', ')})`);
+      return h('span', { class: 'r-cite' }, `(${[ref.clause, ref.table, ref.equation, ref.page != null ? `p. ${ref.page}` : null].filter(Boolean).join(', ')})`);
     },
     list: () => [...seen.keys()].sort(),
   };
@@ -93,7 +95,7 @@ function stepBlock(step, cite) {
 
 /** The section drawn as a table of coloured bands, with where it is checked. */
 function sectionFigure(slots, marks = {}) {
-  const drawn = slots.filter((s) => s.behaviour === 'subgrade' || s.thicknessMm > 0);
+  const drawn = slots.filter((s) => s.behaviour === 'subgrade' || s.thicknessMm > 0 || s.note);
   return h(
     'table',
     { class: 'r-figure' },
@@ -114,7 +116,7 @@ function sectionFigure(slots, marks = {}) {
                 height: slot.behaviour === 'subgrade' ? '34px' : `${Math.min(70, Math.max(26, slot.thicknessMm * 0.2))}px`,
               },
             },
-            slot.behaviour === 'subgrade' ? slot.label : `${slot.label} · ${slot.thicknessMm} mm`
+            slot.behaviour === 'subgrade' ? slot.label : `${slot.label} · ${slot.thicknessMm > 0 ? `${slot.thicknessMm} mm` : slot.note}`
           ),
           h('td', { class: 'r-mark' }, marks[slot.slotId] || marks[slot.behaviour] || '')
         )
@@ -632,61 +634,182 @@ function rigidReport(app, cite) {
 
 /* ---------- Low volume road, IRC:SP:72 ---------- */
 
+const inr = (n, digits = 0) => Number(n).toLocaleString('en-IN', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+
 function ruralReport(app, cite) {
-  const result = app.state.ruralResult;
-  const traffic = designTraffic(app.state);
-  const { design } = result;
-  const { project, traffic: t } = app.state;
+  const r = ruralDesignFor(app.state);
+  const { design, traffic } = r;
+  const { project } = app.state;
+  const t = app.state.rural.traffic;
+  const d = app.state.rural.design;
   const category = roadCategory(project.roadCategory);
+  const lane = SP72.lane.options.find((o) => o.id === t.laneId) || SP72.lane.options[0];
+  const rain = SP72.surfacingWarrant.rainfall.find((x) => x.id === d.rainfall);
+
+  const trafficRows =
+    t.mode === 'appendixA'
+      ? [['CVPD', 'Commercial vehicles per day', inr(t.cvpd), 'Input', SP72.appendixA.ref]]
+      : [
+          ['HCV', 'Heavy commercial vehicles per day', inr(t.hcv), 'Input', SP72.vdf.ref],
+          ['MCV', 'Medium commercial vehicles per day', inr(t.mcv), 'Input', SP72.vdf.ref],
+          ['p', 'Laden share', `${t.ladenPercent}%`, 'Input', SP72.vdf.ref],
+          ['VDF', 'Vehicle damage factor', t.vdfMode === 'survey' ? 'Axle load survey' : 'Indicative', t.vdfMode === 'survey' ? 'Input' : 'Code', SP72.vdf.ref],
+          t.harvest.enabled
+            ? ['n, t', 'Harvest peak rise and season length', `${t.harvest.rise}, ${t.harvest.seasonDays} days, ${t.harvest.seasons} seasons`, 'Input', SP72.harvest.ref]
+            : null,
+        ].filter(Boolean);
 
   return [
-    header(app, 'IRCSP72', 'Low volume road'),
+    header(app, 'IRCSP72', 'Flexible pavement, low volume road'),
     introduction(
       'IRCSP72',
-      'Low volume road',
-      'The design traffic places the road in a traffic category, the subgrade CBR in a strength band, and the ' +
-        'pavement composition is read from the design catalogue for that pair.',
+      'Flexible pavement for a low volume road',
+      'The design traffic in cumulative standard axles places the road in a traffic category and the subgrade CBR in a ' +
+        'strength class; the composition is taken from the design catalogue for that pair and adjusted as the code permits.',
       [
         ['Road category', category?.label],
-        ['Terrain', project.terrain[0].toUpperCase() + project.terrain.slice(1)],
-        ['Carriageway', traffic.lane.label],
-        ['Design period', `${t.designLifeYears} years`],
+        ['Carriageway', `${lane.label}, L = ${lane.value}`],
+        ['Design life', `${t.designLifeYears} years`],
+        ['Base and sub-base', d.baseType === 'cemented' ? 'Cement treated' : 'Gravel and granular'],
       ]
     ),
 
     h('h2', {}, '2. Materials'),
     givenTable(
-      'Subgrade',
+      'Subgrade and site',
       [
-        ['CBR', 'Subgrade CBR', `${result.subgradeCBR}%`, 'Input', CATALOGUE_REF],
-        ['', 'Subgrade strength band', design.band.label, 'Derived', CATALOGUE_REF],
-      ],
+        ['CBR', 'Subgrade soaked CBR', `${d.subgradeCBR}%`, 'Input', SP72.subgradeClasses.ref],
+        ['', 'Subgrade strength class', `${design.subgradeClass.id}, ${design.subgradeClass.label.toLowerCase()}`, 'Derived', SP72.subgradeClasses.ref],
+        d.baseType === 'granular' ? ['', 'Annual rainfall', rain?.label, 'Input', SP72.surfacingWarrant.ref] : null,
+        ['', 'Frost', d.frost ? 'Susceptible' : 'Not susceptible', 'Input', SP72.frost.ref],
+      ].filter(Boolean),
       cite
     ),
+    d.baseType === 'cemented'
+      ? para(
+          `Cement treated base of 7-day UCS not less than ${SP72.soilCementBase.sevenDayMPa} MPa `,
+          cite(SP72.soilCementBase.ref),
+          ` and cement treated sub-base of not less than ${SP72.cementTreatedSubBaseUCS.sevenDayMPa} MPa `,
+          cite(SP72.cementTreatedSubBaseUCS.ref),
+          '.'
+        )
+      : para(
+          `Granular sub-base of soaked CBR not less than ${SP72.granularSubBase.soakedCBR} `,
+          cite(SP72.granularSubBase.ref),
+          `; gravel base of soaked CBR ${SP72.gravelBase.soakedCBR} `,
+          cite(SP72.gravelBase.ref),
+          '.'
+        ),
 
     h('h2', {}, '3. Design'),
     h('h3', {}, '3.1 Design traffic'),
-    trafficGiven(app, traffic, cite),
-    traffic.result.steps.map((step) => stepBlock(step, cite)),
+    givenTable(
+      'Traffic',
+      [
+        ...trafficRows,
+        ['r', 'Growth rate', `${t.growthPercent}%`, 'Input', SP72.growth.ref],
+        ['x', 'Years from count to opening', String(t.yearsToOpening), 'Input', null],
+        ['n', 'Design life', `${t.designLifeYears} years`, 'Input', SP72.designLife.ref],
+        ['L', 'Lane factor', String(lane.value), 'Code', SP72.lane.ref],
+      ],
+      cite
+    ),
+    traffic.steps.map((step) => stepBlock(step, cite)),
 
-    h('h3', {}, '3.2 Pavement composition from the catalogue'),
+    h('h3', {}, '3.2 Pavement composition'),
     design.steps.map((step) => stepBlock(step, cite)),
-    sectionFigure(result.slots),
+    sectionFigure(design.slots),
+    design.warnings.map((w) => h('p', { class: 'r-note' }, 'Note: ', w)),
 
     h('h2', {}, '4. Recommended pavement composition'),
     table(
       null,
       ['#', 'Layer', 'Thickness'],
       [
-        ...result.slots.filter((s) => s.thicknessMm > 0).map((s, i) => [String(i + 1), s.label, `${s.thicknessMm} mm`]),
-        ['', `Subgrade, CBR not less than ${result.subgradeCBR}%`, '—'],
+        ...design.slots
+          .filter((s) => s.behaviour !== 'subgrade' && (s.thicknessMm > 0 || s.note))
+          .map((s, i) => [String(i + 1), s.label, s.thicknessMm > 0 ? `${s.thicknessMm} mm` : s.note]),
+        ['', `Subgrade, soaked CBR not less than ${d.subgradeCBR}%`, '—'],
       ]
     ),
-    para(`Total thickness ${design.totalThicknessMm} mm for ${msa(result.designTrafficMsa)}, category ${design.category.label}.`),
+    para(
+      `Pavement ${design.totalThicknessMm} mm for ${inr(traffic.esal)} ESAL, traffic category ${design.category.id}, subgrade class ${design.subgradeClass.id}. `,
+      `The top of the subgrade is to be at least ${SP72.drainage.aboveGroundMm} mm above ground and ${SP72.drainage.aboveWaterTableMm} mm above the highest water table. `,
+      cite(SP72.drainage.ref)
+    ),
   ];
 }
 
-const BUILDERS = { flexible: flexibleReport, rigid: rigidReport, rural: ruralReport };
+/* ---------- Low volume road, IRC:SP:62 ---------- */
+
+function ruralRigidReport(app, cite) {
+  const r = lvRigidDesignFor(app.state);
+  const { design } = r;
+  const e = design.adopted;
+  const { traffic: t, slab: s } = app.state.lvRigid;
+  const category = roadCategory(app.state.project.roadCategory);
+  const zone = SP62.temperature.zones.find((z) => z.id === s.temperature.zone);
+
+  return [
+    header(app, 'IRCSP62', 'Rigid pavement, low volume road'),
+    introduction(
+      'IRCSP62',
+      'Concrete pavement for a low volume road',
+      'The edge stress of a 50 kN dual wheel is found by Westergaard\'s equation and, above 50 commercial vehicles a day, the ' +
+        'curling stress by Bradbury\'s; the total is compared with the 90-day flexural strength, and above 150 a day its fatigue damage is summed.',
+      [
+        ['Road category', category?.label],
+        ['Commercial vehicles after completion', `${inr(design.cvpd, 1)} per day`],
+        ['Design case', ['', 'Wheel load stress', 'Wheel load and curling stress', 'Fatigue'][design.case]],
+        ['Design period', `${t.designYears} years`],
+      ]
+    ),
+
+    h('h2', {}, '2. Materials'),
+    givenTable(
+      'Foundation and concrete',
+      [
+        s.subBase === 'measured'
+          ? ['k', 'Effective modulus of subgrade reaction', `${s.measuredK} MPa/m`, 'Input', SP62.subgradeK.ref]
+          : ['CBR', 'Subgrade soaked CBR', `${s.subgradeCBR}%`, 'Input', SP62.subgradeK.ref],
+        ['k', 'Effective k over the sub-base', `${design.k.toFixed(1)} MPa/m`, s.subBase === 'measured' ? 'Input' : 'Derived', SP62.effectiveK.ref],
+        s.strengthMode === 'flexural'
+          ? ['f28', '28-day flexural strength', `${s.flexural28} MPa`, 'Input', SP62.concrete.ref]
+          : ['fck', 'Characteristic cube strength', `${s.fck} MPa`, 'Input', SP62.concrete.ref],
+        ['f90', '90-day flexural strength', `${design.strength.f90.toFixed(2)} MPa`, 'Derived', SP62.concrete.ref],
+        ['E, μ, α', 'Concrete', `${SP62.concrete.elasticModulusMPa} MPa, ${SP62.concrete.poissonRatio}, ${SP62.concrete.thermalCoefficient}/°C`, 'Code', SP62.concrete.ref],
+        ['P', 'Design wheel load', `${SP62.load.wheelLoadKN} kN dual at ${SP62.load.dualSpacingMm} mm, ${SP62.load.truckTyreMPa} MPa`, 'Code', SP62.load.ref],
+        ['L', 'Joint spacing', `${s.jointM} m`, 'Input', SP62.slab.ref],
+        design.case > 1
+          ? ['ΔT', 'Temperature differential', s.temperature.mode === 'site' ? `${s.temperature.deltaC} °C` : `Zone ${zone?.id}`, s.temperature.mode === 'site' ? 'Input' : 'Code', SP62.temperature.ref]
+          : null,
+      ].filter(Boolean),
+      cite
+    ),
+
+    h('h2', {}, '3. Design'),
+    design.steps.map((step) => stepBlock(step, cite)),
+    design.warnings.map((w) => h('p', { class: 'r-note' }, 'Note: ', w)),
+    para(
+      h('strong', {}, design.safe ? 'The slab is safe' : 'The slab is not safe'),
+      ` at ${e.thicknessMm} mm. `,
+      cite(design.case === 3 ? SP62.fatigue.ref : SP62.cases.ref)
+    ),
+
+    h('h2', {}, '4. Recommended pavement composition'),
+    table(
+      null,
+      ['#', 'Layer', 'Thickness'],
+      [
+        ...design.slots.filter((x) => x.thicknessMm > 0).map((x, i) => [String(i + 1), x.label, `${x.thicknessMm} mm`]),
+        ['', s.subBase === 'measured' ? 'Subgrade' : `Subgrade, soaked CBR not less than ${s.subgradeCBR}%`, '—'],
+      ]
+    ),
+    para(`Transverse joints at ${s.jointM} m. `, cite(SP62.slab.ref)),
+  ];
+}
+
+const BUILDERS = { flexible: flexibleReport, rigid: rigidReport, rural: ruralReport, ruralRigid: ruralRigidReport };
 
 /** The report as one element, or null when there is no design to report. */
 export function buildReport(app) {

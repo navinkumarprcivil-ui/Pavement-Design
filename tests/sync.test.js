@@ -156,31 +156,3 @@ test('trial helpers round-trip through the sync store', async () => {
   assert.equal(trials.listTrials().length, 1);
   assert.equal(trials.listTrials()[0].name, 'B');
 });
-
-test('the rural catalogue stores and reports coverage', async () => {
-  reset();
-  const rural = await import('../src/engine/ruralSP72.js');
-
-  assert.equal(rural.getComposition('T3', 'cbr-5'), null);
-  assert.equal(rural.catalogueCoverage().entered, 0);
-
-  rural.setComposition('T3', 'cbr-5', { surfacingMm: 20, baseMm: 150, subBaseMm: 150 });
-
-  const cell = rural.getComposition('T3', 'cbr-5');
-  assert.equal(cell.baseMm, 150);
-  assert.equal(rural.catalogueCoverage().entered, 1);
-
-  const design = rural.designRuralRoad({ cumulativeEsal: 80000, subgradeCBR: 5 });
-  assert.equal(design.missing, false);
-  assert.equal(design.totalThicknessMm, 320);
-});
-
-test('an empty catalogue cell reports what is missing instead of guessing', async () => {
-  reset();
-  const rural = await import('../src/engine/ruralSP72.js');
-
-  const design = rural.designRuralRoad({ cumulativeEsal: 80000, subgradeCBR: 5 });
-  assert.equal(design.missing, true);
-  assert.equal(design.composition, null);
-  assert.match(design.message, /has not been entered yet/);
-});

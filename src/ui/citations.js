@@ -49,9 +49,12 @@ export function openSheet(title, ...content) {
   host.appendChild(backdrop);
 }
 
+/** The printed page the clause is on, as "p. 14". */
+export const pageOf = (ref) => (ref?.page != null ? `p. ${ref.page}` : null);
+
 export function formatCitation(ref) {
   if (!ref) return 'No citation';
-  return [ref.code, ref.clause, ref.table, ref.equation]
+  return [ref.code, ref.clause, ref.table, ref.equation, pageOf(ref)]
     .filter(Boolean)
     .join(' · ');
 }
@@ -76,7 +79,7 @@ export function citationChip(step) {
 
 /** The clause alone, short enough to sit beside a label: "Cl. 4.2.2, Eq. 4.6". */
 export function shortCitation(ref) {
-  return [ref.clause, ref.table, ref.equation].filter(Boolean).join(', ');
+  return [ref.clause, ref.table, ref.equation, pageOf(ref)].filter(Boolean).join(', ');
 }
 
 /** A compact clause chip for a field label or a figure; tapping opens the reference. */

@@ -43,9 +43,11 @@ test('II.5 — bituminous layer over a treated RAP base on a CTSB', () => {
   assert.ok(result.safe);
 });
 
-test('a mix modulus from the mix design replaces the table value', () => {
+test('a mix modulus from the mix design replaces the table value, up to it (Cl. 9.2)', () => {
   const result = evaluateTrial({ ...rapInput, materials: { ...rapInput.materials, bituminousModulusMPa: 2500 } });
   assert.ok(result.layers.filter((l) => l.behaviour === 'bituminous').every((l) => l.E === 2500));
+  const capped = evaluateTrial({ ...rapInput, materials: { ...rapInput.materials, bituminousModulusMPa: 4200 } });
+  assert.ok(capped.layers.filter((l) => l.behaviour === 'bituminous').every((l) => l.E === 3000), 'VG40 at 35 deg C');
 });
 
 test('strains read from IITPAVE replace the computed ones', () => {

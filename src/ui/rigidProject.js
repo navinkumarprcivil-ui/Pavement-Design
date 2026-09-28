@@ -152,7 +152,7 @@ function workingSteps(rigid, traffic, foundation, evaluation) {
       formula: 'C = 365 A [(1 + r)^n − 1] / r',
       substitution: `A = ${fmt(traffic.openingCVPD)} CVPD, r = ${traffic.growthRatePercent / 100}, n = ${t.designPeriodYears}`,
       result: `C = ${million(traffic.vehicles)} vehicles`,
-      ref: ref('IRC58', 'Cl. 5.5.2.7', { equation: 'Eq. 1' }),
+      ref: ref('IRC58', 'Cl. 5.5.2.7', { equation: 'Eq. 1', page: 6 }),
     },
     {
       title: 'Axles in the design lane',
@@ -162,14 +162,14 @@ function workingSteps(rigid, traffic, foundation, evaluation) {
         (t.carriageway === 'divided' ? ` × ${t.directionalSplitPercent / 100}` : '') +
         ' × 0.25',
       result: `${million(traffic.laneAxles)} axles`,
-      ref: ref('IRC58', 'Cl. 5.5.2.3'),
+      ref: ref('IRC58', 'Cl. 5.5.2.3', { page: 5 }),
     },
     {
       title: 'Six-hour design repetitions',
       formula: 'Day: axles × (1 − night share) / 2 · Night: axles × night share / 2 × short wheel base share',
       substitution: `Night ${t.nightSharePercent}%, wheel base under joint spacing ${t.shortWheelBasePercent}%`,
       result: `Bottom-up ${million(traffic.bottomUp)} · top-down ${million(traffic.topDown)}`,
-      ref: ref('IRC58', 'Cl. 5.5.2.4 / 6.3.3'),
+      ref: ref('IRC58', 'Cl. 5.5.2.4 / 6.3.3', { page: '5, 18' }),
     },
   ];
 
@@ -182,6 +182,7 @@ function workingSteps(rigid, traffic, foundation, evaluation) {
       result: `k = ${fmt(foundation.k, 1)} MPa/m`,
       ref: ref('IRC58', 'Cl. 5.7.3.4 / 5.7.4.4', {
         table: f.subBase === 'dlc' ? 'Table 2 / Table 4' : 'Table 2 / Table 3',
+        page: '9, 11, 12',
       }),
     });
   }
@@ -192,7 +193,7 @@ function workingSteps(rigid, traffic, foundation, evaluation) {
       formula: rigid.slab.ninetyDay ? 'Fcr(90) = 1.1 × Fcr(28)' : 'Fcr(28)',
       substitution: rigid.slab.ninetyDay ? `1.1 × ${rigid.slab.flexural28MPa}` : null,
       result: `${evaluation.flexuralMPa.toFixed(2)} MPa`,
-      ref: ref('IRC58', 'Cl. 5.8.2'),
+      ref: ref('IRC58', 'Cl. 5.8.2', { page: '12, 13' }),
     },
     {
       title: 'Temperature differentials',
@@ -202,14 +203,14 @@ function workingSteps(rigid, traffic, foundation, evaluation) {
           ? `Zone ${rigid.temperature.zone}, ${evaluation.thicknessMm} mm slab: ${evaluation.dayC} °C by day`
           : `Site value ${evaluation.dayC} °C by day`,
       result: `Day ${evaluation.dayC} °C · night ${evaluation.nightC.toFixed(1)} °C`,
-      ref: ref('IRC58', 'Cl. 5.6.1.1 / 5.6.2.3', { table: 'Table 1' }),
+      ref: ref('IRC58', 'Cl. 5.6.1.1 / 5.6.2.3', { table: 'Table 1', page: '6 – 8' }),
     },
     {
       title: 'Radius of relative stiffness',
       formula: 'l = [E h³ / 12 k (1 − µ²)]^0.25',
       substitution: `E = ${fmt(rigid.slab.E)} MPa, h = ${evaluation.thicknessMm / 1000} m, k = ${fmt(foundation.k, 1)} MPa/m, µ = ${rigid.slab.mu}`,
       result: `l = ${evaluation.radiusOfRelativeStiffnessM.toFixed(3)} m`,
-      ref: ref('IRC58', 'Appendix-V'),
+      ref: ref('IRC58', 'Appendix-V', { page: '73 – 75' }),
     }
   );
   return steps;

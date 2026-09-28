@@ -29,8 +29,8 @@ and open its address on the phone over the same network.
 
 1. **Design traffic.** Cumulative standard axles from the commercial vehicle
    count, growth rate, design life, lane distribution factor and vehicle damage
-   factor. This comes first because it decides which guideline applies: at or
-   above 2 msa the design goes to IRC:37, below it to IRC:SP:72.
+   factor. Below 2 msa the step offers IRC:SP:72 beside IRC:37; choosing it
+   moves the design into the low volume road steps.
 2. **Layer combination.** Bituminous layer (BC over DBM, BC only, SDBC over
    DBM), base (WMM, WBM, CTB, or RAP treated with foamed bitumen or emulsion,
    Cl. 8.4), sub-base (GSB or CTSB), on a fixed subgrade. Choosing a cement
@@ -75,10 +75,24 @@ thinnest safe bituminous thickness for the foundation you have set.
 section. Save as many trials as you like; they are listed safe-first then
 cheapest, and you mark the one you intend to build.
 
-**Low volume rural roads (IRC:SP:72-2015).** Traffic categorisation and CBR
-banding are implemented. The design catalogue itself is code content, so it is
-not shipped — the app gives you the catalogue structure and you enter the cells
-from your own copy. Entries are stored on the device and reused from then on.
+**Low volume roads.** The home page offers flexible and rigid only; the traffic
+step suggests the low volume code where the traffic is low enough, and the
+design then follows it throughout.
+
+- *Flexible, IRC:SP:72-2015* (below 2 msa). Design traffic in ESAL from HCV and
+  MCV counts with the code's VDFs, harvesting seasons (Cl. 3.4.1) and lane
+  factor, or from Appendix A where only the CVPD is known; traffic categories
+  T1 – T9 and subgrade classes S1 – S5; the composition from the granular
+  (Fig. 4) or cement treated (Fig. 6) catalogue, with surface gravel or a
+  surface treatment by rainfall (Table 5), surfacing type (Cl. 7.3.3), part of a
+  gravel base as sub-base (Table 4), a WBM substitute where gravel of CBR 80 is
+  not available, frost (Cl. 8), and the overlay on an existing road
+  (Cl. 2.2.3). Reproduces Appendix D.
+- *Rigid, IRC:SP:62-2014* (below 450 CVPD). Westergaard edge stress from the
+  50 kN dual wheel (and a tractor wheel), Bradbury curling with the relief of
+  the non-linear differential (Appendix II), and the three design cases of
+  Cl. 4.3 up to fatigue at 60% reliability; the thinnest slab from 150 mm.
+  Reproduces the edge stresses of Appendix I.
 
 **Rigid pavement (IRC:58-2015).** The full fatigue design of a jointed plain
 concrete slab: foundation k from Tables 2 – 4, temperature differentials from
@@ -95,7 +109,7 @@ The app is offline-first. Everything is written to device storage the moment
 you save it, so it keeps working with no signal — which is the point, on site.
 
 Each code is a module with numbered steps — flexible (IRC:37-2018), rigid
-(IRC:58-2015) and low volume roads (IRC:SP:72-2015) — ending in a design report
+(IRC:58-2015) and low volume roads (IRC:SP:72-2015, IRC:SP:62-2014) — ending in a design report
 with every input, calculation step and clause, printable to PDF or downloadable
 as a Word file. On a wide screen the side panel is docked beside the page.
 
@@ -103,7 +117,7 @@ The side panel (☰ at the top left on a phone) holds the saved designs, saved p
 named copies of a design's inputs, flexible or rigid — the material rates used
 for costing, the design steps, and About.
 
-When a network is available, trials, projects and the IRC:SP:72 catalogue are mirrored to
+When a network is available, trials and projects are mirrored to
 a Firebase Realtime Database so they survive a lost phone and follow you between
 devices. Sign-in is anonymous: each device gets a Firebase uid and its records
 live under `users/{uid}`. Losing the cloud never costs you a design — every
@@ -168,26 +182,16 @@ clause in your own copy. Tap the reference on any computed step to see the
 relation used, the numbers substituted into it, the result, and exactly which
 clause, table or equation to open.
 
-### Verify the constants before relying on a design
+### Verified against the codes
 
-Every constant group carries a `verified` flag, and they are currently all
-`false`. The values were entered from engineering references, not read off a
-controlled copy of the code. The app says so on the home screen and on every
-citation.
+Every value the app designs with has been checked against IRC:37-2018,
+IRC:58-2015, IRC:SP:72-2015 and IRC:SP:62-2014, and every citation carries the
+printed page it was read on. [docs/VERIFICATION.md](docs/VERIFICATION.md) lists
+each value with its clause, table or equation and page, what was corrected, and
+where the app and a code's worked example differ. The worked examples of all
+four codes are reproduced by the tests.
 
-Before using any output for construction, open **Codes** in the app, work
-through each group against your own copy of the code, correct anything that
-differs, and set `verified: true` on the ones you have checked. The two worth
-checking first, because they set the answer directly:
-
-- `CRITERIA.bituminousFatigue` and `CRITERIA.subgradeRutting` — the coefficients
-  and exponents of the two governing criteria.
-- `CRITERIA.cementedFatigue` — explicitly provisional. The cement treated base
-  check is reported for information only and deliberately does not govern the
-  verdict.
-
-The structural analysis feeding these criteria is exact and independently
-validated; it is the empirical coefficients that need your confirmation.
+Keep your own copies of the codes in `codebooks/`, which git ignores.
 
 ## Layout
 
@@ -203,11 +207,13 @@ src/engine/             Calculation core — no browser APIs
   flexibleDesign.js       Trial evaluation and thickness search
   ctbDamage.js            Cumulative fatigue damage of a CTB
   construction.js         Construction traffic: dumper axles, CTB stress
-  ruralSP72.js            Low volume rural roads
+  ruralSP72.js            Low volume roads, flexible (IRC:SP:72)
+  ruralRigid.js           Low volume roads, rigid (IRC:SP:62)
   rigidFatigue.js         IRC:58 stresses, fatigue and repetitions
   rigidDesign.js          IRC:58 foundation, temperature and slab search
   costing.js              Quantities and cost
-src/data/               IRC constants with citations; layer catalogue
+src/data/               IRC constants with citations and pages; layer catalogue;
+                        sp72.js and sp62.js for the low volume codes
 src/config/firebase.js  Firebase project config (public, not a secret)
 src/store/
   sync.js                 Offline-first storage with merge and tombstones
@@ -221,9 +227,12 @@ src/ui/                 Screens and DOM helpers
   spectrum.js             Axle load spectrum editors, rigid and CTB
   ctbProject.js           CTB axle loads and strength for the design
   flexibleProject.js      The flexible design's engine input from the state
+  lowVolumeProject.js     The low volume designs from the state
+  lowVolume.js            The low volume code offered at the traffic step
   iitpave.js              Analyses laid out as IITPAVE inputs
   screens/report.js       The design report, for print, PDF and Word
 tests/                  Node test runner, no dependencies
+docs/VERIFICATION.md    Every value checked against the codes, with pages
 tools/serve.js          Static file server for development
 database.rules.json     Realtime Database security rules to publish
 ```
@@ -245,4 +254,3 @@ rural roads across several IRC design methods. Next up:
 - The IRC:37 design catalogue as a second route alongside the
   mechanistic-empirical one already built.
 - IRC:58 bonded slabs, tie bars and drainage layers.
-- Verifying the constant groups against controlled copies of the codes.

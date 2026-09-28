@@ -9,12 +9,12 @@
 import { h } from './dom.js';
 import { listTrials } from '../store/trials.js';
 import { listProjects } from '../store/projects.js';
-import { MODULES, MODULE_ORDER } from './modules.js';
+import { MODULES, MODULE_ORDER, PARENT_MODULE } from './modules.js';
 
 /** Screens that belong to a design module rather than standing aside from one. */
 export const FLOW_SCREENS = new Set([
-  'traffic', 'layers', 'ctbAxles', 'inputs', 'results', 'iitpave', 'rural', 'report', 'rates', 'trials',
-  'rigidTraffic', 'rigidAxles', 'rigidSlab', 'rigidResult',
+  'traffic', 'layers', 'ctbAxles', 'inputs', 'results', 'iitpave', 'ruralTraffic', 'rural', 'report', 'rates', 'trials',
+  'rigidTraffic', 'rigidAxles', 'rigidSlab', 'rigidResult', 'lvRigidTraffic', 'lvRigidSlab',
 ]);
 
 const icon = (paths) =>
@@ -106,7 +106,7 @@ function content(app) {
           label: MODULES[type].label,
           sub: MODULES[type].code,
           glyph: ICONS[type],
-          active: inModule && pavementType === type,
+          active: inModule && (pavementType === type || PARENT_MODULE[pavementType] === type),
           onclick: () => app.startModule(type),
         })
       ),

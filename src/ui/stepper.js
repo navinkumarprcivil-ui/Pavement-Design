@@ -6,6 +6,7 @@
 import { h } from './dom.js';
 import { listTrials } from '../store/trials.js';
 import { hasCTB } from './ctbProject.js';
+import { currentDesign } from './currentDesign.js';
 
 const FLEXIBLE_STEPS = [
   { screen: 'traffic', label: 'Traffic' },
@@ -30,17 +31,25 @@ const RIGID_STEPS = [
 ];
 
 const RURAL_STEPS = [
-  { screen: 'traffic', label: 'Traffic' },
+  { screen: 'ruralTraffic', label: 'Traffic' },
   { screen: 'rural', label: 'Design' },
   { screen: 'report', label: 'Report' },
   { screen: 'rates', label: 'Cost' },
   { screen: 'trials', label: 'Compare' },
 ];
 
-export const STEPS = { flexible: FLEXIBLE_STEPS, rigid: RIGID_STEPS, rural: RURAL_STEPS };
+const RURAL_RIGID_STEPS = [
+  { screen: 'lvRigidTraffic', label: 'Traffic' },
+  { screen: 'lvRigidSlab', label: 'Slab' },
+  { screen: 'report', label: 'Report' },
+  { screen: 'rates', label: 'Cost' },
+  { screen: 'trials', label: 'Compare' },
+];
+
+export const STEPS = { flexible: FLEXIBLE_STEPS, rigid: RIGID_STEPS, rural: RURAL_STEPS, ruralRigid: RURAL_RIGID_STEPS };
 
 /** The design result the cost step needs, for each kind of design. */
-export const RESULT_KEY = { flexible: 'result', rigid: 'rigidResult', rural: 'ruralResult' };
+export const RESULT_KEY = { flexible: 'result', rigid: 'rigidResult', rural: 'ruralResult', ruralRigid: 'lvRigidResult' };
 
 function reachable(app, screen) {
   switch (screen) {
@@ -51,7 +60,7 @@ function reachable(app, screen) {
       return Boolean(app.state.rigidResult);
     case 'report':
     case 'rates':
-      return Boolean(app.state[RESULT_KEY[app.state.pavementType] || 'result']);
+      return Boolean(currentDesign(app));
     case 'trials':
       return listTrials().length > 0;
     default:

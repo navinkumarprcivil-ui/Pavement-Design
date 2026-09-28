@@ -25,8 +25,9 @@ const LAYER_COLOURS = {
  * when they are known, so the drawing reads as the section it describes.
  */
 export function sectionDiagram(slots) {
-  const drawn = slots.filter((s) => s.behaviour === 'subgrade' || s.thicknessMm !== 0);
-  const known = drawn.every((s) => s.behaviour === 'subgrade' || s.thicknessMm > 0);
+  // A surfacing with no structural thickness, such as a surface dressing, is drawn with its note.
+  const drawn = slots.filter((s) => s.behaviour === 'subgrade' || s.thicknessMm !== 0 || s.note);
+  const known = drawn.every((s) => s.behaviour === 'subgrade' || s.thicknessMm > 0 || s.note);
 
   return h(
     'div',
@@ -48,7 +49,9 @@ export function sectionDiagram(slots) {
         h('span', { class: 'layer-name' }, slot.label),
         slot.thicknessMm > 0
           ? h('span', { class: 'layer-thickness' }, `${slot.thicknessMm} mm`)
-          : null
+          : slot.note
+            ? h('span', { class: 'layer-thickness' }, slot.note)
+            : null
       );
     })
   );

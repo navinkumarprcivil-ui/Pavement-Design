@@ -26,6 +26,9 @@ import renderResults from './ui/screens/results.js';
 import renderRates from './ui/screens/rates.js';
 import renderTrials from './ui/screens/trials.js';
 import renderRural from './ui/screens/rural.js';
+import renderRuralTraffic from './ui/screens/ruralTraffic.js';
+import renderLvRigidTraffic from './ui/screens/lvRigidTraffic.js';
+import renderLvRigidSlab from './ui/screens/lvRigidSlab.js';
 import renderRigidTraffic from './ui/screens/rigidTraffic.js';
 import renderRigidAxles from './ui/screens/rigidAxles.js';
 import renderCtbAxles from './ui/screens/ctbAxles.js';
@@ -35,6 +38,7 @@ import renderRigidResult from './ui/screens/rigidResult.js';
 import { defaultRigidState, migrateRigid } from './ui/rigidProject.js';
 import { defaultCtbState, defaultConstructionState, hasCTB } from './ui/ctbProject.js';
 import { defaultLayeredSubgrade, defaultNarratives } from './ui/flexibleProject.js';
+import { defaultRuralState, migrateRural, defaultLvRigidState, migrateLvRigid } from './ui/lowVolumeProject.js';
 import { designStepsScreen } from './ui/screens/designSteps.js';
 import renderProjects from './ui/screens/projects.js';
 import renderMaterialRates from './ui/screens/materialRates.js';
@@ -42,7 +46,7 @@ import renderAbout from './ui/screens/about.js';
 import renderReport from './ui/screens/report.js';
 
 /** The step a design's result is shown on, for each kind of design. */
-const RESULT_SCREEN = { flexible: 'results', rigid: 'rigidResult', rural: 'rural' };
+const RESULT_SCREEN = { flexible: 'results', rigid: 'rigidResult', rural: 'rural', ruralRigid: 'lvRigidSlab' };
 
 /**
  * `title` heads the page. Screens of a design module carry the module's name in
@@ -59,7 +63,10 @@ const SCREENS = {
   report: { render: renderReport, title: 'Design report', back: () => RESULT_SCREEN[app.state.pavementType] },
   rates: { render: renderRates, title: 'Cost', back: () => 'report' },
   trials: { render: renderTrials, title: 'Compare trials', back: 'home' },
-  rural: { render: renderRural, title: 'Pavement design', back: 'traffic' },
+  ruralTraffic: { render: renderRuralTraffic, title: 'Design traffic', back: 'home' },
+  rural: { render: renderRural, title: 'Pavement design', back: 'ruralTraffic' },
+  lvRigidTraffic: { render: renderLvRigidTraffic, title: 'Design traffic', back: 'home' },
+  lvRigidSlab: { render: renderLvRigidSlab, title: 'Slab design', back: 'lvRigidTraffic' },
   rigidTraffic: { render: renderRigidTraffic, title: 'Design traffic', back: 'home' },
   rigidAxles: { render: renderRigidAxles, title: 'Axle load spectrum', back: 'rigidTraffic' },
   rigidSlab: { render: renderRigidSlab, title: 'Slab design', back: 'rigidAxles' },
@@ -104,8 +111,6 @@ export const defaultState = () => ({
     vdfMode: 'indicative',
     vehicleDamageFactor: null,
   },
-  /** Below 2 msa the designer may take the regular route instead. */
-  routeChoice: 'rural',
   combination: {
     bituminousId: 'BC_DBM',
     baseId: 'WMM',
@@ -146,14 +151,18 @@ export const defaultState = () => ({
   pavementType: 'flexible',
   rigid: defaultRigidState(),
   rigidResult: null,
+  /** Low volume roads: IRC:SP:72 flexible and IRC:SP:62 rigid. */
+  rural: defaultRuralState(),
   ruralResult: null,
+  lvRigid: defaultLvRigidState(),
+  lvRigidResult: null,
   /** The saved project these inputs were opened from or last saved as. */
   projectId: null,
 });
 
 /** The inputs a saved project keeps. Material rates are app-wide, not per project. */
 function projectInputs(state) {
-  const { screen, result, rigidResult, ruralResult, rates, projectId, ...inputs } = state;
+  const { screen, result, rigidResult, ruralResult, lvRigidResult, rates, projectId, ...inputs } = state;
   return structuredClone(inputs);
 }
 
@@ -184,11 +193,14 @@ function migrate(saved) {
   const defaults = defaultState();
   const state = { ...defaults, ...saved, screen: 'home' };
   for (const [key, value] of Object.entries(defaults)) {
-    if (value && typeof value === 'object' && !Array.isArray(value) && !['thicknesses', 'rates', 'rigid'].includes(key)) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && !['thicknesses', 'rates', 'rigid', 'rural', 'lvRigid'].includes(key)) {
       state[key] = { ...value, ...(saved[key] || {}) };
     }
   }
   state.rigid = migrateRigid(saved.rigid);
+  state.rural = migrateRural(saved.rural);
+  state.lvRigid = migrateLvRigid(saved.lvRigid);
+  delete state.routeChoice;
   if (state.traffic.vdfMode === 'manual') state.traffic.vdfMode = 'survey';
   if (state.project.roadCategory === 'other') state.project.roadCategory = 'odr';
   if (!BINDER_GRADES.includes(state.materials.binderGrade)) {
@@ -252,9 +264,23 @@ const app = {
   /** Start a design module from its first step. */
   startModule(type) {
     this.state.pavementType = type;
-    if (type !== 'rigid') this.state.routeChoice = type;
     this.persist();
     this.go(MODULES[type].start);
+  },
+
+  /**
+   * Move the design between a code and its low volume one from the traffic
+   * step, carrying the traffic already entered across.
+   */
+  switchModule(type) {
+    const s = this.state;
+    if (type === 'rural' && s.pavementType === 'flexible') {
+      Object.assign(s.rural.traffic, { cvpd: s.traffic.presentCVPD, yearsToOpening: s.traffic.yearsToCompletion });
+    }
+    if (type === 'ruralRigid' && s.pavementType === 'rigid') {
+      Object.assign(s.lvRigid.traffic, { presentCVPD: s.rigid.traffic.twoWayCVPD, yearsToCompletion: s.rigid.traffic.yearsToCompletion });
+    }
+    this.startModule(type);
   },
 
   newProject() {
@@ -284,7 +310,7 @@ const app = {
   },
 
   persist() {
-    const { screen, result, rigidResult, ruralResult, ...rest } = this.state;
+    const { screen, result, rigidResult, ruralResult, lvRigidResult, ...rest } = this.state;
     saveProject(rest);
   },
 
@@ -395,7 +421,7 @@ function boot() {
 
   // The comparison refreshes when the cloud changes saved trials. Input
   // screens are left alone so a re-render never interrupts typing.
-  const SYNCED_SCREENS = new Set(['trials', 'rural', 'projects']);
+  const SYNCED_SCREENS = new Set(['trials', 'projects']);
   const refreshIfShowingSavedWork = () => {
     if (document.activeElement?.matches('input, textarea, select')) return;
     if (SYNCED_SCREENS.has(app.state.screen)) app.render();

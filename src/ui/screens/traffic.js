@@ -2,7 +2,6 @@ import {
   h,
   card,
   numberField,
-  textField,
   selectField,
   segmented,
   fold,
@@ -14,8 +13,9 @@ import {
 import { stepCard } from '../citations.js';
 import { designTraffic } from '../project.js';
 import { laneDistributionOptions } from '../../engine/traffic.js';
-import { ROAD_CATEGORIES, TRAFFIC, roadCategory } from '../../data/ircConstants.js';
-import { CONSTRUCTION_TYPES, FACILITY_TYPES } from '../modules.js';
+import { TRAFFIC, roadCategory } from '../../data/ircConstants.js';
+import { projectCard } from '../projectCard.js';
+import { lowVolumeChoice } from '../lowVolume.js';
 
 export default function renderTraffic(app) {
   const { traffic, project } = app.state;
@@ -23,7 +23,6 @@ export default function renderTraffic(app) {
   const lane = lanes.find((o) => o.id === traffic.laneDistributionId) || lanes[0];
 
   const resultHost = h('div', { class: 'card-stack' });
-  let mounted = false;
   const next = button('Continue', null);
   app.setActions(next);
 
@@ -32,17 +31,8 @@ export default function renderTraffic(app) {
     const design = designTraffic(app.state);
     const { result } = design;
 
-    // Below 2 msa the choice of guideline decides the module the design is in.
-    const type = design.route === 'rural' ? 'rural' : 'flexible';
-    if (app.state.pavementType !== type) {
-      app.state.pavementType = type;
-      app.persist();
-      if (mounted) app.refreshChrome();
-    }
-
-    next.textContent =
-      design.route === 'rural' ? 'Continue to design' : 'Continue to composition';
-    next.onclick = () => app.go(design.route === 'rural' ? 'rural' : 'layers');
+    next.textContent = 'Continue to composition';
+    next.onclick = () => app.go('layers');
 
     resultHost.replaceChildren(
       h(
@@ -63,17 +53,11 @@ export default function renderTraffic(app) {
         ),
 
         design.routeChoice
-          ? segmented({
-              label: 'Design as',
-              value: design.route,
-              options: [
-                { value: 'rural', label: 'Low volume road (IRC:SP:72)' },
-                { value: 'flexible', label: 'Regular (IRC:37)' },
-              ],
-              onChange: (value) => {
-                app.update({ routeChoice: value }, { rerender: false });
-                show();
-              },
+          ? lowVolumeChoice(app, {
+              label: `Low volume road · under ${design.result.threshold} msa`,
+              current: 'flexible',
+              regular: { value: 'flexible', label: 'IRC:37-2018' },
+              low: { value: 'rural', label: 'IRC:SP:72-2015' },
             })
           : h('div', { class: 'guideline' }, h('span', {}, 'Guideline'), h('strong', {}, 'IRC:37-2018')),
 
@@ -96,56 +80,15 @@ export default function renderTraffic(app) {
     show();
   };
 
-  const categoryOptions = ROAD_CATEGORIES.options.map((o) => ({ value: o.id, label: o.label }));
-
   const screen = h(
     'div',
     { class: 'card-stack' },
 
-    card(
-      'Project',
-      ['name', 'location', 'client', 'designer'].map((key) =>
-        textField({
-          label: { name: 'Project name', location: 'Location', client: 'Client', designer: 'Designer' }[key],
-          value: project[key],
-          onInput: (value) => app.patch('project', { [key]: value }),
-        })
-      ),
-      segmented({
-        label: 'Construction type',
-        value: project.constructionType,
-        options: CONSTRUCTION_TYPES,
-        onChange: (value) => app.patch('project', { constructionType: value }, { rerender: true }),
-      }),
-      segmented({
-        label: 'Facility',
-        value: project.facility,
-        options: FACILITY_TYPES,
-        onChange: (value) => app.patch('project', { facility: value }, { rerender: true }),
-      }),
-      segmented({
-        label: 'Road category',
-        ref: ROAD_CATEGORIES.ref,
-        value: project.roadCategory,
-        options: categoryOptions,
-        onChange: (value) => {
-          app.patch('project', { roadCategory: value });
-          // The category carries the code's design period; start from it.
-          app.patch('traffic', { designLifeYears: roadCategory(value).designPeriodYears });
-          app.render();
-        },
-      }),
-      segmented({
-        label: 'Terrain',
-        value: project.terrain,
-        options: [
-          { value: 'plain', label: 'Plain' },
-          { value: 'rolling', label: 'Rolling' },
-          { value: 'hilly', label: 'Hilly' },
-        ],
-        onChange: (value) => app.patch('project', { terrain: value }, { rerender: true }),
-      })
-    ),
+    projectCard(app, {
+      terrain: true,
+      // The category carries the code's design period; start from it.
+      onCategory: (value) => app.patch('traffic', { designLifeYears: roadCategory(value).designPeriodYears }),
+    }),
 
     card(
       'Traffic',
@@ -221,6 +164,5 @@ export default function renderTraffic(app) {
   );
 
   show();
-  mounted = true;
   return screen;
 }

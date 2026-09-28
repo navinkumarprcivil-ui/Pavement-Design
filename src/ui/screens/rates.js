@@ -6,7 +6,7 @@ import { saveTrial } from '../../store/trials.js';
 export default function renderRates(app) {
   const design = currentDesign(app);
   if (!design) {
-    const inputs = { rigid: 'rigidSlab', rural: 'rural' }[app.state.pavementType] || 'inputs';
+    const inputs = { rigid: 'rigidSlab', rural: 'rural', ruralRigid: 'lvRigidSlab' }[app.state.pavementType] || 'inputs';
     return h(
       'div',
       { class: 'card-stack' },

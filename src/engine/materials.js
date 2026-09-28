@@ -243,12 +243,14 @@ export function buildLayerStack(slots, context) {
     }
 
     if (layer.behaviour === BEHAVIOUR.BITUMINOUS && context.bituminousModulusMPa > 0) {
-      layer.E = context.bituminousModulusMPa;
+      // The design value is the smaller of the mix design's and the table's (Cl. 9.2).
+      const table = bituminousModulus(binderGrade, pavementTemperatureC);
+      layer.E = Math.min(context.bituminousModulusMPa, table);
       steps.push({
         id: `modulus-${layer.slotId}`,
         title: `${layer.label} resilient modulus`,
-        formula: 'From the mix design',
-        substitution: '',
+        formula: 'Smaller of the mix design value and the table value',
+        substitution: `min(${context.bituminousModulusMPa}, ${table.toFixed(0)} for ${binderGrade} at ${pavementTemperatureC} deg C)`,
         result: `E = ${layer.E.toFixed(0)} MPa`,
         value: layer.E,
         ref: MODULI.bituminous.ref,

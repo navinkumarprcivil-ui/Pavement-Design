@@ -3,6 +3,7 @@ import { formatCompactCurrency } from '../../engine/costing.js';
 import { listTrials, deleteTrial, setChosenTrial } from '../../store/trials.js';
 import { migrateRigid } from '../rigidProject.js';
 import { defaultCtbState, defaultConstructionState } from '../ctbProject.js';
+import { migrateRural, migrateLvRigid } from '../lowVolumeProject.js';
 
 /** Safe before unsafe, then cheapest, then thinnest. */
 function rank(a, b) {
@@ -16,7 +17,7 @@ function rank(a, b) {
 export default function renderTrials(app) {
   const trials = listTrials();
 
-  const trialStart = { rigid: 'rigidSlab', rural: 'traffic' }[app.state.pavementType] || 'layers';
+  const trialStart = { rigid: 'rigidSlab', rural: 'rural', ruralRigid: 'lvRigidSlab' }[app.state.pavementType] || 'layers';
   app.setActions(button('New trial', () => app.go(trialStart)));
 
   if (!trials.length) {
@@ -34,10 +35,16 @@ export default function renderTrials(app) {
   const edit = (trial) => {
     if (trial.pavementType === 'rural') {
       app.state.pavementType = 'rural';
-      app.state.routeChoice = 'rural';
-      app.state.materials = { ...app.state.materials, subgradeCBR: trial.subgradeCBR };
+      if (trial.rural) app.state.rural = migrateRural(structuredClone(trial.rural));
       app.persist();
       app.go('rural');
+      return;
+    }
+    if (trial.pavementType === 'ruralRigid') {
+      app.state.pavementType = 'ruralRigid';
+      if (trial.lvRigid) app.state.lvRigid = migrateLvRigid(structuredClone(trial.lvRigid));
+      app.persist();
+      app.go('lvRigidSlab');
       return;
     }
     if (trial.pavementType === 'rigid') {
@@ -49,7 +56,6 @@ export default function renderTrials(app) {
       return;
     }
     app.state.pavementType = 'flexible';
-    app.state.routeChoice = 'flexible';
     app.state.combination = { ...trial.combination };
     app.state.thicknesses = { ...trial.thicknesses };
     app.state.materials = { ...app.state.materials, ...trial.materials };
@@ -100,10 +106,10 @@ export default function renderTrials(app) {
         'div',
         { class: 'metric-grid three' },
         metric('Total', `${trial.totalThicknessMm} mm`),
-        trial.pavementType === 'rigid'
+        trial.pavementType === 'rigid' || trial.pavementType === 'ruralRigid'
           ? metric('CFD', Number.isFinite(trial.cfd) ? trial.cfd.toFixed(2) : '—')
           : trial.pavementType === 'rural'
-            ? metric('Traffic', msa(trial.designTrafficMsa))
+            ? metric('Traffic', trial.esal != null ? `${Math.round(trial.esal).toLocaleString('en-IN')} ESAL` : msa(trial.designTrafficMsa))
             : metric('Life', msa(trial.governingLifeMsa)),
         metric('Per km', trial.cost?.costPerKm > 0 ? formatCompactCurrency(trial.cost.costPerKm) : '—')
       ),

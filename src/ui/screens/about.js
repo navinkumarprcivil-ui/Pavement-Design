@@ -2,8 +2,9 @@ import { h, card } from '../dom.js';
 
 const CODES = [
   ['IRC:37-2018', 'Flexible pavements'],
-  ['IRC:SP:72-2015', 'Low volume rural roads'],
+  ['IRC:SP:72-2015', 'Flexible pavements, low volume rural roads'],
   ['IRC:58-2015', 'Rigid pavements'],
+  ['IRC:SP:62-2014', 'Concrete pavements, low volume roads'],
 ];
 
 export default function renderAbout() {

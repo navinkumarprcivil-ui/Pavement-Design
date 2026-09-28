@@ -7,9 +7,11 @@
  * engineering references and must be checked against your own copy before the
  * output is used for construction.
  *
- * The IRC:37-2018 values below were checked clause by clause against the code,
- * and the strains the app computes with them reproduce the IITPAVE results
- * printed in its Annex-II and Annex-III (see tests/annexII.test.js).
+ * The IRC:37-2018 and IRC:58-2015 values below were checked clause by clause
+ * against the codes; each citation carries the printed page (`page`) it was
+ * read on. docs/VERIFICATION.md lists every value with its clause and page.
+ * The strains the app computes reproduce the IITPAVE results printed in
+ * IRC:37 Annex-II and Annex-III (see tests/annexII.test.js).
  *
  * IRC codes are copyrighted publications of the Indian Roads Congress. Only the
  * numerical parameters needed to compute are held here, alongside the citation
@@ -39,6 +41,13 @@ export const CODES = {
     edition: 'First Revision, 2015',
     publisher: 'Indian Roads Congress',
   },
+  IRCSP62: {
+    id: 'IRCSP62',
+    title: 'Guidelines for Design and Construction of Cement Concrete Pavements for Low Volume Roads',
+    designation: 'IRC:SP:62-2014',
+    edition: 'First Revision, 2014',
+    publisher: 'Indian Roads Congress',
+  },
 };
 
 /** Build a citation object for display next to a computed step. */
@@ -49,6 +58,8 @@ export function ref(codeId, clause, extra = {}) {
     clause,
     table: extra.table || null,
     equation: extra.equation || null,
+    /** The printed page number in the code, to open it at. */
+    page: extra.page ?? null,
     note: extra.note || null,
   };
 }
@@ -62,7 +73,7 @@ export function ref(codeId, clause, extra = {}) {
  * ------------------------------------------------------------------ */
 
 export const ROAD_CATEGORIES = {
-  ref: ref('IRC37', 'Cl. 3.7 / 4.3.1'),
+  ref: ref('IRC37', 'Cl. 3.7 / 4.3.1', { page: '8, 14' }),
   verified: true,
   options: [
     { id: 'expressway', label: 'Expressway', important: true, designPeriodYears: 30 },
@@ -91,14 +102,14 @@ export const TRAFFIC = {
    * A is directional on a divided carriageway and two-way otherwise.
    */
   growthEquation: {
-    ref: ref('IRC37', 'Cl. 4.6.1', { equation: 'Eq. 4.5 / 4.6' }),
+    ref: ref('IRC37', 'Cl. 4.6.1', { equation: 'Eq. 4.5 / 4.6', page: 17 }),
     verified: true,
   },
 
   /** Below this growth rate the code has the design use it anyway. */
   minimumGrowthRate: {
     percent: 5,
-    ref: ref('IRC37', 'Cl. 4.2.2'),
+    ref: ref('IRC37', 'Cl. 4.2.2', { page: 14 }),
     verified: true,
   },
 
@@ -107,7 +118,7 @@ export const TRAFFIC = {
    * traffic in one direction, so those options are flagged `directional`.
    */
   laneDistributionFactors: {
-    ref: ref('IRC37', 'Cl. 4.5.1'),
+    ref: ref('IRC37', 'Cl. 4.5.1', { page: '16, 17' }),
     verified: true,
     options: [
       { id: 'single-lane', label: 'Single lane', value: 1.0, directional: false },
@@ -125,7 +136,7 @@ export const TRAFFIC = {
    * initial two-way commercial traffic. A survey always takes precedence.
    */
   indicativeVDF: {
-    ref: ref('IRC37', 'Cl. 4.4.6', { table: 'Table 4.2' }),
+    ref: ref('IRC37', 'Cl. 4.4.6', { table: 'Table 4.2', page: 16 }),
     verified: true,
     rows: [
       { maxCVPD: 150, plainRolling: 1.7, hilly: 0.6 },
@@ -137,7 +148,7 @@ export const TRAFFIC = {
   /** IRC:37 covers 2 msa and above; below that IRC:SP:72 applies. */
   lowVolumeThresholdMsa: {
     value: 2,
-    ref: ref('IRC37', 'Cl. 2.1'),
+    ref: ref('IRC37', 'Cl. 2.1', { page: 3 }),
     verified: true,
   },
 
@@ -145,7 +156,7 @@ export const TRAFFIC = {
   longLife: {
     thresholdMsa: 300,
     minimumDesignPeriodYears: 30,
-    ref: ref('IRC37', 'Cl. 4.3.1'),
+    ref: ref('IRC37', 'Cl. 4.3.1', { page: 14 }),
     verified: true,
   },
 };
@@ -155,7 +166,7 @@ export const TRAFFIC = {
  * ------------------------------------------------------------------ */
 
 export const STANDARD_AXLE = {
-  ref: ref('IRC37', 'Cl. 3.6.1', { table: 'Table 3.1' }),
+  ref: ref('IRC37', 'Cl. 3.6.1 / 3.6.3.1', { table: 'Table 3.1', page: '5 – 7, 9' }),
   verified: true,
   axleLoadKN: 80,
   wheelLoadN: 20000,
@@ -172,7 +183,7 @@ export const STANDARD_AXLE = {
 export const MODULI = {
   /** Subgrade resilient modulus from effective CBR, capped for design. */
   subgrade: {
-    ref: ref('IRC37', 'Cl. 6.3 / 6.4.2', { equation: 'Eq. 6.1 / 6.2' }),
+    ref: ref('IRC37', 'Cl. 6.3 / 6.4.2', { equation: 'Eq. 6.1 / 6.2', page: '19, 20' }),
     verified: true,
     capMPa: 100,
   },
@@ -182,7 +193,7 @@ export const MODULI = {
    * layer giving the same surface deflection under a single wheel.
    */
   effectiveSubgrade: {
-    ref: ref('IRC37', 'Cl. 6.4.1', { equation: 'Eq. 6.3' }),
+    ref: ref('IRC37', 'Cl. 6.4.1', { equation: 'Eq. 6.3', page: 20 }),
     verified: true,
     wheelLoadN: 40000,
     tyrePressureMPa: 0.56,
@@ -194,7 +205,7 @@ export const MODULI = {
   minimumCBR: {
     percent: 5,
     aboveCVPD: 450,
-    ref: ref('IRC37', 'Cl. 6.4.3'),
+    ref: ref('IRC37', 'Cl. 6.4.3', { page: 20 }),
     verified: true,
   },
 
@@ -204,7 +215,7 @@ export const MODULI = {
    * treated as one layer of their combined thickness on the subgrade.
    */
   granular: {
-    ref: ref('IRC37', 'Cl. 7.2.3', { equation: 'Eq. 7.1' }),
+    ref: ref('IRC37', 'Cl. 7.2.3', { equation: 'Eq. 7.1', page: 22 }),
     verified: true,
     coefficient: 0.2,
     exponent: 0.45,
@@ -212,7 +223,7 @@ export const MODULI = {
 
   /** A granular base on a cement treated sub-base takes a fixed modulus. */
   granularOverCTSB: {
-    ref: ref('IRC37', 'Cl. 8.1', { table: 'Table 11.1' }),
+    ref: ref('IRC37', 'Cl. 8.1', { table: 'Table 11.1', page: '24, 34' }),
     verified: true,
     naturalGravelMPa: 300,
     crushedRockMPa: 350,
@@ -220,7 +231,7 @@ export const MODULI = {
 
   /** The aggregate crack relief layer over a cement treated base. */
   crackReliefAggregate: {
-    ref: ref('IRC37', 'Cl. 8.3', { table: 'Table 11.1' }),
+    ref: ref('IRC37', 'Cl. 8.3', { table: 'Table 11.1', page: '26, 34' }),
     verified: true,
     modulusMPa: 450,
   },
@@ -232,7 +243,7 @@ export const MODULI = {
    * code does not recommend modified binder in DBM.
    */
   bituminous: {
-    ref: ref('IRC37', 'Cl. 9.2', { table: 'Table 9.2' }),
+    ref: ref('IRC37', 'Cl. 9.2 / 11.1.2', { table: 'Table 9.2', page: '29, 30, 33' }),
     verified: true,
     temperaturesC: [20, 25, 30, 35, 40],
     byBinder: {
@@ -244,7 +255,7 @@ export const MODULI = {
 
   /** Cement treated base and sub-base. */
   cemented: {
-    ref: ref('IRC37', 'Cl. 7.3.2 / 8.2.1', { table: 'Table 11.1' }),
+    ref: ref('IRC37', 'Cl. 7.3.2 / 8.2.1', { table: 'Table 11.1', page: '23, 25, 34' }),
     verified: true,
     ctbModulusMPa: 5000,
     ctsbModulusMPa: 600,
@@ -252,14 +263,14 @@ export const MODULI = {
 
   /** Reclaimed asphalt base treated with foamed bitumen or bitumen emulsion. */
   rapBase: {
-    ref: ref('IRC37', 'Cl. 8.4'),
+    ref: ref('IRC37', 'Cl. 8.4', { page: 27 }),
     verified: true,
     modulusMPa: 800,
     poissonRatio: 0.35,
   },
 
   poissonRatios: {
-    ref: ref('IRC37', 'Cl. 11', { table: 'Table 11.1' }),
+    ref: ref('IRC37', 'Cl. 6.3 / 7.2.3 / 11.1.4', { table: 'Table 11.1', page: 34 }),
     verified: true,
     granular: 0.35,
     subgrade: 0.35,
@@ -280,7 +291,7 @@ export const CRITERIA = {
    * layer and 3.0% for the bottom of two (Cl. 9.2).
    */
   bituminousFatigue: {
-    ref: ref('IRC37', 'Cl. 3.6.2', { equation: 'Eq. 3.3 / 3.4' }),
+    ref: ref('IRC37', 'Cl. 3.6.2 / 9.2', { equation: 'Eq. 3.3 / 3.4', page: '6, 31' }),
     verified: true,
     strainExponent: 3.89,
     modulusExponent: 0.854,
@@ -293,7 +304,7 @@ export const CRITERIA = {
 
   /** Subgrade rutting (20 mm):  Nr = k * (1/eps_v)^4.5337 */
   subgradeRutting: {
-    ref: ref('IRC37', 'Cl. 3.6.1', { equation: 'Eq. 3.1 / 3.2' }),
+    ref: ref('IRC37', 'Cl. 3.6.1', { equation: 'Eq. 3.1 / 3.2', page: 5 }),
     verified: true,
     strainExponent: 4.5337,
     coefficients: {
@@ -309,7 +320,7 @@ export const CRITERIA = {
    * analysed at 0.80 MPa contact stress.
    */
   cementedFatigue: {
-    ref: ref('IRC37', 'Cl. 3.6.3.1', { equation: 'Eq. 3.5' }),
+    ref: ref('IRC37', 'Cl. 3.6.3.1', { equation: 'Eq. 3.5', page: 7 }),
     verified: true,
     numerator: 113000,
     modulusExponent: 0.804,
@@ -320,7 +331,7 @@ export const CRITERIA = {
 
   /** Cumulative fatigue damage of a CTB, which needs the axle load spectrum. */
   cementedDamage: {
-    ref: ref('IRC37', 'Cl. 3.6.3.2', { equation: 'Eq. 3.6 / 3.7' }),
+    ref: ref('IRC37', 'Cl. 3.6.3.2', { equation: 'Eq. 3.6 / 3.7', page: '7, 8' }),
     verified: true,
     intercept: 0.972,
     slope: 0.0825,
@@ -332,7 +343,7 @@ export const CRITERIA = {
 
   /** Modulus of rupture of the CTB: a share of the 28-day UCS, up to a cap per material. */
   ctbRupture: {
-    ref: ref('IRC37', 'Cl. 8.2.2'),
+    ref: ref('IRC37', 'Cl. 8.2.2', { page: 26 }),
     verified: true,
     ucsShare: 0.2,
     materials: [
@@ -345,20 +356,20 @@ export const CRITERIA = {
   /** 90% on important roads, and on others from 20 msa; 80% below. */
   reliability: {
     thresholdMsa: 20,
-    ref: ref('IRC37', 'Cl. 3.7'),
+    ref: ref('IRC37', 'Cl. 3.7', { page: 8 }),
     verified: true,
   },
 
   /** The sub-base is checked for rutting under construction traffic. */
   constructionTraffic: {
     minimumRepetitions: 10000,
-    ref: ref('IRC37', 'Cl. 7.2.2'),
+    ref: ref('IRC37', 'Cl. 7.2.2', { page: '21, 22' }),
     verified: true,
     /** Dumper loads and trips to start from, as in the Annex-II examples. */
     dumper: { rearTandemKN: 240, frontKN: 80, subBaseTrips: 200, ctbTrips: 70 },
     /** Equivalence of a dumper's axles to standard axles, as the examples work it. */
     vdf: {
-      ref: ref('IRC37', 'Annex-II', { note: 'Example II.2' }),
+      ref: ref('IRC37', 'Annex-II', { note: 'Example II.2', page: 69 }),
       singleAxleKN: 80,
       singleWheelAxleKN: 65,
       exponent: 4,
@@ -367,7 +378,7 @@ export const CRITERIA = {
 
   /** A freshly laid CTB carries the dumpers bringing the layer above it. */
   ctbConstruction: {
-    ref: ref('IRC37', 'Cl. 8.2.1', { note: 'Annex-II, Example II.4' }),
+    ref: ref('IRC37', 'Cl. 8.2.1', { note: 'Annex-II, Example II.4', page: '25, 76' }),
     verified: true,
     /** 7-day flexural strength as a share of the 28-day modulus of rupture. */
     sevenDayShare: 0.7,
@@ -379,7 +390,7 @@ export const CRITERIA = {
  * ------------------------------------------------------------------ */
 
 export const MINIMUM_THICKNESS = {
-  ref: ref('IRC37', 'Cl. 7.2.2 / 7.3.1 / 8.1 / 8.2.1 / 9.2'),
+  ref: ref('IRC37', 'Cl. 7.2.2 / 7.3.1 / 8.1 / 8.2.1 / 8.4 / 9.2', { page: '21 – 27, 32' }),
   verified: true,
   granularSubBaseMm: 150,
   unboundBaseMm: 150,
@@ -412,13 +423,13 @@ export const THICKNESS_INCREMENTS = {
 export const RIGID = {
   /** The guidelines apply above this many commercial vehicles a day. */
   scope: {
-    ref: ref('IRC58', 'Cl. 2.1 / 6.2.5 / 7.2.6'),
+    ref: ref('IRC58', 'Cl. 2.1 / 6.2.5 / 7.2.6', { page: '2, 17, 27' }),
     verified: true,
     minimumCVPD: 450,
   },
 
   concrete: {
-    ref: ref('IRC58', 'Cl. 5.8.2 / 5.8.4.1'),
+    ref: ref('IRC58', 'Cl. 5.8.1 / 5.8.2 / 5.8.4.1 / Appendix-V', { page: '12, 13, 74' }),
     verified: true,
     elasticModulusMPa: 30000,
     poissonRatio: 0.15,
@@ -429,7 +440,7 @@ export const RIGID = {
   },
 
   traffic: {
-    ref: ref('IRC58', 'Cl. 5.5.2.3 / 5.5.2.4 / 6.3.3'),
+    ref: ref('IRC58', 'Cl. 5.2 / 5.5.2.1 / 5.5.2.3 / 5.5.2.4 / 6.3.3', { page: '4, 5, 18' }),
     verified: true,
     minimumGrowthRatePercent: 5,
     /** 25% of two-way traffic on two-lane roads, of the predominant direction on divided roads. */
@@ -447,7 +458,7 @@ export const RIGID = {
    * thickness (Table 1). The last column covers 300 to 400 mm.
    */
   temperature: {
-    ref: ref('IRC58', 'Cl. 5.6.1.1', { table: 'Table 1' }),
+    ref: ref('IRC58', 'Cl. 5.6.1.1', { table: 'Table 1', page: '6, 7' }),
     verified: true,
     thicknessesMm: [150, 200, 250, 300],
     zones: [
@@ -463,7 +474,7 @@ export const RIGID = {
 
   /** Night-time differential = day-time / 2, plus 5 °C of built-in curl. */
   nightTemperature: {
-    ref: ref('IRC58', 'Cl. 5.6.1.1 / 5.6.2.3'),
+    ref: ref('IRC58', 'Cl. 5.6.1.1 / 5.6.2.1 / 5.6.2.3', { page: '6 – 8' }),
     verified: true,
     dayFraction: 0.5,
     addC: 5,
@@ -471,7 +482,7 @@ export const RIGID = {
 
   /** k of a homogeneous subgrade from its soaked CBR (Table 2). */
   subgradeK: {
-    ref: ref('IRC58', 'Cl. 5.7.3.4', { table: 'Table 2' }),
+    ref: ref('IRC58', 'Cl. 5.7.3.4 / 5.7.3.6', { table: 'Table 2', page: '9, 10' }),
     verified: true,
     cbr: [2, 3, 4, 5, 7, 10, 15, 20, 50, 100],
     k: [21, 28, 35, 42, 48, 55, 62, 69, 140, 220],
@@ -480,7 +491,7 @@ export const RIGID = {
 
   /** Effective k over untreated granular and cement treated sub-bases (Table 3). */
   subBaseK: {
-    ref: ref('IRC58', 'Cl. 5.7.4.4', { table: 'Table 3' }),
+    ref: ref('IRC58', 'Cl. 5.7.4.4', { table: 'Table 3', page: '11, 12' }),
     verified: true,
     subgradeK: [28, 56, 84],
     granular: { thicknessesMm: [150, 225, 300], k: [[39, 44, 53], [63, 75, 88], [92, 102, 119]] },
@@ -489,7 +500,7 @@ export const RIGID = {
 
   /** Effective k over a DLC sub-base; the GSB below it is ignored (Table 4). */
   dlcK: {
-    ref: ref('IRC58', 'Cl. 5.7.4.4', { table: 'Table 4' }),
+    ref: ref('IRC58', 'Cl. 5.7.4.1 / 5.7.4.4', { table: 'Table 4', page: '11, 12' }),
     verified: true,
     subgradeK: [21, 28, 42, 48, 55, 62],
     thicknessesMm: [100, 150],
@@ -504,7 +515,7 @@ export const RIGID = {
    * P in kN, h and l in m, k in MPa/m, γ in kN/m³. Bands are on k.
    */
   bottomUpStress: {
-    ref: ref('IRC58', 'Cl. 6.2.7 / Appendix-V', { equation: 'Eq. V.1 – V.12' }),
+    ref: ref('IRC58', 'Cl. 6.2.7 / Appendix-V', { equation: 'Eq. V.1 – V.12', page: '18, 73, 74' }),
     verified: true,
     kBands: [80, 150],
     single: {
@@ -523,7 +534,7 @@ export const RIGID = {
    * P is the whole rear single axle, half a tandem, a third of a tridem.
    */
   topDownStress: {
-    ref: ref('IRC58', 'Cl. 6.2.7 / Appendix-V', { equation: 'Eq. V.13' }),
+    ref: ref('IRC58', 'Cl. 6.2.7 / Appendix-V', { equation: 'Eq. V.13', page: '18, 74, 75' }),
     verified: true,
     coefficients: [-0.219, 1.686, 168.48, 0.1089],
     beta: { doweled: 0.66, undoweled: 0.9 },
@@ -538,7 +549,7 @@ export const RIGID = {
    * The code prints the last condition as SR < 0.55; it can only mean > 0.55.
    */
   fatigue: {
-    ref: ref('IRC58', 'Cl. 5.8.6.1', { equation: 'Eq. 5 / 6' }),
+    ref: ref('IRC58', 'Cl. 5.8.6.1', { equation: 'Eq. 5 / 6', page: '13, 14' }),
     verified: true,
     endurance: 0.45,
     middle: { upper: 0.55, numerator: 4.2577, offset: 0.4325, exponent: 3.268 },
@@ -547,7 +558,7 @@ export const RIGID = {
 
   /** CFD(BUC) + CFD(TDC) ≤ 1; 10 mm may be added for retexturing and grinding. */
   criterion: {
-    ref: ref('IRC58', 'Cl. 6.3.4.1', { equation: 'Eq. 7 / 8' }),
+    ref: ref('IRC58', 'Cl. 6.3.4.1', { equation: 'Eq. 7 / 8', page: 19 }),
     verified: true,
     maximumCFD: 1,
     retexturingMm: 10,
@@ -555,7 +566,7 @@ export const RIGID = {
 
   /** Dowel bars by slab thickness: [slab, diameter, length, spacing] mm (Table 5). */
   dowels: {
-    ref: ref('IRC58', 'Cl. 7.2.6', { table: 'Table 5' }),
+    ref: ref('IRC58', 'Cl. 7.2.6', { table: 'Table 5', page: 27 }),
     verified: true,
     minimumSlabMm: 200,
     rows: [

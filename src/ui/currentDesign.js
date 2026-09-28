@@ -1,11 +1,12 @@
 /**
- * The design on the go — flexible or rigid — as the cost and compare screens
+ * The design on the go — flexible, rigid or low volume — as the cost and compare screens
  * need it: its layers, a name, summary chips, and the record a trial saves.
  */
 
 import { msa } from './dom.js';
 import { combinationName } from '../data/layerCatalog.js';
 import { hasCTB } from './ctbProject.js';
+import { ruralDesignFor, lvRigidDesignFor } from './lowVolumeProject.js';
 
 function flexible(app) {
   const result = app.state.result;
@@ -57,26 +58,48 @@ function rigid(app) {
 }
 
 function rural(app) {
-  const result = app.state.ruralResult;
-  if (!result) return null;
-  const { design } = result;
+  const r = ruralDesignFor(app.state);
+  const { design } = r;
   return {
     type: 'rural',
-    slots: result.slots,
-    safe: true,
-    name: `SP:72 · ${result.name}`,
-    chips: [`${design.totalThicknessMm} mm`, msa(result.designTrafficMsa)],
+    slots: design.slots,
+    safe: !design.aboveScope,
+    name: `SP:72 · ${r.name}`,
+    chips: [`${design.totalThicknessMm} mm`, `${Math.round(r.esal).toLocaleString('en-IN')} ESAL`],
     inputsScreen: 'rural',
     record: () => ({
       pavementType: 'rural',
-      subgradeCBR: result.subgradeCBR,
-      designTrafficMsa: result.designTrafficMsa,
+      rural: structuredClone(app.state.rural),
+      subgradeCBR: r.subgradeCBR,
+      esal: r.esal,
+      designTrafficMsa: r.esal / 1e6,
       totalThicknessMm: design.totalThicknessMm,
     }),
   };
 }
 
-const DESIGNS = { flexible, rigid, rural };
+function ruralRigid(app) {
+  const r = lvRigidDesignFor(app.state);
+  const e = r.design.adopted;
+  const layers = r.slots.filter((s) => s.thicknessMm > 0);
+  return {
+    type: 'ruralRigid',
+    slots: r.slots,
+    safe: r.safe,
+    name: `SP:62 · ${r.name}`,
+    chips: [`${e.thicknessMm} mm slab`, `Case ${r.design.case}`],
+    inputsScreen: 'lvRigidSlab',
+    record: () => ({
+      pavementType: 'ruralRigid',
+      lvRigid: structuredClone(app.state.lvRigid),
+      slabMm: e.thicknessMm,
+      cfd: e.fatigue ? e.fatigue.cfd : null,
+      totalThicknessMm: layers.reduce((sum, s) => sum + s.thicknessMm, 0),
+    }),
+  };
+}
+
+const DESIGNS = { flexible, rigid, rural, ruralRigid };
 
 export function currentDesign(app) {
   return (DESIGNS[app.state.pavementType] || flexible)(app);

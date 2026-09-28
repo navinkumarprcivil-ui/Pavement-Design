@@ -6,10 +6,15 @@
 export const MODULES = {
   flexible: { label: 'Flexible pavement', short: 'Flexible', code: 'IRC:37-2018', start: 'traffic' },
   rigid: { label: 'Rigid pavement', short: 'Rigid', code: 'IRC:58-2015', start: 'rigidTraffic' },
-  rural: { label: 'Low volume road', short: 'Low volume', code: 'IRC:SP:72-2015', start: 'traffic' },
+  rural: { label: 'Flexible pavement · Low volume', short: 'Flexible · LVR', code: 'IRC:SP:72-2015', start: 'ruralTraffic' },
+  ruralRigid: { label: 'Rigid pavement · Low volume', short: 'Rigid · LVR', code: 'IRC:SP:62-2014', start: 'lvRigidTraffic' },
 };
 
-export const MODULE_ORDER = ['flexible', 'rigid', 'rural'];
+/** The choices on the home page; the low volume codes are offered from the traffic step. */
+export const MODULE_ORDER = ['flexible', 'rigid'];
+
+/** The module a low volume one sits under, for the side panel and the home page. */
+export const PARENT_MODULE = { rural: 'flexible', ruralRigid: 'rigid' };
 
 /** What the project is, for the record and the report. */
 export const CONSTRUCTION_TYPES = [

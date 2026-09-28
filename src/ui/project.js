@@ -48,10 +48,9 @@ export function designTraffic(state) {
     vehicleDamageFactor: vdf,
   });
 
-  // Below 2 msa both guidelines are open to the designer; the rural road
-  // guideline is the default. At 2 msa and above IRC:37 is the only one.
+  // Below 2 msa IRC:SP:72 is offered beside IRC:37.
   const routeChoice = result.route === 'rural';
-  const route = routeChoice && state.routeChoice === 'flexible' ? 'flexible' : result.route;
+  const route = result.route;
 
   const warnings = [];
   if (entered < floor) {
