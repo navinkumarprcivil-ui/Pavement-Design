@@ -36,8 +36,11 @@ const SCREENS = {
   rural: { render: renderRural, title: 'Low volume rural road', back: 'traffic' },
   rigid: { render: renderRigid, title: 'Rigid pavement', back: 'home' },
   // Reached from the header, so it returns to wherever it was opened from.
-  designSteps: { render: renderDesignSteps, title: 'Design steps', back: () => app.designStepsReturn },
+  designSteps: { render: renderDesignSteps, title: 'Flexible design steps', back: () => app.designStepsReturn },
 };
+
+/** The regular flexible design, where its design steps are offered. */
+const FLEXIBLE_SCREENS = new Set(['traffic', 'layers', 'inputs', 'results', 'rates', 'trials']);
 
 export const defaultState = () => ({
   screen: 'home',
@@ -120,7 +123,7 @@ const app = {
   header: null,
   actions: null,
   /** Screen the design steps were opened from. Deliberately not persisted. */
-  designStepsReturn: 'home',
+  designStepsReturn: 'traffic',
   /** Open/closed state of collapsible sections, for this session only. */
   folds: {},
   entering: false,
@@ -179,8 +182,8 @@ const app = {
         : h('span', { class: 'header-mark', 'aria-hidden': 'true' })
     );
     this.header.appendChild(h('h1', {}, screen.title));
-    // Top right: the design procedure, readable from anywhere in the flow.
-    if (this.state.screen !== 'designSteps') {
+    // Top right: the design procedure, readable from anywhere in the flexible design.
+    if (FLEXIBLE_SCREENS.has(this.state.screen)) {
       this.header.appendChild(
         h(
           'button',
