@@ -74,6 +74,29 @@ export function citationChip(step) {
   );
 }
 
+/** The clause alone, short enough to sit beside a label: "Cl. 4.2.2, Eq. 4.6". */
+export function shortCitation(ref) {
+  return [ref.clause, ref.table, ref.equation].filter(Boolean).join(', ');
+}
+
+/** A compact clause chip for a field label or a figure; tapping opens the reference. */
+export function clauseChip(title, ref) {
+  if (!ref) return null;
+  return h(
+    'button',
+    {
+      class: 'clause-chip',
+      type: 'button',
+      title: formatCitation(ref),
+      onclick: (event) => {
+        event.preventDefault();
+        openCitation({ title, ref });
+      },
+    },
+    shortCitation(ref)
+  );
+}
+
 export function openCitation(step) {
   const ref = step.ref;
   const code = CODES[ref.codeId];
@@ -94,18 +117,24 @@ export function openCitation(step) {
   );
 }
 
-/** Render a computed step with its working and citation. */
+/** Render a computed step: the relation, the numbers put into it, and the result. */
 export function stepCard(step) {
   return h(
     'div',
     { class: 'step' },
-    h('h4', {}, step.title),
-    step.formula ? h('div', { class: 'formula' }, step.formula) : null,
-    step.substitution ? h('div', { class: 'formula' }, step.substitution) : null,
-    step.result ? h('div', { class: 'step-result' }, step.result) : null,
+    h('div', { class: 'step-head' }, h('h4', {}, step.title), clauseChip(step.title, step.ref)),
+    step.formula || step.substitution
+      ? h(
+          'div',
+          { class: 'step-working' },
+          step.formula ? h('div', { class: 'formula' }, step.formula) : null,
+          step.formula && step.substitution ? h('span', { class: 'step-equals', 'aria-hidden': 'true' }, '→') : null,
+          step.substitution ? h('div', { class: 'formula' }, step.substitution) : null
+        )
+      : null,
+    step.result ? h('div', { class: 'step-result' }, h('span', {}, 'Result'), h('strong', {}, step.result)) : null,
     step.warning
       ? h('div', { class: 'notice warn', style: { marginTop: '8px' } }, step.warning)
-      : null,
-    citationChip(step)
+      : null
   );
 }

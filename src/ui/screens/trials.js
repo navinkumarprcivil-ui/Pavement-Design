@@ -1,5 +1,4 @@
 import { h, metric, badge, button, msa } from '../dom.js';
-import { stepper } from '../stepper.js';
 import { formatCompactCurrency } from '../../engine/costing.js';
 import { listTrials, deleteTrial, setChosenTrial } from '../../store/trials.js';
 import { migrateRigid } from '../rigidProject.js';
@@ -16,14 +15,13 @@ function rank(a, b) {
 export default function renderTrials(app) {
   const trials = listTrials();
 
-  const rigidFlow = app.state.pavementType === 'rigid';
-  app.setActions(button('New trial', () => app.go(rigidFlow ? 'rigidSlab' : 'layers')));
+  const trialStart = { rigid: 'rigidSlab', rural: 'traffic' }[app.state.pavementType] || 'layers';
+  app.setActions(button('New trial', () => app.go(trialStart)));
 
   if (!trials.length) {
     return h(
       'div',
       { class: 'card-stack' },
-      stepper(app),
       h('div', { class: 'empty-state' }, h('p', {}, 'No trials saved yet.'))
     );
   }
@@ -33,6 +31,14 @@ export default function renderTrials(app) {
 
   /** Load a saved trial back into the design, to adjust it. */
   const edit = (trial) => {
+    if (trial.pavementType === 'rural') {
+      app.state.pavementType = 'rural';
+      app.state.routeChoice = 'rural';
+      app.state.materials = { ...app.state.materials, subgradeCBR: trial.subgradeCBR };
+      app.persist();
+      app.go('rural');
+      return;
+    }
     if (trial.pavementType === 'rigid') {
       app.state.pavementType = 'rigid';
       app.state.rigid = migrateRigid(structuredClone(trial.rigid));
@@ -42,6 +48,7 @@ export default function renderTrials(app) {
       return;
     }
     app.state.pavementType = 'flexible';
+    app.state.routeChoice = 'flexible';
     app.state.combination = { ...trial.combination };
     app.state.thicknesses = { ...trial.thicknesses };
     app.state.materials = { ...app.state.materials, ...trial.materials };
@@ -92,7 +99,9 @@ export default function renderTrials(app) {
         metric('Total', `${trial.totalThicknessMm} mm`),
         trial.pavementType === 'rigid'
           ? metric('CFD', Number.isFinite(trial.cfd) ? trial.cfd.toFixed(2) : '—')
-          : metric('Life', msa(trial.governingLifeMsa)),
+          : trial.pavementType === 'rural'
+            ? metric('Traffic', msa(trial.designTrafficMsa))
+            : metric('Life', msa(trial.governingLifeMsa)),
         metric('Per km', trial.cost?.costPerKm > 0 ? formatCompactCurrency(trial.cost.costPerKm) : '—')
       ),
       h(
@@ -115,7 +124,6 @@ export default function renderTrials(app) {
   return h(
     'div',
     { class: 'card-stack' },
-    stepper(app),
     sorted.map(row)
   );
 }

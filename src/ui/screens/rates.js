@@ -1,5 +1,4 @@
 import { h, card, numberField, metric, notice, button } from '../dom.js';
-import { stepper } from '../stepper.js';
 import { currentDesign } from '../currentDesign.js';
 import { costSection, formatCurrency, formatNumber } from '../../engine/costing.js';
 import { saveTrial } from '../../store/trials.js';
@@ -7,11 +6,10 @@ import { saveTrial } from '../../store/trials.js';
 export default function renderRates(app) {
   const design = currentDesign(app);
   if (!design) {
-    const inputs = app.state.pavementType === 'rigid' ? 'rigidSlab' : 'inputs';
+    const inputs = { rigid: 'rigidSlab', rural: 'rural' }[app.state.pavementType] || 'inputs';
     return h(
       'div',
       { class: 'card-stack' },
-      stepper(app),
       h('div', { class: 'empty-state' }, h('p', {}, 'No design yet.'), button('Go to inputs', () => app.go(inputs)))
     );
   }
@@ -94,7 +92,6 @@ export default function renderRates(app) {
   const body = h(
     'div',
     { class: 'card-stack' },
-    stepper(app),
 
     h(
       'div',

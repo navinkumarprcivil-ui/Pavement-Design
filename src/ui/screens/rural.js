@@ -1,7 +1,19 @@
-import { h, card, numberField, fold, metric, notice, button, msa } from '../dom.js';
+import { h, card, numberField, keyResult, notice, button, msa } from '../dom.js';
 import { stepCard } from '../citations.js';
 import { designTraffic } from '../project.js';
-import { designRuralRoad, setComposition } from '../../engine/ruralSP72.js';
+import { sectionDiagram } from './layers.js';
+import { designRuralRoad, setComposition, CATALOGUE_REF } from '../../engine/ruralSP72.js';
+import { TRAFFIC } from '../../data/ircConstants.js';
+
+/** The catalogue section as costed layers, top down. */
+export function ruralSlots(composition) {
+  return [
+    { slotId: 'SURFACING', materialId: 'Surfacing', label: 'Bituminous surfacing', thicknessMm: composition.surfacingMm || 0, behaviour: 'bituminous' },
+    { slotId: 'BASE', materialId: 'Base', label: 'Granular base', thicknessMm: composition.baseMm || 0, behaviour: 'granular' },
+    { slotId: 'SUB_BASE', materialId: 'GSB', label: 'Granular sub-base (GSB)', thicknessMm: composition.subBaseMm || 0, behaviour: 'granular' },
+    { slotId: 'SUBGRADE', materialId: null, label: 'Subgrade', thicknessMm: null, behaviour: 'subgrade' },
+  ];
+}
 
 export default function renderRural(app) {
   const traffic = designTraffic(app.state);
@@ -14,35 +26,39 @@ export default function renderRural(app) {
       subgradeCBR: app.state.materials.subgradeCBR,
     });
 
+    app.state.ruralResult = design.missing
+      ? null
+      : {
+          design,
+          slots: ruralSlots(design.composition),
+          name: `${design.category.label} · ${design.band.label}`,
+          designTrafficMsa: traffic.result.msa,
+          subgradeCBR: app.state.materials.subgradeCBR,
+          trafficSteps: traffic.result.steps,
+        };
+
+    app.setActions(
+      app.state.ruralResult ? button('Report', () => app.go('report'), { kind: 'secondary' }) : null,
+      app.state.ruralResult ? button('Cost and save', () => app.go('rates')) : null
+    );
+
     host.replaceChildren(
+      h(
+        'div',
+        { class: 'key-results' },
+        keyResult('Design traffic', msa(traffic.result.msa), null, TRAFFIC.growthEquation.ref),
+        keyResult('Traffic category', design.category.label, null, CATALOGUE_REF),
+        keyResult('Subgrade', design.band.label, null, CATALOGUE_REF),
+        design.missing ? null : keyResult('Total thickness', String(design.totalThicknessMm), 'mm', CATALOGUE_REF)
+      ),
+
       design.missing
         ? notice('warn', null, 'No catalogue entry yet for this traffic and CBR')
-        : h(
-            'section',
-            { class: 'card' },
-            h(
-              'div',
-              { class: 'headline' },
-              h('span', { class: 'headline-label' }, 'Total thickness'),
-              h('span', { class: 'headline-value' }, `${design.totalThicknessMm} mm`)
-            ),
-            h(
-              'div',
-              { class: 'metric-grid three' },
-              metric('Surfacing', `${design.composition.surfacingMm} mm`),
-              metric('Base', `${design.composition.baseMm} mm`),
-              metric('Sub-base', `${design.composition.subBaseMm} mm`)
-            ),
-            design.composition.note ? h('p', { class: 'muted' }, design.composition.note) : null
-          ),
+        : card('Section', sectionDiagram(app.state.ruralResult.slots)),
 
       compositionEditor(design),
 
-      h(
-        'section',
-        { class: 'card folds' },
-        fold({ title: 'Working', memory: app.folds, key: 'rural-working', children: design.steps.map(stepCard) })
-      )
+      card('Calculation steps', [...traffic.result.steps, ...design.steps].map(stepCard))
     );
   };
 
@@ -66,18 +82,24 @@ export default function renderRural(app) {
 
     return card(
       `Catalogue: ${design.category.label}, ${design.band.label}`,
-      h('div', { class: 'field-row three' }, field('Surfacing', 'surfacingMm'), field('Base', 'baseMm'), field('Sub-base', 'subBaseMm')),
-      button(
-        'Save catalogue entry',
-        () => {
-          setComposition(design.category.id, design.band.id, {
-            surfacingMm: draft.surfacingMm ?? 0,
-            baseMm: draft.baseMm ?? 0,
-            subBaseMm: draft.subBaseMm ?? 0,
-          });
-          show();
-        },
-        { kind: 'secondary' }
+      field('Surfacing', 'surfacingMm'),
+      field('Base', 'baseMm'),
+      field('Sub-base', 'subBaseMm'),
+      h(
+        'div',
+        { class: 'card-actions' },
+        button(
+          'Save catalogue entry',
+          () => {
+            setComposition(design.category.id, design.band.id, {
+              surfacingMm: draft.surfacingMm ?? 0,
+              baseMm: draft.baseMm ?? 0,
+              subBaseMm: draft.subBaseMm ?? 0,
+            });
+            show();
+          },
+          { kind: 'secondary' }
+        )
       )
     );
   }
@@ -87,16 +109,11 @@ export default function renderRural(app) {
   return h(
     'div',
     { class: 'card-stack' },
-    h(
-      'div',
-      { class: 'summary-chips' },
-      h('span', { class: 'chip' }, msa(traffic.result.msa)),
-      h('span', { class: 'chip' }, 'IRC:SP:72-2015')
-    ),
     card(
       'Subgrade',
       numberField({
         label: 'Subgrade CBR',
+        ref: CATALOGUE_REF,
         value: app.state.materials.subgradeCBR,
         suffix: '%',
         min: 1,

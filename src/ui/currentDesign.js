@@ -53,6 +53,28 @@ function rigid(app) {
   };
 }
 
+function rural(app) {
+  const result = app.state.ruralResult;
+  if (!result) return null;
+  const { design } = result;
+  return {
+    type: 'rural',
+    slots: result.slots,
+    safe: true,
+    name: `SP:72 · ${result.name}`,
+    chips: [`${design.totalThicknessMm} mm`, msa(result.designTrafficMsa)],
+    inputsScreen: 'rural',
+    record: () => ({
+      pavementType: 'rural',
+      subgradeCBR: result.subgradeCBR,
+      designTrafficMsa: result.designTrafficMsa,
+      totalThicknessMm: design.totalThicknessMm,
+    }),
+  };
+}
+
+const DESIGNS = { flexible, rigid, rural };
+
 export function currentDesign(app) {
-  return app.state.pavementType === 'rigid' ? rigid(app) : flexible(app);
+  return (DESIGNS[app.state.pavementType] || flexible)(app);
 }

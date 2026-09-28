@@ -1,6 +1,6 @@
 /**
- * Progress through the design, shown at the top of each step. Steps already
- * reachable can be tapped to jump straight to them.
+ * Progress through the design, as numbered tabs at the top of each step.
+ * Steps already reachable can be tapped to jump straight to them.
  */
 
 import { h } from './dom.js';
@@ -8,49 +8,58 @@ import { listTrials } from '../store/trials.js';
 
 const FLEXIBLE_STEPS = [
   { screen: 'traffic', label: 'Traffic' },
-  { screen: 'layers', label: 'Layers' },
+  { screen: 'layers', label: 'Composition' },
   { screen: 'inputs', label: 'Inputs' },
   { screen: 'results', label: 'Result' },
+  { screen: 'report', label: 'Report' },
   { screen: 'rates', label: 'Cost' },
   { screen: 'trials', label: 'Compare' },
 ];
 
 const RIGID_STEPS = [
   { screen: 'rigidTraffic', label: 'Traffic' },
-  { screen: 'rigidAxles', label: 'Axles' },
+  { screen: 'rigidAxles', label: 'Axle loads' },
   { screen: 'rigidSlab', label: 'Slab' },
   { screen: 'rigidResult', label: 'Result' },
+  { screen: 'report', label: 'Report' },
   { screen: 'rates', label: 'Cost' },
   { screen: 'trials', label: 'Compare' },
 ];
 
+const RURAL_STEPS = [
+  { screen: 'traffic', label: 'Traffic' },
+  { screen: 'rural', label: 'Design' },
+  { screen: 'report', label: 'Report' },
+  { screen: 'rates', label: 'Cost' },
+  { screen: 'trials', label: 'Compare' },
+];
+
+export const STEPS = { flexible: FLEXIBLE_STEPS, rigid: RIGID_STEPS, rural: RURAL_STEPS };
+
+/** The design result the cost step needs, for each kind of design. */
+export const RESULT_KEY = { flexible: 'result', rigid: 'rigidResult', rural: 'ruralResult' };
+
 function reachable(app, screen) {
   switch (screen) {
-    case 'traffic':
-    case 'layers':
-    case 'inputs':
-    case 'rigidTraffic':
-    case 'rigidAxles':
-    case 'rigidSlab':
-      return true;
     case 'results':
       return Boolean(app.state.result);
     case 'rigidResult':
       return Boolean(app.state.rigidResult);
+    case 'report':
     case 'rates':
-      return Boolean(app.state.pavementType === 'rigid' ? app.state.rigidResult : app.state.result);
+      return Boolean(app.state[RESULT_KEY[app.state.pavementType] || 'result']);
     case 'trials':
       return listTrials().length > 0;
     default:
-      return false;
+      return true;
   }
 }
 
 export function stepper(app) {
-  const steps = app.state.pavementType === 'rigid' ? RIGID_STEPS : FLEXIBLE_STEPS;
+  const steps = STEPS[app.state.pavementType] || FLEXIBLE_STEPS;
   const current = steps.findIndex((s) => s.screen === app.state.screen);
 
-  return h(
+  const nav = h(
     'nav',
     { class: 'stepper', 'aria-label': 'Design steps' },
     steps.map((step, index) => {
@@ -65,9 +74,19 @@ export function stepper(app) {
           'aria-current': index === current ? 'step' : null,
           onclick: () => app.go(step.screen),
         },
-        h('span', { class: 'stepper-bar' }),
+        h('span', { class: 'stepper-num', 'aria-hidden': 'true' }, String(index + 1)),
         h('span', { class: 'stepper-label' }, step.label)
       );
     })
   );
+
+  // Keep the current step in view where the tabs scroll sideways.
+  requestAnimationFrame(() => {
+    const active = nav.querySelector('[aria-current="step"]');
+    if (active && nav.scrollWidth > nav.clientWidth) {
+      nav.scrollLeft = active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2;
+    }
+  });
+
+  return nav;
 }

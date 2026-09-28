@@ -1,8 +1,7 @@
 import { h, card, numberField, segmented, fold, metric, notice, button } from '../dom.js';
 import { stepCard } from '../citations.js';
-import { stepper } from '../stepper.js';
 import { rigidTrafficFor } from '../rigidProject.js';
-import { ref } from '../../data/ircConstants.js';
+import { ref, RIGID } from '../../data/ircConstants.js';
 
 const million = (n) => `${(n / 1e6).toFixed(n >= 1e8 ? 0 : n >= 1e7 ? 1 : 2)} M`;
 
@@ -78,12 +77,12 @@ export default function renderRigidTraffic(app) {
   const screen = h(
     'div',
     { class: 'card-stack' },
-    stepper(app),
 
     card(
       'Traffic',
       numberField({
         label: 'Commercial vehicles per day, both ways',
+        ref: RIGID.traffic.ref,
         value: t.twoWayCVPD,
         suffix: 'CVPD',
         min: 0,
@@ -92,12 +91,13 @@ export default function renderRigidTraffic(app) {
       h(
         'div',
         { class: 'field-row' },
-        numberField({ label: 'Growth rate', value: t.growthRatePercent, suffix: '%', min: 0, onInput: onNumber('growthRatePercent') }),
+        numberField({ label: 'Growth rate', ref: RIGID.traffic.ref, value: t.growthRatePercent, suffix: '%', min: 0, onInput: onNumber('growthRatePercent') }),
         numberField({ label: 'Years to completion', value: t.yearsToCompletion, suffix: 'yr', min: 0, onInput: onNumber('yearsToCompletion') })
       ),
       numberField({ label: 'Design period', value: t.designPeriodYears, suffix: 'yr', min: 1, onInput: onNumber('designPeriodYears') }),
       segmented({
         label: 'Carriageway',
+        ref: RIGID.traffic.ref,
         value: t.carriageway,
         options: [
           { value: 'two-lane', label: 'Two-lane two-way' },
@@ -126,6 +126,7 @@ export default function renderRigidTraffic(app) {
       numberField({ label: 'Commercial vehicles travelling at night', value: t.nightSharePercent, suffix: '%', min: 0, max: 100, onInput: onNumber('nightSharePercent') }),
       numberField({
         label: 'Wheel base shorter than the joint spacing',
+        ref: RIGID.traffic.ref,
         value: t.shortWheelBasePercent,
         suffix: '%',
         min: 0,

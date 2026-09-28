@@ -28,6 +28,13 @@ function materialGroups() {
       ]),
     },
     { title: 'Concrete', items: [{ id: 'PQC', label: 'Pavement Quality Concrete (PQC)' }] },
+    {
+      title: 'Low volume roads',
+      items: [
+        { id: 'Surfacing', label: 'Bituminous surfacing' },
+        { id: 'Base', label: 'Granular base' },
+      ],
+    },
   ];
 }
 

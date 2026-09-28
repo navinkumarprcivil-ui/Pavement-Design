@@ -67,7 +67,12 @@ and drainage layers are not yet in the app.
 The app is offline-first. Everything is written to device storage the moment
 you save it, so it keeps working with no signal — which is the point, on site.
 
-The side panel (☰ at the top left) holds the saved designs, saved projects —
+Each code is a module with numbered steps — flexible (IRC:37-2018), rigid
+(IRC:58-2015) and low volume roads (IRC:SP:72-2015) — ending in a design report
+with every input, calculation step and clause, printable to PDF or downloadable
+as a Word file. On a wide screen the side panel is docked beside the page.
+
+The side panel (☰ at the top left on a phone) holds the saved designs, saved projects —
 named copies of a design's inputs, flexible or rigid — the material rates used
 for costing, the design steps, and About.
 
@@ -181,6 +186,10 @@ src/store/
   trials.js               Saved trials and project state
   projects.js             Saved projects
 src/ui/                 Screens and DOM helpers
+  modules.js              The design modules and their codes
+  drawer.js               The side panel
+  stepper.js              Numbered step tabs for each module
+  screens/report.js       The design report, for print, PDF and Word
 tests/                  Node test runner, no dependencies
 tools/serve.js          Static file server for development
 database.rules.json     Realtime Database security rules to publish

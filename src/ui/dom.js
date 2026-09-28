@@ -1,3 +1,5 @@
+import { clauseChip } from './citations.js';
+
 /**
  * Minimal DOM helpers and the app's shared controls. Deliberately tiny and
  * framework-free — the app is one page of vanilla ES modules so it runs from a
@@ -40,13 +42,33 @@ export function clear(el) {
   return el;
 }
 
-/** A titled card. */
+/**
+ * A titled card. Its fields flow into columns on a wide screen; anything that
+ * is not a field takes the full width.
+ */
 export function card(title, ...children) {
   return h(
     'section',
     { class: 'card' },
     title ? h('h2', { class: 'section-title' }, title) : null,
-    children
+    h('div', { class: 'card-body' }, children)
+  );
+}
+
+let fieldCount = 0;
+const nextId = () => `field-${++fieldCount}`;
+
+/**
+ * A field's label: its text, the clause it comes from, and a short aside.
+ * Given `forId` the text is the input's label; otherwise it names a group.
+ */
+function fieldLabel(label, { ref, aside, forId } = {}) {
+  return h(
+    'span',
+    { class: 'field-label' },
+    forId ? h('label', { class: 'field-text', htmlFor: forId }, label) : h('span', { class: 'field-text' }, label),
+    ref ? clauseChip(label, ref) : null,
+    aside ? h('span', { class: 'field-aside' }, aside) : null
   );
 }
 
@@ -54,8 +76,10 @@ export function card(title, ...children) {
  * A labelled numeric input that reports every edit.
  * `aside` is a short value shown against the label, such as a minimum.
  */
-export function numberField({ label, aside, value, suffix, min, max, step = 'any', onInput }) {
+export function numberField({ label, aside, ref, value, suffix, min, max, step = 'any', onInput }) {
+  const id = nextId();
   const input = h('input', {
+    id,
     type: 'number',
     inputmode: 'decimal',
     value: value ?? '',
@@ -72,31 +96,28 @@ export function numberField({ label, aside, value, suffix, min, max, step = 'any
     ? h('div', { class: 'input-suffix' }, input, h('span', {}, suffix))
     : input;
 
-  return h(
-    'label',
-    { class: 'field' },
-    h('span', { class: 'field-label' }, label, aside ? h('span', { class: 'field-aside' }, aside) : null),
-    control
-  );
+  return h('div', { class: 'field' }, label ? fieldLabel(label, { ref, aside, forId: id }) : null, control);
 }
 
 export function textField({ label, value, onInput }) {
+  const id = nextId();
   return h(
-    'label',
+    'div',
     { class: 'field' },
-    h('span', { class: 'field-label' }, label),
-    h('input', { type: 'text', value: value ?? '', oninput: (e) => onInput(e.target.value) })
+    fieldLabel(label, { forId: id }),
+    h('input', { id, type: 'text', value: value ?? '', oninput: (e) => onInput(e.target.value) })
   );
 }
 
-export function selectField({ label, value, options, onChange }) {
+export function selectField({ label, ref, value, options, onChange }) {
+  const id = nextId();
   return h(
-    'label',
+    'div',
     { class: 'field' },
-    h('span', { class: 'field-label' }, label),
+    fieldLabel(label, { ref, forId: id }),
     h(
       'select',
-      { onchange: (event) => onChange(event.target.value) },
+      { id, onchange: (event) => onChange(event.target.value) },
       options.map((opt) =>
         h('option', { value: opt.value, selected: opt.value === value }, opt.label)
       )
@@ -104,8 +125,11 @@ export function selectField({ label, value, options, onChange }) {
   );
 }
 
-/** A row of mutually exclusive buttons, for short choices. */
-export function segmented({ label, value, options, onChange }) {
+/**
+ * Mutually exclusive choices, drawn as radio pills. A set with long or many
+ * options takes a card's full width.
+ */
+export function segmented({ label, ref, value, options, onChange }) {
   const group = h(
     'div',
     { class: 'segmented', role: 'radiogroup', 'aria-label': label || null },
@@ -125,8 +149,9 @@ export function segmented({ label, value, options, onChange }) {
       )
     )
   );
+  const wide = options.length > 3 || options.reduce((n, o) => n + String(o.label).length, 0) > 26;
   return label
-    ? h('div', { class: 'field' }, h('span', { class: 'field-label' }, label), group)
+    ? h('div', { class: `field choice${wide ? ' wide' : ''}` }, fieldLabel(label, { ref }), group)
     : group;
 }
 
@@ -153,6 +178,16 @@ export function metric(label, value, { tone } = {}) {
     { class: `metric${tone ? ` ${tone}` : ''}` },
     h('span', { class: 'metric-label' }, label),
     h('span', { class: 'metric-value' }, value)
+  );
+}
+
+/** A headline figure with its unit and the clause it comes from. */
+export function keyResult(label, value, unit, ref) {
+  return h(
+    'div',
+    { class: 'key-result' },
+    h('span', { class: 'key-label' }, label, ref ? clauseChip(label, ref) : null),
+    h('span', { class: 'key-value' }, value, unit ? h('small', {}, unit) : null)
   );
 }
 

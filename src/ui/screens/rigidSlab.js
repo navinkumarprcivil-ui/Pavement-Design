@@ -1,5 +1,4 @@
 import { h, card, numberField, segmented, selectField, metric, notice, button } from '../dom.js';
-import { stepper } from '../stepper.js';
 import { SUB_BASES, SHOULDERS, rigidFoundation, runRigid } from '../rigidProject.js';
 import { RIGID } from '../../data/ircConstants.js';
 
@@ -59,12 +58,12 @@ export default function renderRigidSlab(app) {
   return h(
     'div',
     { class: 'card-stack' },
-    stepper(app),
 
     card(
       'Foundation',
       segmented({
         label: 'Sub-base',
+        ref: f.subBase === 'dlc' ? RIGID.dlcK.ref : RIGID.subBaseK.ref,
         value: f.subBase,
         options: SUB_BASES.map((o) => ({ value: o.value, label: o.label })),
         onChange: (value) => {
@@ -104,6 +103,7 @@ export default function renderRigidSlab(app) {
         ? numberField({ label: 'Effective k of the foundation', value: f.measuredK, suffix: 'MPa/m', min: 0, onInput: set(f, 'measuredK', { after: showK }) })
         : numberField({
             label: 'Effective subgrade CBR',
+            ref: RIGID.subgradeK.ref,
             aside: `min ${RIGID.subgradeK.minimumCBR}`,
             value: f.subgradeCBR,
             suffix: '%',
@@ -118,6 +118,7 @@ export default function renderRigidSlab(app) {
       'Concrete',
       numberField({
         label: 'Flexural strength, 28 day',
+        ref: RIGID.concrete.ref,
         aside: `min ${RIGID.concrete.minimumFlexural28MPa}`,
         value: slab.flexural28MPa,
         suffix: 'MPa',
@@ -126,6 +127,7 @@ export default function renderRigidSlab(app) {
       }),
       segmented({
         label: 'Design strength',
+        ref: RIGID.concrete.ref,
         value: slab.ninetyDay ? '90' : '28',
         options: [
           { value: '90', label: '90 day (× 1.1)' },
@@ -146,6 +148,7 @@ export default function renderRigidSlab(app) {
       segmented({ label: 'Shoulder', value: slab.shoulder, options: SHOULDERS, onChange: set(slab, 'shoulder', { rerender: true }) }),
       segmented({
         label: 'Dowel bars at transverse joints',
+        ref: RIGID.dowels.ref,
         value: slab.doweled ? 'yes' : 'no',
         options: [
           { value: 'yes', label: 'Doweled' },
@@ -169,6 +172,7 @@ export default function renderRigidSlab(app) {
       temperature.mode === 'zone'
         ? selectField({
             label: 'Zone',
+            ref: RIGID.temperature.ref,
             value: temperature.zone,
             options: RIGID.temperature.zones.map((z) => ({ value: z.id, label: z.label })),
             onChange: set(temperature, 'zone'),
@@ -181,6 +185,7 @@ export default function renderRigidSlab(app) {
       numberField({ label: 'Thickness to check', value: slab.thicknessMm, suffix: 'mm', min: 150, step: 10, onInput: set(slab, 'thicknessMm') }),
       segmented({
         label: 'Retexturing allowance on the designed slab',
+        ref: RIGID.criterion.ref,
         value: slab.retexture ? 'yes' : 'no',
         options: [
           { value: 'yes', label: `Add ${RIGID.criterion.retexturingMm} mm` },

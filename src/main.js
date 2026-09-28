@@ -9,7 +9,9 @@
 
 import { h, clear } from './ui/dom.js';
 import { closeSheet } from './ui/citations.js';
-import { openDrawer, closeDrawer, ICONS } from './ui/drawer.js';
+import { openDrawer, closeDrawer, renderDrawer, ICONS, FLOW_SCREENS } from './ui/drawer.js';
+import { stepper } from './ui/stepper.js';
+import { MODULES } from './ui/modules.js';
 import { loadProject, saveProject } from './store/trials.js';
 import { getProject, saveProjectRecord } from './store/projects.js';
 import { connectCloud, onCloudChange } from './store/cloud.js';
@@ -33,18 +35,27 @@ import { designStepsScreen } from './ui/screens/designSteps.js';
 import renderProjects from './ui/screens/projects.js';
 import renderMaterialRates from './ui/screens/materialRates.js';
 import renderAbout from './ui/screens/about.js';
+import renderReport from './ui/screens/report.js';
 
+/** The step a design's result is shown on, for each kind of design. */
+const RESULT_SCREEN = { flexible: 'results', rigid: 'rigidResult', rural: 'rural' };
+
+/**
+ * `title` heads the page. Screens of a design module carry the module's name in
+ * the header and its steps above the title; the others carry the app's name.
+ */
 const SCREENS = {
-  home: { render: renderHome, title: 'IRC Pavement Design', back: null },
+  home: { render: renderHome, title: 'New pavement design', back: null },
   traffic: { render: renderTraffic, title: 'Design traffic', back: 'home' },
-  layers: { render: renderLayers, title: 'Layers', back: 'traffic' },
+  layers: { render: renderLayers, title: 'Pavement composition', back: 'traffic' },
   inputs: { render: renderInputs, title: 'Design inputs', back: 'layers' },
   results: { render: renderResults, title: 'Design result', back: 'inputs' },
-  rates: { render: renderRates, title: 'Cost', back: () => (app.state.pavementType === 'rigid' ? 'rigidResult' : 'results') },
+  report: { render: renderReport, title: 'Design report', back: () => RESULT_SCREEN[app.state.pavementType] },
+  rates: { render: renderRates, title: 'Cost', back: () => 'report' },
   trials: { render: renderTrials, title: 'Compare trials', back: 'home' },
-  rural: { render: renderRural, title: 'Low volume rural road', back: 'traffic' },
+  rural: { render: renderRural, title: 'Pavement design', back: 'traffic' },
   rigidTraffic: { render: renderRigidTraffic, title: 'Design traffic', back: 'home' },
-  rigidAxles: { render: renderRigidAxles, title: 'Axle loads', back: 'rigidTraffic' },
+  rigidAxles: { render: renderRigidAxles, title: 'Axle load spectrum', back: 'rigidTraffic' },
   rigidSlab: { render: renderRigidSlab, title: 'Slab design', back: 'rigidAxles' },
   rigidResult: { render: renderRigidResult, title: 'Design result', back: 'rigidSlab' },
   // Reached from the header or the side panel, so they return to wherever
@@ -59,23 +70,19 @@ const SCREENS = {
 /** Screens opened alongside a design rather than as a step of one. */
 const ASIDE_SCREENS = new Set(['designSteps', 'rigidDesignSteps', 'projects', 'materialRates', 'about']);
 
-/** Where each design's steps are offered, in the header. */
-const FLEXIBLE_SCREENS = new Set(['traffic', 'layers', 'inputs', 'results']);
-const RIGID_SCREENS = new Set(['rigidTraffic', 'rigidAxles', 'rigidSlab', 'rigidResult']);
-const SHARED_SCREENS = new Set(['rates', 'trials']);
-
+/** The design procedure offered in the header: IRC:37 and IRC:58 have one. */
 function designStepsFor(state) {
-  const { screen, pavementType } = state;
-  if (FLEXIBLE_SCREENS.has(screen)) return 'designSteps';
-  if (RIGID_SCREENS.has(screen)) return 'rigidDesignSteps';
-  if (SHARED_SCREENS.has(screen)) return pavementType === 'rigid' ? 'rigidDesignSteps' : 'designSteps';
-  return null;
+  if (!FLOW_SCREENS.has(state.screen)) return null;
+  return { flexible: 'designSteps', rigid: 'rigidDesignSteps' }[state.pavementType] || null;
 }
 
 export const defaultState = () => ({
   screen: 'home',
   project: {
     name: '',
+    location: '',
+    client: '',
+    designer: '',
     roadCategory: 'nh',
     terrain: 'plain',
   },
@@ -116,13 +123,14 @@ export const defaultState = () => ({
   pavementType: 'flexible',
   rigid: defaultRigidState(),
   rigidResult: null,
+  ruralResult: null,
   /** The saved project these inputs were opened from or last saved as. */
   projectId: null,
 });
 
 /** The inputs a saved project keeps. Material rates are app-wide, not per project. */
 function projectInputs(state) {
-  const { screen, result, rigidResult, rates, projectId, ...inputs } = state;
+  const { screen, result, rigidResult, ruralResult, rates, projectId, ...inputs } = state;
   return structuredClone(inputs);
 }
 
@@ -214,7 +222,15 @@ const app = {
   openProject(record) {
     this.state = migrate({ ...record.state, rates: this.state.rates, projectId: record.id });
     this.persist();
-    this.go(this.state.pavementType === 'rigid' ? 'rigidTraffic' : 'traffic');
+    this.go(MODULES[this.state.pavementType]?.start || 'traffic');
+  },
+
+  /** Start a design module from its first step. */
+  startModule(type) {
+    this.state.pavementType = type;
+    if (type !== 'rigid') this.state.routeChoice = type;
+    this.persist();
+    this.go(MODULES[type].start);
   },
 
   newProject() {
@@ -244,7 +260,7 @@ const app = {
   },
 
   persist() {
-    const { screen, result, rigidResult, ...rest } = this.state;
+    const { screen, result, rigidResult, ruralResult, ...rest } = this.state;
     saveProject(rest);
   },
 
@@ -258,9 +274,11 @@ const app = {
     document.body.classList.toggle('has-actions', items.length > 0);
   },
 
-  render() {
+  /** The header: menu, back, the module or app name, and the design steps. */
+  renderHeader() {
     const screen = SCREENS[this.state.screen] || SCREENS.home;
     const back = typeof screen.back === 'function' ? screen.back() : screen.back;
+    const flow = FLOW_SCREENS.has(this.state.screen);
 
     clear(this.header);
     this.header.appendChild(
@@ -275,25 +293,60 @@ const app = {
     if (back) {
       this.header.appendChild(h('button', { class: 'back-button', 'aria-label': 'Back', onclick: () => this.go(back) }, '‹'));
     }
-    this.header.appendChild(h('h1', {}, screen.title));
+    const module = flow ? MODULES[this.state.pavementType] : null;
+    this.header.appendChild(
+      h(
+        'h1',
+        {},
+        h('span', { class: 'title-long' }, module ? module.label : 'IRC Pavement Design'),
+        h('span', { class: 'title-short' }, module ? module.short : 'IRC Pavement Design')
+      )
+    );
     // Top right: the design procedure, readable from anywhere in its design.
     const stepsScreen = designStepsFor(this.state);
     if (stepsScreen) {
-      this.header.appendChild(
-        h(
-          'button',
-          {
-            class: 'header-button',
-            onclick: () => this.open(stepsScreen),
-          },
-          'Design Steps'
-        )
-      );
+      this.header.appendChild(h('button', { class: 'header-button', onclick: () => this.open(stepsScreen) }, 'Design Steps'));
     }
+  },
+
+  /** The steps of the design and the page title, above the screen. */
+  pageHead() {
+    const screen = SCREENS[this.state.screen] || SCREENS.home;
+    const flow = FLOW_SCREENS.has(this.state.screen);
+    return h(
+      'div',
+      { class: 'page-head' },
+      flow ? stepper(this) : null,
+      h(
+        'div',
+        { class: 'page-heading' },
+        flow ? h('span', { class: 'page-eyebrow' }, MODULES[this.state.pavementType].code) : null,
+        h('h2', { class: 'page-title' }, screen.title)
+      )
+    );
+  },
+
+  /**
+   * Redraw everything around the screen, for a screen whose edits change the
+   * module it belongs to (traffic decides between IRC:37 and IRC:SP:72).
+   */
+  refreshChrome() {
+    this.renderHeader();
+    const head = this.root.querySelector(':scope > .page-head');
+    if (head) head.replaceWith(this.pageHead());
+    renderDrawer(this);
+  },
+
+  render() {
+    const screen = SCREENS[this.state.screen] || SCREENS.home;
 
     this.setActions();
+    const body = screen.render(this);
+    // After the screen, which may settle the module it belongs to.
+    this.renderHeader();
     clear(this.root);
-    this.root.appendChild(screen.render(this));
+    this.root.append(this.pageHead(), body);
+    renderDrawer(this);
 
     if (this.entering) {
       this.entering = false;

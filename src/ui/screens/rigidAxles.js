@@ -1,5 +1,4 @@
 import { h, card, numberField, fold, button } from '../dom.js';
-import { stepper } from '../stepper.js';
 import { AXLES, frontAxlePercent, spectrumTotal, parseSpectrum } from '../rigidProject.js';
 import { RIGID } from '../../data/ircConstants.js';
 
@@ -125,7 +124,6 @@ export default function renderRigidAxles(app) {
   return h(
     'div',
     { class: 'card-stack' },
-    stepper(app),
     card(
       'Axle mix, % of all axles',
       h('div', { class: 'field-row keep' }, mixField(AXLES[0]), mixField(AXLES[1])),

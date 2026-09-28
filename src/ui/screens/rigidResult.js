@@ -1,6 +1,5 @@
-import { h, card, fold, metric, badge, notice, button } from '../dom.js';
-import { stepCard, citationChip } from '../citations.js';
-import { stepper } from '../stepper.js';
+import { h, card, metric, keyResult, badge, notice, button } from '../dom.js';
+import { stepCard, clauseChip } from '../citations.js';
 import { sectionDiagram } from './layers.js';
 import { AXLES } from '../rigidProject.js';
 import { RIGID } from '../../data/ircConstants.js';
@@ -12,8 +11,9 @@ function damageRow(title, cfd, parts) {
   const safe = cfd <= LIMIT;
   return h(
     'div',
-    { class: 'check', 'data-safe': String(safe) },
+    { class: 'check-tile', 'data-safe': String(safe) },
     h('div', { class: 'check-head' }, h('strong', {}, title), badge(safe ? 'pass' : 'fail', safe ? 'Pass' : 'Fail')),
+    h('span', { class: 'check-sub' }, 'Cumulative fatigue damage', clauseChip(title, RIGID.criterion.ref)),
     h(
       'div',
       { class: 'check-figures' },
@@ -67,7 +67,6 @@ export default function renderRigidResult(app) {
     return h(
       'div',
       { class: 'card-stack' },
-      stepper(app),
       h('div', { class: 'empty-state' }, h('p', {}, 'No design yet.'), button('Go to slab', () => app.go('rigidSlab')))
     );
   }
@@ -77,48 +76,55 @@ export default function renderRigidResult(app) {
 
   app.setActions(
     button('Edit', () => app.go('rigidSlab'), { kind: 'secondary' }),
-    button('Cost and save', () => app.go('rates'))
+    button('Report', () => app.go('report'))
   );
 
   return h(
     'div',
     { class: 'card-stack' },
-    stepper(app),
 
     h(
       'section',
       { class: `verdict ${result.safe ? 'safe' : 'unsafe'}` },
       h('h2', {}, result.safe ? 'Safe' : 'Not safe'),
-      h(
-        'div',
-        { class: 'verdict-figures' },
-        metric('Slab, mm', String(result.adoptedMm)),
-        metric('CFD', e.cfd.toFixed(3)),
-        metric('k, MPa/m', e.kMPaPerM.toFixed(0))
-      )
+      h('p', {}, `${result.adoptedMm} mm slab · CFD ${e.cfd.toFixed(3)} against ${LIMIT.toFixed(2)}`)
+    ),
+
+    h(
+      'div',
+      { class: 'key-results' },
+      keyResult('Slab', String(result.adoptedMm), 'mm', RIGID.criterion.ref),
+      keyResult('CFD', e.cfd.toFixed(3), null, RIGID.criterion.ref),
+      keyResult('Effective k', e.kMPaPerM.toFixed(0), 'MPa/m', RIGID.subgradeK.ref),
+      result.dowels ? keyResult('Dowel bars', `Ø${result.dowels.diameterMm}`, `@ ${result.dowels.spacingMm} mm`, RIGID.dowels.ref) : null
     ),
 
     result.mode === 'design' && result.retextureMm > 0
       ? notice('info', null, `${e.thicknessMm} mm for fatigue + ${result.retextureMm} mm retexturing`)
       : null,
 
-    card('Section', sectionDiagram(result.slots)),
-
     card(
       'Fatigue damage',
-      damageRow(
-        'Bottom-up cracking',
-        e.cfdBottomUp,
-        `single ${e.bottomUp.single.damage.toFixed(3)} · tandem ${e.bottomUp.tandem.damage.toFixed(3)}`
-      ),
-      damageRow(
-        'Top-down cracking',
-        e.cfdTopDown,
-        `single ${e.topDown.single.damage.toFixed(3)} · tandem ${e.topDown.tandem.damage.toFixed(3)} · tridem ${e.topDown.tridem.damage.toFixed(3)}`
-      ),
-      damageRow('Total', e.cfd, null),
-      citationChip({ title: 'Cumulative fatigue damage', ref: RIGID.criterion.ref })
+      h(
+        'div',
+        { class: 'check-grid' },
+        damageRow(
+          'Bottom-up cracking',
+          e.cfdBottomUp,
+          `single ${e.bottomUp.single.damage.toFixed(3)} · tandem ${e.bottomUp.tandem.damage.toFixed(3)}`
+        ),
+        damageRow(
+          'Top-down cracking',
+          e.cfdTopDown,
+          `single ${e.topDown.single.damage.toFixed(3)} · tandem ${e.topDown.tandem.damage.toFixed(3)} · tridem ${e.topDown.tridem.damage.toFixed(3)}`
+        ),
+        damageRow('Total', e.cfd, null)
+      )
     ),
+
+    result.warnings.map((w) => notice('warn', null, w)),
+
+    card('Section', sectionDiagram(result.slots)),
 
     result.dowels
       ? card(
@@ -129,31 +135,16 @@ export default function renderRigidResult(app) {
             metric('Ø, mm', String(result.dowels.diameterMm)),
             metric('L, mm', String(result.dowels.lengthMm)),
             metric('c/c, mm', String(result.dowels.spacingMm))
-          ),
-          citationChip({ title: 'Dowel bars', ref: RIGID.dowels.ref })
+          )
         )
       : null,
 
-    result.warnings.map((w) => notice('warn', null, w)),
+    card(
+      'Stresses and damage by load class',
+      ...['single', 'tandem'].map((id) => classTable(`Bottom-up, ${label(id).toLowerCase()}`, e.bottomUp[id])),
+      ...['single', 'tandem', 'tridem'].map((id) => classTable(`Top-down, ${label(id).toLowerCase()}`, e.topDown[id]))
+    ),
 
-    h(
-      'section',
-      { class: 'card folds' },
-      fold({
-        title: 'Stresses and damage by load class',
-        memory: app.folds,
-        key: 'rigid-classes',
-        children: [
-          ...['single', 'tandem'].map((id) => classTable(`Bottom-up, ${label(id).toLowerCase()}`, e.bottomUp[id])),
-          ...['single', 'tandem', 'tridem'].map((id) => classTable(`Top-down, ${label(id).toLowerCase()}`, e.topDown[id])),
-        ],
-      }),
-      fold({
-        title: 'Working',
-        memory: app.folds,
-        key: 'rigid-working',
-        children: result.steps.map(stepCard),
-      })
-    )
+    card('Calculation steps', result.steps.map(stepCard))
   );
 }

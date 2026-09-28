@@ -1,11 +1,17 @@
-import { h, card, fold, metric, badge, notice, button, msa, micro } from '../dom.js';
-import { stepCard, citationChip, formatCitation } from '../citations.js';
-import { stepper } from '../stepper.js';
+import { h, card, keyResult, badge, notice, button, msa, micro } from '../dom.js';
+import { stepCard, clauseChip, formatCitation } from '../citations.js';
 import { designTraffic } from '../project.js';
 import { sectionDiagram } from './layers.js';
+import { TRAFFIC } from '../../data/ircConstants.js';
+
+const ALLOWABLE_LABEL = {
+  'bituminous-fatigue': 'Allowable εt, bituminous',
+  'subgrade-rutting': 'Allowable εv, subgrade',
+  'cemented-fatigue': 'Allowable εt, CTB',
+};
 
 /** One performance check: the computed strain against the allowable one. */
-function checkRow(check) {
+export function checkTile(check) {
   const compressive = check.compressive === true;
   const ratio =
     check.allowableMicro > 0 ? check.strainMicro / check.allowableMicro : check.utilisation;
@@ -13,13 +19,14 @@ function checkRow(check) {
 
   return h(
     'div',
-    { class: 'check', 'data-safe': String(check.safe) },
+    { class: 'check-tile', 'data-safe': String(check.safe) },
     h(
       'div',
       { class: 'check-head' },
       h('strong', {}, check.title),
       badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail')
     ),
+    h('span', { class: 'check-sub' }, check.strainLabel, clauseChip(check.title, check.ref)),
     compressive
       ? h('div', { class: 'check-figures' }, h('span', {}, 'Compressive at the underside'))
       : h(
@@ -36,22 +43,76 @@ function checkRow(check) {
   );
 }
 
-/** The arithmetic behind one check, for the working section. */
-function checkWorking(check) {
+/** A check's arithmetic, as a calculation step. */
+export function checkStep(check) {
+  return {
+    title: check.title,
+    formula: check.formula,
+    substitution: check.substitution,
+    result: `Allowable ${msa(check.allowableMsa)} against ${msa(check.demandMsa)}`,
+    ref: check.ref,
+  };
+}
+
+/** The layer system analysed: thickness, modulus and Poisson's ratio. */
+export function layerTable(layers) {
   return h(
     'div',
-    { class: 'step' },
-    h('h4', {}, check.title),
-    h('div', { class: 'step-line' }, check.strainLabel),
-    check.formula ? h('div', { class: 'formula' }, check.formula) : null,
-    check.substitution ? h('div', { class: 'formula' }, check.substitution) : null,
+    { class: 'table-scroll' },
     h(
-      'div',
-      { class: 'step-result' },
-      `Allowable ${msa(check.allowableMsa)} against ${msa(check.demandMsa)}`
-    ),
-    citationChip(check)
+      'table',
+      { class: 'data' },
+      h(
+        'thead',
+        {},
+        h('tr', {}, h('th', {}, 'Layer'), h('th', {}, 'h, mm'), h('th', {}, 'E, MPa'), h('th', {}, 'μ'))
+      ),
+      h(
+        'tbody',
+        {},
+        layers.map((layer) =>
+          h(
+            'tr',
+            {},
+            h('td', {}, layer.label),
+            h('td', { class: 'numeric' }, layer.behaviour === 'subgrade' ? '∞' : String(layer.thicknessMm)),
+            h('td', { class: 'numeric' }, layer.E.toFixed(0)),
+            h('td', { class: 'numeric' }, layer.nu.toFixed(2))
+          )
+        )
+      )
+    )
   );
+}
+
+export function strainTable(responses) {
+  return h(
+    'div',
+    { class: 'table-scroll' },
+    h(
+      'table',
+      { class: 'data' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Point'), h('th', {}, 'Horiz. µε'), h('th', {}, 'Vert. µε'))),
+      h(
+        'tbody',
+        {},
+        responses.map((r) =>
+          h(
+            'tr',
+            {},
+            h('td', {}, `${r.z.toFixed(0)} mm, ${r.label}${r.pressureMPa !== 0.56 ? `, ${r.pressureMPa} MPa` : ''}`),
+            h('td', { class: 'numeric' }, (r.maxHorizontalStrain * 1e6).toFixed(1)),
+            h('td', { class: 'numeric' }, (-r.epsZZ * 1e6).toFixed(1))
+          )
+        )
+      )
+    )
+  );
+}
+
+/** A titled group of calculation steps. */
+export function stepGroup(title, steps) {
+  return h('div', { class: 'step-group' }, h('h3', { class: 'step-group-title' }, title), steps.map(stepCard));
 }
 
 export default function renderResults(app) {
@@ -60,13 +121,7 @@ export default function renderResults(app) {
     return h(
       'div',
       { class: 'card-stack' },
-      stepper(app),
-      h(
-        'div',
-        { class: 'empty-state' },
-        h('p', {}, 'No design yet.'),
-        button('Go to inputs', () => app.go('inputs'))
-      )
+      h('div', { class: 'empty-state' }, h('p', {}, 'No design yet.'), button('Go to inputs', () => app.go('inputs')))
     );
   }
 
@@ -74,39 +129,31 @@ export default function renderResults(app) {
 
   app.setActions(
     button('Edit', () => app.go('inputs'), { kind: 'secondary' }),
-    button('Cost and save', () => app.go('rates'))
+    button('Report', () => app.go('report'))
   );
 
   return h(
     'div',
     { class: 'card-stack' },
-    stepper(app),
 
     h(
       'section',
       { class: `verdict ${result.safe ? 'safe' : 'unsafe'}` },
       h('h2', {}, result.safe ? 'Safe' : 'Not safe'),
-      h(
-        'div',
-        { class: 'verdict-figures' },
-        metric('Life', msa(result.governingLifeMsa)),
-        metric('Design', msa(result.designTrafficMsa)),
-        metric('Reliability', `${result.reliability}%`)
-      )
+      h('p', {}, `${result.totalThicknessMm} mm section · life ${msa(result.governingLifeMsa)} against ${msa(result.designTrafficMsa)}`)
     ),
 
-    card(
-      'Section',
-      sectionDiagram(result.slots),
-      h(
-        'div',
-        { class: 'metric-grid' },
-        metric('Total', `${result.totalThicknessMm} mm`),
-        metric('Bituminous', `${result.bituminousMm} mm`)
-      )
+    h(
+      'div',
+      { class: 'key-results' },
+      keyResult('Design traffic', result.designTrafficMsa.toFixed(2), 'msa', TRAFFIC.growthEquation.ref),
+      result.checks
+        .filter((c) => c.allowableMicro != null)
+        .map((c) => keyResult(ALLOWABLE_LABEL[c.id] || c.title, c.allowableMicro.toFixed(1), 'µε', c.ref)),
+      keyResult('Reliability', String(result.reliability), '%', null)
     ),
 
-    card('Checks', result.checks.map(checkRow)),
+    card('Checks', h('div', { class: 'check-grid' }, result.checks.map(checkTile))),
 
     result.thicknessWarnings.length
       ? notice(
@@ -120,82 +167,15 @@ export default function renderResults(app) {
       notice('warn', 'Not checked here', `${item.title} · ${formatCitation(item.ref)}`)
     ),
 
-    h(
-      'section',
-      { class: 'card folds' },
-      fold({
-        title: 'Layer moduli',
-        memory: app.folds,
-        key: 'result-moduli',
-        children: [
-          h(
-            'div',
-            { class: 'table-scroll' },
-            h(
-              'table',
-              { class: 'data' },
-              h('thead', {}, h('tr', {}, h('th', {}, 'Layer'), h('th', {}, 'mm'), h('th', {}, 'E, MPa'), h('th', {}, 'μ'))),
-              h(
-                'tbody',
-                {},
-                result.layers.map((layer) =>
-                  h(
-                    'tr',
-                    {},
-                    h('td', {}, layer.label),
-                    h('td', { class: 'numeric' }, layer.behaviour === 'subgrade' ? '—' : String(layer.thicknessMm)),
-                    h('td', { class: 'numeric' }, layer.E.toFixed(0)),
-                    h('td', { class: 'numeric' }, layer.nu.toFixed(2))
-                  )
-                )
-              )
-            )
-          ),
-          result.modulusSteps.map(stepCard),
-        ],
-      }),
+    card('Section', sectionDiagram(result.slots), layerTable(result.layers)),
 
-      fold({
-        title: 'Computed strains',
-        memory: app.folds,
-        key: 'result-strains',
-        children: h(
-          'div',
-          { class: 'table-scroll' },
-          h(
-            'table',
-            { class: 'data' },
-            h('thead', {}, h('tr', {}, h('th', {}, 'Point'), h('th', {}, 'Horiz. µε'), h('th', {}, 'Vert. µε'))),
-            h(
-              'tbody',
-              {},
-              result.responses.map((r) =>
-                h(
-                  'tr',
-                  {},
-                  h('td', {}, `${r.z.toFixed(0)} mm, ${r.label}${r.pressureMPa !== 0.56 ? `, ${r.pressureMPa} MPa` : ''}`),
-                  h('td', { class: 'numeric' }, (r.maxHorizontalStrain * 1e6).toFixed(1)),
-                  h('td', { class: 'numeric' }, (-r.epsZZ * 1e6).toFixed(1))
-                )
-              )
-            )
-          )
-        ),
-      }),
+    card('Computed strains', strainTable(result.responses)),
 
-      fold({
-        title: 'Performance criteria',
-        memory: app.folds,
-        key: 'result-criteria',
-        children: result.checks.map(checkWorking),
-      }),
-
-      fold({
-        title: 'Design traffic',
-        memory: app.folds,
-        key: 'result-traffic',
-        children: traffic.result.steps.map(stepCard),
-      })
+    card(
+      'Calculation steps',
+      stepGroup('Design traffic', traffic.result.steps),
+      stepGroup('Layer moduli', result.modulusSteps),
+      stepGroup('Performance criteria', result.checks.map(checkStep))
     )
   );
 }

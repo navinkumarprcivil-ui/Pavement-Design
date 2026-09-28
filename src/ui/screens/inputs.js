@@ -1,8 +1,8 @@
 import { h, card, numberField, segmented, notice, button, msa } from '../dom.js';
-import { stepper } from '../stepper.js';
 import { designTraffic, subgradeWarning } from '../project.js';
 import { describeCombination, BINDER_GRADES, BEHAVIOUR } from '../../data/layerCatalog.js';
 import { evaluateTrial, designSection } from '../../engine/flexibleDesign.js';
+import { MODULI, CRITERIA, MINIMUM_THICKNESS } from '../../data/ircConstants.js';
 
 export default function renderInputs(app) {
   const { combination, materials, mix, project } = app.state;
@@ -66,7 +66,6 @@ export default function renderInputs(app) {
   return h(
     'div',
     { class: 'card-stack' },
-    stepper(app),
 
     h(
       'div',
@@ -80,6 +79,7 @@ export default function renderInputs(app) {
       'Subgrade',
       numberField({
         label: 'Effective CBR',
+        ref: MODULI.subgrade.ref,
         value: materials.subgradeCBR,
         suffix: '%',
         min: 1,
@@ -96,6 +96,7 @@ export default function renderInputs(app) {
       'Bituminous mix',
       segmented({
         label: 'Binder, bottom layer',
+        ref: MODULI.bituminous.ref,
         value: materials.binderGrade,
         options: BINDER_GRADES.map((g) => ({ value: g, label: g })),
         onChange: (value) => app.patch('materials', { binderGrade: value }, { rerender: true }),
@@ -113,6 +114,7 @@ export default function renderInputs(app) {
         { class: 'field-row' },
         numberField({
           label: 'Air voids, Va',
+          ref: CRITERIA.bituminousFatigue.ref,
           value: mix.airVoidsPercent,
           suffix: '%',
           min: 0,
@@ -120,6 +122,7 @@ export default function renderInputs(app) {
         }),
         numberField({
           label: 'Effective binder, Vbe',
+          ref: CRITERIA.bituminousFatigue.ref,
           value: mix.effectiveBinderPercent,
           suffix: '%',
           min: 0,
@@ -134,6 +137,7 @@ export default function renderInputs(app) {
         numberField({
           label: slot.label,
           aside: slot.minMm ? `min ${slot.minMm}` : null,
+          ref: MINIMUM_THICKNESS.ref,
           value: thicknesses[slot.slotId],
           suffix: 'mm',
           min: 0,

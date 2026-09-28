@@ -1,5 +1,4 @@
 import { h, card, segmented, button } from '../dom.js';
-import { stepper } from '../stepper.js';
 import {
   BITUMINOUS_OPTIONS,
   BASE_OPTIONS,
@@ -51,10 +50,25 @@ export function sectionDiagram(slots) {
   );
 }
 
+/** Every base, crack relief and sub-base combination the catalogue offers. */
+function compositions() {
+  const list = [];
+  for (const base of BASE_OPTIONS) {
+    const reliefs = base.requiresCrackRelief ? CRACK_RELIEF_OPTIONS : [null];
+    for (const relief of reliefs) {
+      for (const subBase of SUB_BASE_OPTIONS) {
+        list.push({ base, relief, subBase });
+      }
+    }
+  }
+  return list;
+}
+
+const KIND = { granular: 'Granular', cemented: 'Cemented' };
+
 export default function renderLayers(app) {
   const { combination } = app.state;
   const described = describeCombination(combination);
-  const needsCrackRelief = Boolean(described.base.requiresCrackRelief);
 
   // A new material starts from its own default thickness, not the last one's.
   const choose = (patch, resetSlots) => {
@@ -68,46 +82,65 @@ export default function renderLayers(app) {
   };
 
   const bituminousSlots = (id) => (findOption(BITUMINOUS_OPTIONS, id)?.courses || []).map((c) => c.id);
-
-  const options = (list) => list.map((o) => ({ value: o.id, label: o.short }));
+  const bituminous = findOption(BITUMINOUS_OPTIONS, combination.bituminousId) || BITUMINOUS_OPTIONS[0];
 
   app.setActions(button('Continue to inputs', () => app.go('inputs')));
+
+  const compositionCard = ({ base, relief, subBase }) => {
+    const selected =
+      combination.baseId === base.id &&
+      combination.subBaseId === subBase.id &&
+      (!relief || (combination.crackReliefId || CRACK_RELIEF_OPTIONS[0].id) === relief.id);
+    const layers = [
+      { name: bituminous.short, behaviour: 'bituminous' },
+      relief ? { name: relief.short, behaviour: relief.behaviour || 'membrane' } : null,
+      { name: base.short, behaviour: base.behaviour },
+      { name: subBase.short, behaviour: subBase.behaviour },
+    ].filter(Boolean);
+    return h(
+      'button',
+      {
+        type: 'button',
+        class: 'composition',
+        'aria-pressed': String(selected),
+        onclick: () => {
+          if (selected) return;
+          const patch = { baseId: base.id, subBaseId: subBase.id };
+          if (relief) patch.crackReliefId = relief.id;
+          choose(patch, ['BASE', 'CRACK_RELIEF', 'SUB_BASE']);
+        },
+      },
+      h(
+        'span',
+        { class: 'composition-stack', 'aria-hidden': 'true' },
+        layers.map((l) => h('span', { class: `stack-band ${l.behaviour}` }))
+      ),
+      h(
+        'span',
+        { class: 'composition-text' },
+        h('strong', {}, layers.map((l) => l.name).join(' + ')),
+        h('span', {}, `${KIND[base.behaviour]} base · ${KIND[subBase.behaviour].toLowerCase()} sub-base`)
+      ),
+      selected ? h('span', { class: 'badge chosen' }, 'Selected') : null
+    );
+  };
 
   return h(
     'div',
     { class: 'card-stack' },
-    stepper(app),
 
     card(
-      null,
+      'Bituminous layers',
       segmented({
-        label: 'Bituminous layer',
+        label: null,
         value: combination.bituminousId,
-        options: options(BITUMINOUS_OPTIONS),
+        options: BITUMINOUS_OPTIONS.map((o) => ({ value: o.id, label: o.short })),
         onChange: (id) =>
           choose({ bituminousId: id }, [...bituminousSlots(combination.bituminousId), ...bituminousSlots(id)]),
-      }),
-      segmented({
-        label: 'Base',
-        value: combination.baseId,
-        options: options(BASE_OPTIONS),
-        onChange: (id) => choose({ baseId: id }, ['BASE', 'CRACK_RELIEF']),
-      }),
-      needsCrackRelief
-        ? segmented({
-            label: 'Crack relief layer',
-            value: combination.crackReliefId || CRACK_RELIEF_OPTIONS[0].id,
-            options: CRACK_RELIEF_OPTIONS.map((o) => ({ value: o.id, label: o.label })),
-            onChange: (id) => choose({ crackReliefId: id }, ['CRACK_RELIEF']),
-          })
-        : null,
-      segmented({
-        label: 'Sub-base',
-        value: combination.subBaseId,
-        options: options(SUB_BASE_OPTIONS),
-        onChange: (id) => choose({ subBaseId: id }, ['SUB_BASE']),
       })
     ),
+
+    h('section', { class: 'card' }, h('h2', { class: 'section-title' }, 'Composition'), h('div', { class: 'composition-list' }, compositions().map(compositionCard))),
 
     card('Section', sectionDiagram(described.slots.map((s) => ({ ...s, thicknessMm: null }))))
   );

@@ -12,10 +12,9 @@ import {
   msa,
 } from '../dom.js';
 import { stepCard } from '../citations.js';
-import { stepper } from '../stepper.js';
 import { designTraffic } from '../project.js';
 import { laneDistributionOptions } from '../../engine/traffic.js';
-import { ROAD_CATEGORIES, roadCategory } from '../../data/ircConstants.js';
+import { ROAD_CATEGORIES, TRAFFIC, roadCategory } from '../../data/ircConstants.js';
 
 export default function renderTraffic(app) {
   const { traffic, project } = app.state;
@@ -23,6 +22,7 @@ export default function renderTraffic(app) {
   const lane = lanes.find((o) => o.id === traffic.laneDistributionId) || lanes[0];
 
   const resultHost = h('div', { class: 'card-stack' });
+  let mounted = false;
   const next = button('Continue', null);
   app.setActions(next);
 
@@ -31,8 +31,16 @@ export default function renderTraffic(app) {
     const design = designTraffic(app.state);
     const { result } = design;
 
+    // Below 2 msa the choice of guideline decides the module the design is in.
+    const type = design.route === 'rural' ? 'rural' : 'flexible';
+    if (app.state.pavementType !== type) {
+      app.state.pavementType = type;
+      app.persist();
+      if (mounted) app.refreshChrome();
+    }
+
     next.textContent =
-      design.route === 'rural' ? 'Continue to rural road design' : 'Continue to layers';
+      design.route === 'rural' ? 'Continue to design' : 'Continue to composition';
     next.onclick = () => app.go(design.route === 'rural' ? 'rural' : 'layers');
 
     resultHost.replaceChildren(
@@ -58,7 +66,7 @@ export default function renderTraffic(app) {
               label: 'Design as',
               value: design.route,
               options: [
-                { value: 'rural', label: 'Rural road (SP:72)' },
+                { value: 'rural', label: 'Low volume road (IRC:SP:72)' },
                 { value: 'flexible', label: 'Regular (IRC:37)' },
               ],
               onChange: (value) => {
@@ -92,17 +100,19 @@ export default function renderTraffic(app) {
   const screen = h(
     'div',
     { class: 'card-stack' },
-    stepper(app),
 
     card(
       'Project',
-      textField({
-        label: 'Project name',
-        value: project.name,
-        onInput: (value) => app.patch('project', { name: value }),
-      }),
-      selectField({
+      ['name', 'location', 'client', 'designer'].map((key) =>
+        textField({
+          label: { name: 'Project name', location: 'Location', client: 'Client', designer: 'Designer' }[key],
+          value: project[key],
+          onInput: (value) => app.patch('project', { [key]: value }),
+        })
+      ),
+      segmented({
         label: 'Road category',
+        ref: ROAD_CATEGORIES.ref,
         value: project.roadCategory,
         options: categoryOptions,
         onChange: (value) => {
@@ -128,31 +138,30 @@ export default function renderTraffic(app) {
       'Traffic',
       numberField({
         label: 'Commercial vehicles per day, both ways',
+        ref: TRAFFIC.growthEquation.ref,
         value: traffic.presentCVPD,
         suffix: 'CVPD',
         min: 0,
         onInput: onNumber('presentCVPD'),
       }),
-      h(
-        'div',
-        { class: 'field-row' },
-        numberField({
-          label: 'Growth rate',
-          value: traffic.growthRatePercent,
-          suffix: '%',
-          min: 0,
-          onInput: onNumber('growthRatePercent'),
-        }),
-        numberField({
-          label: 'Years to completion',
-          value: traffic.yearsToCompletion,
-          suffix: 'yr',
-          min: 0,
-          onInput: onNumber('yearsToCompletion'),
-        })
-      ),
+      numberField({
+        label: 'Growth rate',
+        ref: TRAFFIC.minimumGrowthRate.ref,
+        value: traffic.growthRatePercent,
+        suffix: '%',
+        min: 0,
+        onInput: onNumber('growthRatePercent'),
+      }),
+      numberField({
+        label: 'Years to completion',
+        value: traffic.yearsToCompletion,
+        suffix: 'yr',
+        min: 0,
+        onInput: onNumber('yearsToCompletion'),
+      }),
       numberField({
         label: 'Design period',
+        ref: TRAFFIC.longLife.ref,
         value: traffic.designLifeYears,
         suffix: 'yr',
         min: 1,
@@ -160,6 +169,7 @@ export default function renderTraffic(app) {
       }),
       selectField({
         label: 'Carriageway',
+        ref: TRAFFIC.laneDistributionFactors.ref,
         value: traffic.laneDistributionId,
         options: lanes.map((o) => ({ value: o.id, label: `${o.label} · D = ${o.value}` })),
         onChange: (value) => app.patch('traffic', { laneDistributionId: value }, { rerender: true }),
@@ -176,6 +186,7 @@ export default function renderTraffic(app) {
         : null,
       segmented({
         label: 'Vehicle damage factor',
+        ref: TRAFFIC.indicativeVDF.ref,
         value: traffic.vdfMode,
         options: [
           { value: 'indicative', label: 'Indicative' },
@@ -197,5 +208,6 @@ export default function renderTraffic(app) {
   );
 
   show();
+  mounted = true;
   return screen;
 }
