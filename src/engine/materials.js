@@ -21,16 +21,16 @@ export function subgradeModulus(cbrPercent) {
 export function subgradeModulusStep(cbrPercent) {
   const mr = subgradeModulus(cbrPercent);
   const branch = cbrPercent <= 5 ? '10 x CBR' : '17.6 x CBR^0.64';
+  const capped = mr === MODULI.subgrade.capMPa;
   return {
     id: 'subgrade-modulus',
     title: 'Subgrade resilient modulus',
-    formula: `MR = ${branch}`,
+    formula: `MR = ${branch}, not more than ${MODULI.subgrade.capMPa} MPa`,
     substitution: `MR = ${branch.replace(/CBR/g, cbrPercent.toString())}`,
-    result: `MR = ${mr.toFixed(0)} MPa`,
+    result: `MR = ${mr.toFixed(0)} MPa${capped ? ' (capped)' : ''}`,
     value: mr,
     ref: MODULI.subgrade.ref,
     verified: MODULI.subgrade.verified,
-    note: MODULI.subgrade.note,
   };
 }
 
@@ -44,7 +44,7 @@ export function granularModulus(totalThicknessMm, supportModulusMPa) {
 }
 
 /**
- * Indicative bituminous mix modulus, interpolated between the tabulated mean
+ * Indicative bituminous mix modulus, interpolated between the tabulated average
  * annual pavement temperatures.
  */
 export function bituminousModulus(binderGrade, temperatureC) {
@@ -81,6 +81,20 @@ function poissonFor(behaviour) {
   }
 }
 
+/** A fixed-value modulus step, for the layers the code gives a single value. */
+function fixedModulusStep(layer, title, source) {
+  return {
+    id: `modulus-${layer.slotId}`,
+    title,
+    formula: 'Design value',
+    substitution: '',
+    result: `E = ${layer.E.toFixed(0)} MPa`,
+    value: layer.E,
+    ref: source.ref,
+    verified: source.verified,
+  };
+}
+
 /**
  * Build the elastic layer stack for analysis.
  *
@@ -88,6 +102,10 @@ function poissonFor(behaviour) {
  * granular modulus equation — the equation is written in terms of the total
  * granular thickness over its support — and every layer in that block is given
  * the resulting modulus, which is how IRC:37 intends it to be applied.
+ *
+ * Two granular layers take a fixed value instead: the aggregate crack relief
+ * layer sandwiched over a cement treated base, and a granular base resting on
+ * a cement treated sub-base.
  *
  * @param {Array<{slotId:string,label:string,behaviour:string,thicknessMm:number}>} slots
  *        Top to bottom, the subgrade last with no thickness.
@@ -139,7 +157,7 @@ export function buildLayerStack(slots, context) {
       steps.push({
         id: `modulus-${layer.slotId}`,
         title: `${layer.label} resilient modulus`,
-        formula: 'Indicative value for the binder grade and pavement temperature',
+        formula: 'Table value for the binder grade and pavement temperature',
         substitution: `${binderGrade} at ${pavementTemperatureC} deg C`,
         result: `E = ${layer.E.toFixed(0)} MPa`,
         value: layer.E,
@@ -155,16 +173,24 @@ export function buildLayerStack(slots, context) {
       layer.E = isBase
         ? MODULI.cemented.ctbModulusMPa
         : MODULI.cemented.ctsbModulusMPa;
-      steps.push({
-        id: `modulus-${layer.slotId}`,
-        title: `${layer.label} modulus`,
-        formula: 'Indicative value for a cement treated layer',
-        substitution: MODULI.cemented.note,
-        result: `E = ${layer.E.toFixed(0)} MPa`,
-        value: layer.E,
-        ref: MODULI.cemented.ref,
-        verified: MODULI.cemented.verified,
-      });
+      steps.push(fixedModulusStep(layer, `${layer.label} modulus`, MODULI.cemented));
+      index -= 1;
+      continue;
+    }
+
+    if (layer.slotId === 'CRACK_RELIEF') {
+      layer.E = MODULI.crackReliefAggregate.modulusMPa;
+      steps.push(fixedModulusStep(layer, `${layer.label} modulus`, MODULI.crackReliefAggregate));
+      index -= 1;
+      continue;
+    }
+
+    const below = layers[index + 1];
+    if (below.behaviour === BEHAVIOUR.CEMENTED && below.slotId === 'SUB_BASE') {
+      layer.E = MODULI.granularOverCTSB.crushedRockMPa;
+      steps.push(
+        fixedModulusStep(layer, `${layer.label} on a cement treated sub-base`, MODULI.granularOverCTSB)
+      );
       index -= 1;
       continue;
     }
@@ -173,7 +199,8 @@ export function buildLayerStack(slots, context) {
     let blockTop = index;
     while (
       blockTop - 1 >= 0 &&
-      layers[blockTop - 1].behaviour === BEHAVIOUR.GRANULAR
+      layers[blockTop - 1].behaviour === BEHAVIOUR.GRANULAR &&
+      layers[blockTop - 1].slotId !== 'CRACK_RELIEF'
     ) {
       blockTop -= 1;
     }
@@ -197,13 +224,6 @@ export function buildLayerStack(slots, context) {
       value: modulus,
       ref: MODULI.granular.ref,
       verified: MODULI.granular.verified,
-      warning:
-        totalThickness < MODULI.granular.minThicknessMm ||
-        totalThickness > MODULI.granular.maxThicknessMm
-          ? `Total granular thickness of ${totalThickness.toFixed(0)} mm is outside ` +
-            `the ${MODULI.granular.minThicknessMm}-${MODULI.granular.maxThicknessMm} mm ` +
-            'range over which this relation is established.'
-          : null,
     });
 
     index = blockTop - 1;

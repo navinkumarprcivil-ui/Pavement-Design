@@ -1,16 +1,17 @@
-import { h, numberField, notice } from '../dom.js';
+import { h, card, numberField, metric, notice, button, msa } from '../dom.js';
+import { stepper } from '../stepper.js';
 import { costSection, formatCurrency, formatNumber } from '../../engine/costing.js';
-import { listTrials, saveTrial } from '../../store/trials.js';
+import { combinationName } from '../../data/layerCatalog.js';
+import { saveTrial } from '../../store/trials.js';
 
 export default function renderRates(app) {
   const result = app.state.result;
   if (!result) {
     return h(
       'div',
-      { class: 'empty-state' },
-      'Run a design first, then add rates to it.',
-      h('div', { style: { height: '12px' } }),
-      h('button', { class: 'button', onclick: () => app.go('inputs') }, 'Go to inputs')
+      { class: 'card-stack' },
+      stepper(app),
+      h('div', { class: 'empty-state' }, h('p', {}, 'No design yet.'), button('Go to inputs', () => app.go('inputs')))
     );
   }
 
@@ -21,9 +22,14 @@ export default function renderRates(app) {
     const cost = costSection(slots, app.state.rates, app.state.geometry);
     summary.replaceChildren(
       h(
-        'div',
+        'section',
         { class: 'card' },
-        h('h2', { class: 'section-title' }, 'Cost'),
+        h(
+          'div',
+          { class: 'headline' },
+          h('span', { class: 'headline-label' }, 'Cost per km'),
+          h('span', { class: 'headline-value' }, formatCurrency(cost.costPerKm))
+        ),
         cost.lines.map((line) =>
           h(
             'div',
@@ -31,12 +37,12 @@ export default function renderRates(app) {
             h(
               'div',
               {},
-              h('span', { class: 'line-label' }, `${line.label} · ${line.thicknessMm} mm`),
+              h('span', { class: 'line-label' }, `${line.materialId} · ${line.thicknessMm} mm`),
               h(
                 'span',
                 { class: 'line-detail' },
                 `${formatNumber(line.volumeCum, 1)} m³ × ` +
-                  `${line.rateMissing ? 'no rate' : formatCurrency(line.rate) + '/m³'}`
+                  `${line.rateMissing ? 'no rate' : formatCurrency(line.rate)}`
               )
             ),
             h('span', { class: 'line-amount' }, formatCurrency(line.amount))
@@ -45,50 +51,39 @@ export default function renderRates(app) {
         h(
           'div',
           { class: 'line-total' },
-          h(
-            'div',
-            {},
-            'Total',
-            h('span', { class: 'line-detail' }, `${formatNumber(cost.totalVolume, 1)} m³`)
-          ),
+          h('span', {}, `Total, ${formatNumber(app.state.geometry.lengthKm, 2)} km`),
           h('span', { class: 'line-amount' }, formatCurrency(cost.total))
         ),
-        h(
-          'div',
-          { class: 'metric-grid', style: { marginTop: '12px' } },
-          h(
-            'div',
-            { class: 'metric' },
-            h('span', { class: 'metric-label' }, 'Cost per km'),
-            h('span', { class: 'metric-value' }, formatCurrency(cost.costPerKm))
-          ),
-          h(
-            'div',
-            { class: 'metric' },
-            h('span', { class: 'metric-label' }, 'Cost per m² of carriageway'),
-            h('span', { class: 'metric-value' }, formatCurrency(cost.costPerSqm))
-          )
-        ),
-        cost.anyRateMissing
-          ? notice(
-              'warn',
-              'Some rates are not entered',
-              'Layers without a rate are counted as zero, so the total is ' +
-                'understated until every rate is filled in.'
-            )
-          : null
+        h('div', { class: 'metric-grid' }, metric('Per m²', formatCurrency(cost.costPerSqm)), metric('Volume', `${formatNumber(cost.totalVolume, 0)} m³`)),
+        cost.anyRateMissing ? notice('warn', null, 'Rates missing: those layers are costed at zero') : null
       )
     );
     return cost;
   };
 
-  const attachToTrial = () => {
+  const save = () => {
     const cost = recompute();
-    const trials = listTrials();
-    const latest = trials[trials.length - 1];
-    if (!latest) return;
+    const { combination } = app.state;
     saveTrial({
-      ...latest,
+      name: combinationName(combination),
+      combination: { ...combination },
+      thicknesses: { ...app.state.thicknesses },
+      materials: { ...app.state.materials },
+      mix: { ...app.state.mix },
+      roadCategory: app.state.project.roadCategory,
+      projectName: app.state.project.name,
+      designTrafficMsa: result.designTrafficMsa,
+      totalThicknessMm: result.totalThicknessMm,
+      governingLifeMsa: result.governingLifeMsa,
+      safe: result.safe,
+      reliability: result.reliability,
+      slots: result.slots.map((s) => ({
+        slotId: s.slotId,
+        materialId: s.materialId,
+        label: s.label,
+        thicknessMm: s.thicknessMm,
+        behaviour: s.behaviour,
+      })),
       rates: { ...app.state.rates },
       geometry: { ...app.state.geometry },
       cost: {
@@ -96,34 +91,33 @@ export default function renderRates(app) {
         costPerKm: cost.costPerKm,
         costPerSqm: cost.costPerSqm,
         totalVolume: cost.totalVolume,
+        complete: !cost.anyRateMissing,
       },
     });
     app.go('trials');
   };
 
+  app.setActions(button('Save trial', save));
+
   const body = h(
     'div',
     { class: 'card-stack' },
+    stepper(app),
 
     h(
       'div',
-      {},
-      h('h2', { class: 'screen-title' }, 'Rates and cost'),
-      h(
-        'p',
-        { class: 'screen-intro' },
-        'Enter a rate per cubic metre for each layer. Rates are remembered, so ' +
-          'the next trial is costed the moment it is designed.'
-      )
+      { class: 'summary-chips' },
+      h('span', { class: `chip ${result.safe ? 'pass' : 'fail'}` }, result.safe ? 'Safe' : 'Not safe'),
+      h('span', { class: 'chip' }, combinationName(app.state.combination)),
+      h('span', { class: 'chip' }, `${result.totalThicknessMm} mm`),
+      h('span', { class: 'chip' }, msa(result.governingLifeMsa))
     ),
 
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Road geometry'),
+    card(
+      'Road',
       h(
         'div',
-        { class: 'field-row' },
+        { class: 'field-row keep' },
         numberField({
           label: 'Carriageway width',
           value: app.state.geometry.carriagewayWidthM,
@@ -147,19 +141,19 @@ export default function renderRates(app) {
       )
     ),
 
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Layer rates'),
+    card(
+      'Rates per m³',
       slots.map((slot) =>
         numberField({
-          label: `${slot.label} (${slot.thicknessMm} mm)`,
-          hint: 'Rate per cubic metre',
-          value: app.state.rates[slot.slotId] ?? '',
+          label: slot.label,
+          value: app.state.rates[slot.materialId] ?? '',
           suffix: '₹/m³',
           min: 0,
           onInput: (value) => {
-            app.state.rates = { ...app.state.rates, [slot.slotId]: value ?? 0 };
+            const rates = { ...app.state.rates };
+            if (value == null) delete rates[slot.materialId];
+            else rates[slot.materialId] = value;
+            app.state.rates = rates;
             app.persist();
             recompute();
           },
@@ -167,13 +161,7 @@ export default function renderRates(app) {
       )
     ),
 
-    summary,
-
-    h(
-      'button',
-      { class: 'button', onclick: attachToTrial },
-      'Save cost to this trial'
-    )
+    summary
   );
 
   recompute();

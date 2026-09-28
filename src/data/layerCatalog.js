@@ -2,6 +2,10 @@
  * The layer combinations the user picks from, and what each material implies
  * structurally. Adding a new material means adding an entry here — the design
  * engine and the UI both read from this catalogue.
+ *
+ * Minimum thicknesses of the unbound and cemented layers are the IRC:37-2018
+ * values; those of the individual bituminous courses follow the MoRTH
+ * specifications, which the code defers to.
  */
 
 import { MINIMUM_THICKNESS } from './ircConstants.js';
@@ -14,42 +18,22 @@ export const BEHAVIOUR = {
   SUBGRADE: 'subgrade',
 };
 
-export const LAYER_POSITIONS = [
-  {
-    id: 'bituminous',
-    label: 'Bituminous layer',
-    description: 'Surfacing and binder course',
-    fixed: false,
-  },
-  {
-    id: 'base',
-    label: 'Base layer',
-    description: 'The main load spreading layer',
-    fixed: false,
-  },
-  {
-    id: 'subBase',
-    label: 'Sub-base layer',
-    description: 'Drainage and load spreading over the subgrade',
-    fixed: false,
-  },
-  {
-    id: 'subgrade',
-    label: 'Subgrade soil',
-    description: 'Fixed — the prepared formation, characterised by its CBR',
-    fixed: true,
-  },
-];
-
 export const BITUMINOUS_OPTIONS = [
   {
     id: 'BC_DBM',
     label: 'BC over DBM',
     short: 'BC + DBM',
-    description:
-      'Bituminous Concrete wearing course over Dense Bituminous Macadam binder course. The usual choice for a highway.',
     courses: [
       { id: 'BC', label: 'Bituminous Concrete (BC)', minMm: 40, defaultMm: 40 },
+      { id: 'DBM', label: 'Dense Bituminous Macadam (DBM)', minMm: 50, defaultMm: 60 },
+    ],
+  },
+  {
+    id: 'SDBC_DBM',
+    label: 'SDBC over DBM',
+    short: 'SDBC + DBM',
+    courses: [
+      { id: 'SDBC', label: 'Semi Dense Bituminous Concrete (SDBC)', minMm: 25, defaultMm: 30 },
       { id: 'DBM', label: 'Dense Bituminous Macadam (DBM)', minMm: 50, defaultMm: 60 },
     ],
   },
@@ -57,21 +41,8 @@ export const BITUMINOUS_OPTIONS = [
     id: 'BC_ONLY',
     label: 'BC only',
     short: 'BC',
-    description:
-      'A single bituminous course. Suited to lighter traffic where a binder course is not warranted.',
     courses: [
       { id: 'BC', label: 'Bituminous Concrete (BC)', minMm: 40, defaultMm: 50 },
-    ],
-  },
-  {
-    id: 'SDBC_DBM',
-    label: 'SDBC over DBM',
-    short: 'SDBC + DBM',
-    description:
-      'Semi Dense Bituminous Concrete wearing course over DBM.',
-    courses: [
-      { id: 'SDBC', label: 'Semi Dense Bituminous Concrete (SDBC)', minMm: 25, defaultMm: 30 },
-      { id: 'DBM', label: 'Dense Bituminous Macadam (DBM)', minMm: 50, defaultMm: 60 },
     ],
   },
 ];
@@ -79,48 +50,47 @@ export const BITUMINOUS_OPTIONS = [
 export const BASE_OPTIONS = [
   {
     id: 'WMM',
-    label: 'Wet Mix Macadam (WMM)',
+    label: 'Wet Mix Macadam',
+    short: 'WMM',
     behaviour: BEHAVIOUR.GRANULAR,
-    minMm: MINIMUM_THICKNESS.wetMixMacadamMm,
+    minMm: MINIMUM_THICKNESS.unboundBaseMm,
     defaultMm: 250,
-    description: 'Graded aggregate mixed with water and laid by paver. The standard granular base.',
   },
   {
     id: 'WBM',
-    label: 'Water Bound Macadam (WBM)',
+    label: 'Water Bound Macadam',
+    short: 'WBM',
     behaviour: BEHAVIOUR.GRANULAR,
-    minMm: MINIMUM_THICKNESS.waterBoundMacadamMm,
+    minMm: MINIMUM_THICKNESS.unboundBaseMm,
     defaultMm: 250,
-    description: 'Coarse aggregate keyed with screening and binding material, laid in 75 mm compacted courses.',
   },
   {
     id: 'CTB',
-    label: 'Cement Treated Base (CTB)',
+    label: 'Cement Treated Base',
+    short: 'CTB',
     behaviour: BEHAVIOUR.CEMENTED,
     minMm: MINIMUM_THICKNESS.cementTreatedBaseMm,
     defaultMm: 150,
     requiresCrackRelief: true,
-    description:
-      'Aggregate bound with cement. Stiff and strong, but it cracks — a crack relief interlayer is required above it.',
   },
 ];
 
 export const SUB_BASE_OPTIONS = [
   {
     id: 'GSB',
-    label: 'Granular Sub-Base (GSB)',
+    label: 'Granular Sub-Base',
+    short: 'GSB',
     behaviour: BEHAVIOUR.GRANULAR,
     minMm: MINIMUM_THICKNESS.granularSubBaseMm,
     defaultMm: 200,
-    description: 'Well graded granular material. Also serves as the drainage layer.',
   },
   {
     id: 'CTSB',
-    label: 'Cement Treated Sub-Base (CTSB)',
+    label: 'Cement Treated Sub-Base',
+    short: 'CTSB',
     behaviour: BEHAVIOUR.CEMENTED,
     minMm: MINIMUM_THICKNESS.cementTreatedSubBaseMm,
     defaultMm: 200,
-    description: 'Soil or aggregate stabilised with cement. Stiffer than GSB but not free draining.',
   },
 ];
 
@@ -128,22 +98,24 @@ export const CRACK_RELIEF_OPTIONS = [
   {
     id: 'AGG_INTERLAYER',
     label: 'Aggregate interlayer',
+    short: 'AIL',
     behaviour: BEHAVIOUR.GRANULAR,
     minMm: MINIMUM_THICKNESS.crackReliefLayerMm,
     defaultMm: 100,
-    description: 'About 100 mm of granular material between the cemented base and the bituminous layer.',
   },
   {
+    // Not a structural layer: it is left out of the analysis.
     id: 'SAMI',
-    label: 'SAMI (stress absorbing membrane interlayer)',
+    label: 'SAMI',
+    short: 'SAMI',
     behaviour: null,
     minMm: 0,
     defaultMm: 0,
-    description: 'A membrane interlayer. It is not modelled as a structural layer, only as crack relief.',
   },
 ];
 
-export const BINDER_GRADES = ['VG10', 'VG30', 'VG40', 'Modified (PMB/CRMB)'];
+/** Binder of the bottom bituminous layer, which sets the design modulus. */
+export const BINDER_GRADES = ['VG40', 'VG30', 'VG10'];
 
 export function findOption(list, id) {
   return list.find((item) => item.id === id) || null;
@@ -151,18 +123,20 @@ export function findOption(list, id) {
 
 /**
  * The layer positions implied by a chosen combination, top to bottom, before
- * thicknesses are decided.
+ * thicknesses are decided. `slotId` names the position (BASE, SUB_BASE...);
+ * `materialId` names what is laid there, which is what a rate belongs to.
  */
 export function describeCombination({ bituminousId, baseId, subBaseId, crackReliefId }) {
-  const bituminous = findOption(BITUMINOUS_OPTIONS, bituminousId);
-  const base = findOption(BASE_OPTIONS, baseId);
-  const subBase = findOption(SUB_BASE_OPTIONS, subBaseId);
+  const bituminous = findOption(BITUMINOUS_OPTIONS, bituminousId) || BITUMINOUS_OPTIONS[0];
+  const base = findOption(BASE_OPTIONS, baseId) || BASE_OPTIONS[0];
+  const subBase = findOption(SUB_BASE_OPTIONS, subBaseId) || SUB_BASE_OPTIONS[0];
   const crackRelief = crackReliefId ? findOption(CRACK_RELIEF_OPTIONS, crackReliefId) : null;
 
   const slots = [];
   for (const course of bituminous.courses) {
     slots.push({
       slotId: course.id,
+      materialId: course.id,
       label: course.label,
       behaviour: BEHAVIOUR.BITUMINOUS,
       minMm: course.minMm,
@@ -172,6 +146,7 @@ export function describeCombination({ bituminousId, baseId, subBaseId, crackReli
   if (base.requiresCrackRelief && crackRelief && crackRelief.behaviour) {
     slots.push({
       slotId: 'CRACK_RELIEF',
+      materialId: crackRelief.short,
       label: crackRelief.label,
       behaviour: crackRelief.behaviour,
       minMm: crackRelief.minMm,
@@ -180,21 +155,23 @@ export function describeCombination({ bituminousId, baseId, subBaseId, crackReli
   }
   slots.push({
     slotId: 'BASE',
-    label: base.label,
+    materialId: base.short,
+    label: `${base.label} (${base.short})`,
     behaviour: base.behaviour,
     minMm: base.minMm,
     defaultMm: base.defaultMm,
   });
   slots.push({
     slotId: 'SUB_BASE',
-    label: subBase.label,
+    materialId: subBase.short,
+    label: `${subBase.label} (${subBase.short})`,
     behaviour: subBase.behaviour,
     minMm: subBase.minMm,
     defaultMm: subBase.defaultMm,
   });
   slots.push({
     slotId: 'SUBGRADE',
-    label: 'Subgrade soil',
+    label: 'Subgrade',
     behaviour: BEHAVIOUR.SUBGRADE,
     minMm: null,
     defaultMm: null,
@@ -204,7 +181,14 @@ export function describeCombination({ bituminousId, baseId, subBaseId, crackReli
 }
 
 /** Human readable name for a combination, used on saved trial cards. */
-export function combinationName({ bituminousId, baseId, subBaseId }) {
+export function combinationName({ bituminousId, baseId, subBaseId, crackReliefId }) {
   const bituminous = findOption(BITUMINOUS_OPTIONS, bituminousId);
-  return [bituminous?.short, baseId, subBaseId].filter(Boolean).join(' / ');
+  const base = findOption(BASE_OPTIONS, baseId);
+  const crackRelief =
+    base?.requiresCrackRelief && crackReliefId
+      ? findOption(CRACK_RELIEF_OPTIONS, crackReliefId)
+      : null;
+  return [bituminous?.short, crackRelief?.short, baseId, subBaseId]
+    .filter(Boolean)
+    .join(' / ');
 }

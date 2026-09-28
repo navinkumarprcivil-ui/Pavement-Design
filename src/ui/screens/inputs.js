@@ -1,120 +1,107 @@
-import { h, numberField, selectField, notice, msa } from '../dom.js';
-import { describeCombination, BINDER_GRADES } from '../../data/layerCatalog.js';
-import { BEHAVIOUR } from '../../data/layerCatalog.js';
-import { evaluateTrial, findMinimumBituminous } from '../../engine/flexibleDesign.js';
-import { reliabilityFor } from '../../engine/criteria.js';
+import { h, card, numberField, segmented, notice, button, msa } from '../dom.js';
+import { stepper } from '../stepper.js';
+import { designTraffic, subgradeWarning } from '../project.js';
+import { describeCombination, BINDER_GRADES, BEHAVIOUR } from '../../data/layerCatalog.js';
+import { evaluateTrial, designSection } from '../../engine/flexibleDesign.js';
 
 export default function renderInputs(app) {
-  const { combination, materials, mix, trafficResult } = app.state;
+  const { combination, materials, mix, project } = app.state;
+  const traffic = designTraffic(app.state);
+  const designTrafficMsa = traffic.result.msa;
   const described = describeCombination(combination);
-  const designTrafficMsa = trafficResult?.msa ?? 0;
+  const layerSlots = described.slots.filter((s) => s.behaviour !== BEHAVIOUR.SUBGRADE);
 
   // Seed any thickness not yet chosen with the catalogue default.
   const thicknesses = { ...app.state.thicknesses };
-  for (const slot of described.slots) {
-    if (slot.behaviour === BEHAVIOUR.SUBGRADE) continue;
+  for (const slot of layerSlots) {
     if (thicknesses[slot.slotId] == null) thicknesses[slot.slotId] = slot.defaultMm;
   }
   app.state.thicknesses = thicknesses;
 
-  const status = h('div', {});
+  const designInput = () => ({
+    combination,
+    thicknesses: app.state.thicknesses,
+    materials,
+    mix,
+    designTrafficMsa,
+    roadCategory: project.roadCategory,
+  });
 
-  const runDesign = () => {
-    const result = evaluateTrial({
-      combination,
-      thicknesses: app.state.thicknesses,
-      materials,
-      mix,
-      designTrafficMsa,
-    });
-    app.state.result = result;
+  const status = h('div', {});
+  const cbrWarning = h('div', {});
+  const showCbrWarning = () => {
+    const text = subgradeWarning(app.state, traffic.twoWayAtCompletion);
+    cbrWarning.replaceChildren(text ? notice('warn', null, text) : '');
+  };
+
+  const check = () => {
+    app.state.result = evaluateTrial(designInput());
     app.go('results');
   };
 
-  const autoDesign = () => {
-    status.replaceChildren(
-      notice('info', 'Searching', 'Finding the thinnest safe bituminous thickness…'),
-      h('div', { class: 'progress' }, h('span', { style: { width: '5%' } }))
-    );
-
-    // Yield to the browser so the notice paints before the search blocks.
+  const design = () => {
+    status.replaceChildren(h('div', { class: 'progress indeterminate' }, h('span')));
+    // Yield so the progress bar paints before the search runs.
     setTimeout(() => {
-      const outcome = findMinimumBituminous({
-        combination,
-        thicknesses: app.state.thicknesses,
-        materials,
-        mix,
-        designTrafficMsa,
-      });
-
+      const outcome = designSection(designInput());
       if (!outcome.found) {
-        status.replaceChildren(
-          notice('danger', 'No safe section found', outcome.message)
-        );
+        status.replaceChildren(notice('danger', 'No safe section', outcome.message));
+        status.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
-
       app.state.thicknesses = outcome.thicknesses;
       app.state.result = outcome.trial;
+      app.persist();
       app.go('results');
     }, 30);
   };
 
+  app.setActions(
+    button('Check entered', check, { kind: 'secondary' }),
+    button('Design thicknesses', design)
+  );
+
+  showCbrWarning();
+
   return h(
     'div',
     { class: 'card-stack' },
+    stepper(app),
 
     h(
       'div',
-      {},
-      h('span', { class: 'step-label' }, 'Step 3 of 4'),
-      h('h2', { class: 'screen-title' }, 'Design inputs'),
-      h(
-        'p',
-        { class: 'screen-intro' },
-        `Designing for ${msa(designTrafficMsa)} at ` +
-          `${reliabilityFor(designTrafficMsa)}% reliability.`
-      )
+      { class: 'summary-chips' },
+      h('span', { class: 'chip' }, msa(designTrafficMsa)),
+      h('span', { class: 'chip' }, `${traffic.reliability}% reliability`),
+      traffic.category ? h('span', { class: 'chip' }, traffic.category.label) : null
     ),
 
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Subgrade'),
+    card(
+      'Subgrade',
       numberField({
-        label: 'Effective CBR of the subgrade',
-        hint:
-          'The CBR of the 500 mm below the sub-base, soaked, at the design ' +
-          'moisture content and 97% of maximum dry density.',
+        label: 'Effective CBR',
         value: materials.subgradeCBR,
         suffix: '%',
         min: 1,
         max: 100,
-        onInput: (value) => app.patch('materials', { subgradeCBR: value }),
+        onInput: (value) => {
+          app.patch('materials', { subgradeCBR: value });
+          showCbrWarning();
+        },
       }),
-      materials.subgradeCBR < 5
-        ? notice(
-            'warn',
-            'Low subgrade CBR',
-            'IRC:37 expects a subgrade CBR of at least 5% for design traffic ' +
-              'above 2 msa. Consider a capping layer or subgrade improvement.'
-          )
-        : null
+      cbrWarning
     ),
 
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Bituminous mix'),
-      selectField({
-        label: 'Binder grade',
+    card(
+      'Bituminous mix',
+      segmented({
+        label: 'Binder, bottom layer',
         value: materials.binderGrade,
         options: BINDER_GRADES.map((g) => ({ value: g, label: g })),
-        onChange: (value) => app.patch('materials', { binderGrade: value }),
+        onChange: (value) => app.patch('materials', { binderGrade: value }, { rerender: true }),
       }),
       numberField({
-        label: 'Mean annual pavement temperature',
-        hint: 'Sets the resilient modulus of the bituminous layers.',
+        label: 'Average annual pavement temperature',
         value: materials.pavementTemperatureC,
         suffix: '°C',
         min: 10,
@@ -133,7 +120,6 @@ export default function renderInputs(app) {
         }),
         numberField({
           label: 'Effective binder, Vbe',
-          hint: 'By volume of the mix.',
           value: mix.effectiveBinderPercent,
           suffix: '%',
           min: 0,
@@ -142,44 +128,24 @@ export default function renderInputs(app) {
       )
     ),
 
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Trial thicknesses'),
-      h(
-        'p',
-        { class: 'muted', style: { marginTop: 0 } },
-        'Enter a trial section and check it, or let the app find the thinnest ' +
-          'safe bituminous thickness for the foundation you have set.'
-      ),
-      described.slots
-        .filter((slot) => slot.behaviour !== BEHAVIOUR.SUBGRADE)
-        .map((slot) =>
-          numberField({
-            label: slot.label,
-            hint: `Minimum ${slot.minMm} mm`,
-            value: thicknesses[slot.slotId],
-            suffix: 'mm',
-            min: 0,
-            step: 5,
-            onInput: (value) => {
-              app.state.thicknesses = {
-                ...app.state.thicknesses,
-                [slot.slotId]: value ?? 0,
-              };
-              app.persist();
-            },
-          })
-        )
+    card(
+      'Thicknesses',
+      layerSlots.map((slot) =>
+        numberField({
+          label: slot.label,
+          aside: slot.minMm ? `min ${slot.minMm}` : null,
+          value: thicknesses[slot.slotId],
+          suffix: 'mm',
+          min: 0,
+          step: 5,
+          onInput: (value) => {
+            app.state.thicknesses = { ...app.state.thicknesses, [slot.slotId]: value ?? 0 };
+            app.persist();
+          },
+        })
+      )
     ),
 
-    status,
-
-    h(
-      'div',
-      { class: 'button-row' },
-      h('button', { class: 'button secondary', onclick: autoDesign }, 'Find minimum'),
-      h('button', { class: 'button', onclick: runDesign }, 'Check this section')
-    )
+    status
   );
 }

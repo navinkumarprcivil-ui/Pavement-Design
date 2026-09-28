@@ -12,8 +12,11 @@ export const DEFAULT_GEOMETRY = {
 };
 
 /**
- * @param {Array<{slotId:string,label:string,thicknessMm:number}>} slots
- * @param {Object<string,number>} rates  slotId -> rate per cubic metre
+ * Rates belong to materials, not positions: a base of WMM and a base of CTB
+ * are priced differently, so trials with different bases compare fairly.
+ *
+ * @param {Array<{slotId:string,materialId:string,label:string,thicknessMm:number}>} slots
+ * @param {Object<string,number>} rates  materialId -> rate per cubic metre
  * @param {{carriagewayWidthM:number,lengthKm:number}} geometry
  */
 export function costSection(slots, rates, geometry = DEFAULT_GEOMETRY) {
@@ -26,15 +29,17 @@ export function costSection(slots, rates, geometry = DEFAULT_GEOMETRY) {
     .map((slot) => {
       const thicknessM = slot.thicknessMm / 1000;
       const volumeCum = thicknessM * plan;
-      const rate = rates[slot.slotId] ?? 0;
+      const key = slot.materialId ?? slot.slotId;
+      const rate = rates[key] ?? 0;
       return {
         slotId: slot.slotId,
+        materialId: key,
         label: slot.label,
         thicknessMm: slot.thicknessMm,
         volumeCum,
         rate,
         amount: volumeCum * rate,
-        rateMissing: rates[slot.slotId] == null,
+        rateMissing: rates[key] == null,
       };
     });
 
@@ -67,4 +72,12 @@ export function formatNumber(value, digits = 0) {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(value);
+}
+
+/** Short Indian-style amount for tight spaces: ₹1.86 Cr, ₹42.5 L. */
+export function formatCompactCurrency(value) {
+  if (!Number.isFinite(value)) return '--';
+  if (value >= 1e7) return `₹${(value / 1e7).toFixed(2)} Cr`;
+  if (value >= 1e5) return `₹${(value / 1e5).toFixed(1)} L`;
+  return formatCurrency(value);
 }

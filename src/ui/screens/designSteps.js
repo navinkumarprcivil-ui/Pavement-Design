@@ -58,8 +58,6 @@ export default function renderDesignSteps(app) {
     'div',
     { class: 'card-stack' },
 
-    h('h2', { class: 'screen-title' }, 'Design steps'),
-
     h(
       'div',
       { class: 'card' },

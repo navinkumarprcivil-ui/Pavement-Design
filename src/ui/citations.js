@@ -10,7 +10,7 @@
  * look.
  */
 
-import { h, clear } from './dom.js';
+import { h, clear, notice } from './dom.js';
 import { CODES } from '../data/ircConstants.js';
 
 let sheetHost = null;
@@ -43,11 +43,7 @@ export function openSheet(title, ...content) {
       h('div', { class: 'sheet-handle' }),
       h('h3', {}, title),
       content,
-      h(
-        'button',
-        { class: 'button secondary', style: { marginTop: '16px' }, onclick: closeSheet },
-        'Close'
-      )
+      h('button', { type: 'button', class: 'button secondary sheet-close', onclick: closeSheet }, 'Close')
     )
   );
   host.appendChild(backdrop);
@@ -73,7 +69,7 @@ export function citationChip(step) {
       type: 'button',
       onclick: () => openCitation(step),
     },
-    'Code reference: ',
+    '§ ',
     formatCitation(step.ref)
   );
 }
@@ -81,60 +77,20 @@ export function citationChip(step) {
 export function openCitation(step) {
   const ref = step.ref;
   const code = CODES[ref.codeId];
+  const block = (label, text) =>
+    text
+      ? h('div', { class: 'sheet-block' }, h('span', { class: 'sheet-label' }, label), h('div', { class: 'formula' }, text))
+      : null;
 
   openSheet(
     formatCitation(ref),
-    h('p', { class: 'muted', style: { marginTop: 0 } }, code ? code.title : ''),
-
-    h('h4', { style: { marginBottom: '4px' } }, 'What this step computes'),
-    h('p', { style: { marginTop: 0 } }, step.title || ''),
-
-    step.formula
-      ? [
-          h('h4', { style: { marginBottom: '4px' } }, 'Relation used'),
-          h('div', { class: 'formula' }, step.formula),
-        ]
-      : null,
-
-    step.substitution
-      ? [
-          h('h4', { style: { marginBottom: '4px' } }, 'Values substituted'),
-          h('div', { class: 'formula' }, step.substitution),
-        ]
-      : null,
-
-    step.result
-      ? [
-          h('h4', { style: { marginBottom: '4px' } }, 'Result'),
-          h('div', { class: 'formula' }, step.result),
-        ]
-      : null,
-
+    code ? h('p', { class: 'muted sheet-sub' }, code.title) : null,
+    step.title ? h('p', { class: 'sheet-step' }, step.title) : null,
+    block('Relation', step.formula),
+    block('Substituted', step.substitution),
+    block('Result', step.result),
     ref.note ? h('p', { class: 'muted' }, ref.note) : null,
-    step.note ? h('p', { class: 'muted' }, step.note) : null,
-
-    h(
-      'div',
-      { class: `notice ${step.verified === false ? 'warn' : 'info'}`, style: { marginTop: '14px' } },
-      step.verified === false
-        ? h(
-            'span',
-            {},
-            h('strong', {}, 'Check this against your copy of the code'),
-            `Open ${ref.code} at ${[ref.clause, ref.table, ref.equation]
-              .filter(Boolean)
-              .join(', ')} and confirm the values used here. They were entered ` +
-              'from engineering references, not read off a controlled copy of the code.'
-          )
-        : h(
-            'span',
-            {},
-            h('strong', {}, 'Where to read this'),
-            `Open ${ref.code} at ${[ref.clause, ref.table, ref.equation]
-              .filter(Boolean)
-              .join(', ')}.`
-          )
-    )
+    step.verified === false ? notice('warn', 'Not yet checked against the code', null) : null
   );
 }
 

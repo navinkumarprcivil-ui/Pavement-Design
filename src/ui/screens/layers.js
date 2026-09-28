@@ -1,10 +1,12 @@
-import { h, optionGroup, notice } from '../dom.js';
+import { h, card, segmented, button } from '../dom.js';
+import { stepper } from '../stepper.js';
 import {
   BITUMINOUS_OPTIONS,
   BASE_OPTIONS,
   SUB_BASE_OPTIONS,
   CRACK_RELIEF_OPTIONS,
   describeCombination,
+  findOption,
 } from '../../data/layerCatalog.js';
 
 const LAYER_COLOURS = {
@@ -14,161 +16,98 @@ const LAYER_COLOURS = {
   subgrade: '#a9805a',
 };
 
+/**
+ * The pavement cross-section, top down. Band heights follow the thicknesses
+ * when they are known, so the drawing reads as the section it describes.
+ */
 export function sectionDiagram(slots) {
+  const drawn = slots.filter((s) => s.behaviour === 'subgrade' || s.thicknessMm !== 0);
+  const known = drawn.every((s) => s.behaviour === 'subgrade' || s.thicknessMm > 0);
+
   return h(
     'div',
     { class: 'section-diagram' },
-    slots.map((slot) =>
-      h(
+    drawn.map((slot) => {
+      const height = known && slot.behaviour !== 'subgrade'
+        ? `${Math.min(84, Math.max(30, slot.thicknessMm * 0.26))}px`
+        : null;
+      return h(
         'div',
         {
-          class: 'section-layer',
+          class: `section-layer ${slot.behaviour}`,
           style: {
             background: LAYER_COLOURS[slot.behaviour] || '#ccc',
             color: slot.behaviour === 'granular' ? '#10161d' : '#f5f8fb',
+            minHeight: height,
           },
         },
         h('span', { class: 'layer-name' }, slot.label),
-        h(
-          'span',
-          { class: 'layer-thickness' },
-          slot.thicknessMm != null && slot.thicknessMm > 0
-            ? `${slot.thicknessMm} mm`
-            : slot.behaviour === 'subgrade'
-              ? 'fixed'
-              : ''
-        )
-      )
-    )
+        slot.thicknessMm > 0
+          ? h('span', { class: 'layer-thickness' }, `${slot.thicknessMm} mm`)
+          : null
+      );
+    })
   );
 }
 
 export default function renderLayers(app) {
   const { combination } = app.state;
-  const needsCrackRelief = combination.baseId === 'CTB';
   const described = describeCombination(combination);
+  const needsCrackRelief = Boolean(described.base.requiresCrackRelief);
 
-  const choose = (patch) => {
+  // A new material starts from its own default thickness, not the last one's.
+  const choose = (patch, resetSlots) => {
     app.state.combination = { ...combination, ...patch };
+    const thicknesses = { ...app.state.thicknesses };
+    for (const slotId of resetSlots) delete thicknesses[slotId];
+    app.state.thicknesses = thicknesses;
+    app.state.result = null;
+    app.persist();
     app.render();
   };
+
+  const bituminousSlots = (id) => (findOption(BITUMINOUS_OPTIONS, id)?.courses || []).map((c) => c.id);
+
+  const options = (list) => list.map((o) => ({ value: o.id, label: o.short }));
+
+  app.setActions(button('Continue to inputs', () => app.go('inputs')));
 
   return h(
     'div',
     { class: 'card-stack' },
+    stepper(app),
 
-    h(
-      'div',
-      {},
-      h('span', { class: 'step-label' }, 'Step 2 of 4'),
-      h('h2', { class: 'screen-title' }, 'Layer combination'),
-      h(
-        'p',
-        { class: 'screen-intro' },
-        'Fix the material for each layer. Thicknesses come next — you can ' +
-          'change any of this later and re-run the design as a new trial.'
-      )
-    ),
-
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Bituminous layer'),
-      optionGroup({
-        name: 'bituminous',
+    card(
+      null,
+      segmented({
+        label: 'Bituminous layer',
         value: combination.bituminousId,
-        options: BITUMINOUS_OPTIONS.map((o) => ({
-          id: o.id,
-          label: o.label,
-          description: o.description,
-        })),
-        onChange: (id) => choose({ bituminousId: id }),
-      })
-    ),
-
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Base layer'),
-      optionGroup({
-        name: 'base',
+        options: options(BITUMINOUS_OPTIONS),
+        onChange: (id) =>
+          choose({ bituminousId: id }, [...bituminousSlots(combination.bituminousId), ...bituminousSlots(id)]),
+      }),
+      segmented({
+        label: 'Base',
         value: combination.baseId,
-        options: BASE_OPTIONS.map((o) => ({
-          id: o.id,
-          label: o.label,
-          description: o.description,
-        })),
-        onChange: (id) => choose({ baseId: id }),
-      })
-    ),
-
-    needsCrackRelief
-      ? h(
-          'div',
-          { class: 'card' },
-          h('h2', { class: 'section-title' }, 'Crack relief interlayer'),
-          notice(
-            'warn',
-            'Required above a cement treated base',
-            'A cement treated base cracks as it cures and under traffic. An ' +
-              'interlayer keeps those cracks from reflecting through the ' +
-              'bituminous surfacing.'
-          ),
-          h('div', { style: { height: '12px' } }),
-          optionGroup({
-            name: 'crack-relief',
-            value: combination.crackReliefId,
-            options: CRACK_RELIEF_OPTIONS.map((o) => ({
-              id: o.id,
-              label: o.label,
-              description: o.description,
-            })),
-            onChange: (id) => choose({ crackReliefId: id }),
+        options: options(BASE_OPTIONS),
+        onChange: (id) => choose({ baseId: id }, ['BASE', 'CRACK_RELIEF']),
+      }),
+      needsCrackRelief
+        ? segmented({
+            label: 'Crack relief layer',
+            value: combination.crackReliefId || CRACK_RELIEF_OPTIONS[0].id,
+            options: CRACK_RELIEF_OPTIONS.map((o) => ({ value: o.id, label: o.label })),
+            onChange: (id) => choose({ crackReliefId: id }, ['CRACK_RELIEF']),
           })
-        )
-      : null,
-
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Sub-base layer'),
-      optionGroup({
-        name: 'sub-base',
+        : null,
+      segmented({
+        label: 'Sub-base',
         value: combination.subBaseId,
-        options: SUB_BASE_OPTIONS.map((o) => ({
-          id: o.id,
-          label: o.label,
-          description: o.description,
-        })),
-        onChange: (id) => choose({ subBaseId: id }),
+        options: options(SUB_BASE_OPTIONS),
+        onChange: (id) => choose({ subBaseId: id }, ['SUB_BASE']),
       })
     ),
 
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Subgrade soil'),
-      h(
-        'p',
-        { class: 'muted', style: { marginTop: 0 } },
-        'Fixed. The subgrade is characterised by its effective CBR, which you ' +
-          'enter on the next screen.'
-      )
-    ),
-
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Section'),
-      sectionDiagram(
-        described.slots.map((s) => ({ ...s, thicknessMm: null }))
-      )
-    ),
-
-    h(
-      'button',
-      { class: 'button', onclick: () => app.go('inputs') },
-      'Continue to inputs'
-    )
+    card('Section', sectionDiagram(described.slots.map((s) => ({ ...s, thicknessMm: null }))))
   );
 }

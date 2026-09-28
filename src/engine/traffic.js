@@ -11,7 +11,7 @@ import { TRAFFIC } from '../data/ircConstants.js';
 /**
  * Indicative vehicle damage factor, used only when no axle load survey exists.
  *
- * @param {number} cvpd    Commercial vehicles per day, both directions.
+ * @param {number} cvpd    Initial commercial vehicles per day, both directions.
  * @param {'plain'|'rolling'|'hilly'} terrain
  */
 export function indicativeVDF(cvpd, terrain) {
@@ -23,15 +23,23 @@ export function laneDistributionOptions() {
   return TRAFFIC.laneDistributionFactors.options;
 }
 
+/** Two-way traffic in the year construction is completed, A = P(1 + r)^x. */
+export function trafficAtCompletion(presentCVPD, growthRatePercent, yearsToCompletion) {
+  return presentCVPD * Math.pow(1 + growthRatePercent / 100, yearsToCompletion);
+}
+
 /**
  * Cumulative standard axles over the design life.
  *
  * @param {object} input
- * @param {number} input.presentCVPD        Commercial vehicles/day at the last count.
+ * @param {number} input.presentCVPD        Two-way commercial vehicles/day at the last count.
  * @param {number} input.growthRatePercent  Annual growth rate, per cent.
  * @param {number} input.yearsToCompletion  Years between the count and the end of construction.
  * @param {number} input.designLifeYears
  * @param {number} input.laneDistributionFactor
+ * @param {number} [input.directionalSplitPercent]  Share of the two-way traffic in
+ *        the design direction. Given only for a divided carriageway, where the
+ *        lateral distribution factor applies to one direction.
  * @param {number} input.vehicleDamageFactor
  */
 export function computeDesignTraffic(input) {
@@ -41,24 +49,41 @@ export function computeDesignTraffic(input) {
     yearsToCompletion,
     designLifeYears,
     laneDistributionFactor,
+    directionalSplitPercent = null,
     vehicleDamageFactor,
   } = input;
 
   const r = growthRatePercent / 100;
+  const directional = directionalSplitPercent != null;
   const steps = [];
 
-  const initialCVPD = presentCVPD * Math.pow(1 + r, yearsToCompletion);
+  const twoWayCVPD = trafficAtCompletion(presentCVPD, growthRatePercent, yearsToCompletion);
   steps.push({
     id: 'projected-traffic',
     title: 'Commercial vehicles at the year of completion',
     formula: 'A = P x (1 + r)^x',
     substitution:
       `A = ${fmt(presentCVPD)} x (1 + ${r.toFixed(4)})^${yearsToCompletion}`,
-    result: `A = ${fmt(initialCVPD, 1)} CVPD`,
-    value: initialCVPD,
+    result: `A = ${fmt(twoWayCVPD, 1)} CVPD, both directions`,
+    value: twoWayCVPD,
     ref: TRAFFIC.growthEquation.ref,
     verified: TRAFFIC.growthEquation.verified,
   });
+
+  let initialCVPD = twoWayCVPD;
+  if (directional) {
+    initialCVPD = (twoWayCVPD * directionalSplitPercent) / 100;
+    steps.push({
+      id: 'directional-traffic',
+      title: 'Traffic in the design direction',
+      formula: 'A = A(two way) x directional share',
+      substitution: `A = ${fmt(twoWayCVPD, 1)} x ${directionalSplitPercent}%`,
+      result: `A = ${fmt(initialCVPD, 1)} CVPD`,
+      value: initialCVPD,
+      ref: TRAFFIC.growthEquation.ref,
+      verified: TRAFFIC.growthEquation.verified,
+    });
+  }
 
   // Growth factor over the design life; the limit as r -> 0 is simply n.
   const growthFactor =
@@ -112,6 +137,7 @@ export function computeDesignTraffic(input) {
   });
 
   return {
+    twoWayCVPD,
     initialCVPD,
     growthFactor,
     cumulativeAxles,

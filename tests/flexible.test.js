@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { computeDesignTraffic, indicativeVDF } from '../src/engine/traffic.js';
 import { subgradeModulus, bituminousModulus, granularModulus } from '../src/engine/materials.js';
 import { mixFatigueFactor, reliabilityFor } from '../src/engine/criteria.js';
-import { evaluateTrial, findMinimumBituminous } from '../src/engine/flexibleDesign.js';
+import { evaluateTrial, findMinimumBituminous, designSection } from '../src/engine/flexibleDesign.js';
 
 test('design traffic follows the cumulative standard axle equation', () => {
   const result = computeDesignTraffic({
@@ -52,10 +52,28 @@ test('zero growth rate does not divide by zero', () => {
 });
 
 test('indicative VDF follows the traffic volume bands', () => {
-  assert.equal(indicativeVDF(100, 'plain'), 1.5);
-  assert.equal(indicativeVDF(100, 'hilly'), 0.5);
-  assert.equal(indicativeVDF(800, 'rolling'), 3.5);
-  assert.equal(indicativeVDF(5000, 'plain'), 4.5);
+  assert.equal(indicativeVDF(100, 'plain'), 1.7);
+  assert.equal(indicativeVDF(100, 'hilly'), 0.6);
+  assert.equal(indicativeVDF(800, 'rolling'), 3.9);
+  assert.equal(indicativeVDF(800, 'hilly'), 1.7);
+  assert.equal(indicativeVDF(5000, 'plain'), 5.0);
+  assert.equal(indicativeVDF(5000, 'hilly'), 2.8);
+});
+
+test('a divided carriageway designs for the traffic in one direction', () => {
+  // Annex-II example II.3: 5000 CVPD two-way at completion, half each way.
+  const result = computeDesignTraffic({
+    presentCVPD: 5000,
+    growthRatePercent: 6,
+    yearsToCompletion: 0,
+    designLifeYears: 20,
+    laneDistributionFactor: 0.75,
+    directionalSplitPercent: 50,
+    vehicleDamageFactor: 5.2,
+  });
+  assert.equal(Math.round(result.msa), 131);
+  assert.equal(result.initialCVPD, 2500);
+  assert.equal(result.steps.length, 5);
 });
 
 test('subgrade modulus switches branch at CBR 5', () => {
@@ -82,9 +100,13 @@ test('granular modulus grows with thickness and support', () => {
   assert.ok(stiffer > thin);
 });
 
-test('reliability steps up at 20 msa', () => {
+test('reliability steps up at 20 msa, and is 90% on important roads', () => {
   assert.equal(reliabilityFor(19.9), 80);
   assert.equal(reliabilityFor(20), 90);
+  assert.equal(reliabilityFor(19.9, 'mdr'), 80);
+  assert.equal(reliabilityFor(5, 'nh'), 90);
+  assert.equal(reliabilityFor(5, 'expressway'), 90);
+  assert.equal(reliabilityFor(5, 'urban'), 90);
 });
 
 test('mix fatigue factor responds to binder content', () => {
@@ -110,11 +132,14 @@ const baseInput = {
   designTrafficMsa: 30,
 };
 
-test('a trial section is evaluated with both IRC checks', () => {
+test('a trial section is evaluated with both IRC checks and the sub-base check', () => {
   const result = evaluateTrial(baseInput);
 
   assert.equal(result.reliability, 90, '30 msa designs at 90% reliability');
-  assert.equal(result.checks.length, 2);
+  assert.deepEqual(
+    result.checks.map((c) => c.id),
+    ['bituminous-fatigue', 'subgrade-rutting', 'construction-traffic']
+  );
   assert.equal(result.totalThicknessMm, 600);
 
   for (const check of result.checks) {
@@ -169,9 +194,9 @@ test('a weaker subgrade needs a stronger section', () => {
 test('thicknesses below the IRC minimum are flagged', () => {
   const result = evaluateTrial({
     ...baseInput,
-    thicknesses: { BC: 40, DBM: 110, BASE: 150, SUB_BASE: 100 },
+    thicknesses: { BC: 40, DBM: 110, BASE: 100, SUB_BASE: 100 },
   });
-  assert.ok(result.thicknessWarnings.length >= 2, 'expected minimum thickness warnings');
+  assert.equal(result.thicknessWarnings.length, 2, 'expected minimum thickness warnings');
 });
 
 test('a cement treated base adds its own fatigue check', () => {
@@ -236,4 +261,51 @@ test('an impossible demand reports that the foundation is the problem', () => {
   });
   assert.equal(result.found, false);
   assert.match(result.message, /foundation/);
+});
+
+test('designing a section returns thicknesses that pass every check', () => {
+  for (const combination of [
+    { bituminousId: 'BC_DBM', baseId: 'WMM', subBaseId: 'GSB', crackReliefId: null },
+    { bituminousId: 'BC_DBM', baseId: 'CTB', subBaseId: 'GSB', crackReliefId: 'AGG_INTERLAYER' },
+    { bituminousId: 'BC_DBM', baseId: 'CTB', subBaseId: 'CTSB', crackReliefId: 'SAMI' },
+    { bituminousId: 'SDBC_DBM', baseId: 'WMM', subBaseId: 'CTSB', crackReliefId: null },
+  ]) {
+    const outcome = designSection({
+      ...baseInput,
+      combination,
+      thicknesses: {},
+      designTrafficMsa: 40,
+      roadCategory: 'nh',
+    });
+    assert.ok(outcome.found, outcome.message);
+    assert.ok(outcome.trial.safe, `${combination.baseId}/${combination.subBaseId} design must pass`);
+    assert.equal(outcome.trial.thicknessWarnings.length, 0, outcome.trial.thicknessWarnings.join('; '));
+  }
+});
+
+test('the designed granular sub-base is the thinnest that carries construction traffic', () => {
+  const input = { ...baseInput, thicknesses: {}, designTrafficMsa: 40, roadCategory: 'nh' };
+  const outcome = designSection(input);
+  assert.ok(outcome.found, outcome.message);
+  const gsb = outcome.thicknesses.SUB_BASE;
+  if (gsb > 150) {
+    const thinner = evaluateTrial({
+      ...input,
+      thicknesses: { ...outcome.thicknesses, SUB_BASE: gsb - 10 },
+    });
+    assert.equal(thinner.checks.find((c) => c.id === 'construction-traffic').safe, false);
+  }
+});
+
+test('a CTB is sized with the bituminous layer at its minimum, whatever was entered', () => {
+  const input = {
+    ...baseInput,
+    combination: { bituminousId: 'BC_DBM', baseId: 'CTB', subBaseId: 'GSB', crackReliefId: 'AGG_INTERLAYER' },
+    designTrafficMsa: 131,
+    roadCategory: 'nh',
+  };
+  const fresh = designSection({ ...input, thicknesses: {} });
+  const carried = designSection({ ...input, thicknesses: { BC: 40, DBM: 150 } });
+  assert.deepEqual(carried.thicknesses, fresh.thicknesses);
+  assert.ok(carried.trial.safe);
 });

@@ -1,161 +1,108 @@
-import { h, msa, notice } from '../dom.js';
-import { formatCurrency } from '../../engine/costing.js';
+import { h, metric, badge, button, msa } from '../dom.js';
+import { stepper } from '../stepper.js';
+import { formatCompactCurrency } from '../../engine/costing.js';
 import { listTrials, deleteTrial, setChosenTrial } from '../../store/trials.js';
-import { syncStatusLine } from '../syncStatus.js';
+
+/** Safe before unsafe, then cheapest, then thinnest. */
+function rank(a, b) {
+  if (a.safe !== b.safe) return a.safe ? -1 : 1;
+  const ac = a.cost?.costPerKm > 0 ? a.cost.costPerKm : Infinity;
+  const bc = b.cost?.costPerKm > 0 ? b.cost.costPerKm : Infinity;
+  if (ac !== bc) return ac - bc;
+  return a.totalThicknessMm - b.totalThicknessMm;
+}
 
 export default function renderTrials(app) {
   const trials = listTrials();
 
+  app.setActions(button('New trial', () => app.go('layers')));
+
   if (!trials.length) {
     return h(
       'div',
-      { class: 'empty-state' },
-      h('p', {}, 'No trials saved yet.'),
-      h(
-        'p',
-        { class: 'muted' },
-        'Design a section and save it. Save as many as you like, then compare ' +
-          'them here and mark the one to build.'
-      ),
-      h('button', { class: 'button', onclick: () => app.go('home') }, 'Start a design')
+      { class: 'card-stack' },
+      stepper(app),
+      h('div', { class: 'empty-state' }, h('p', {}, 'No trials saved yet.'))
     );
   }
 
-  const cheapest = trials
-    .filter((t) => t.safe && t.cost?.total > 0)
-    .reduce((best, t) => (!best || t.cost.total < best.cost.total ? t : best), null);
+  const sorted = [...trials].sort(rank);
+  const cheapest = sorted.find((t) => t.safe && t.cost?.costPerKm > 0) || null;
 
-  const card = (trial) =>
+  /** Load a saved trial back into the design, to adjust it. */
+  const edit = (trial) => {
+    app.state.combination = { ...trial.combination };
+    app.state.thicknesses = { ...trial.thicknesses };
+    app.state.materials = { ...app.state.materials, ...trial.materials };
+    app.state.mix = { ...app.state.mix, ...trial.mix };
+    app.state.result = null;
+    app.persist();
+    app.go('inputs');
+  };
+
+  const row = (trial, index) =>
     h(
-      'div',
-      { class: 'trial-card', 'data-chosen': String(Boolean(trial.chosen)) },
+      'article',
+      {
+        class: 'trial-card',
+        'data-chosen': String(Boolean(trial.chosen)),
+        'data-safe': String(Boolean(trial.safe)),
+      },
       h(
         'div',
         { class: 'trial-head' },
+        h('span', { class: 'trial-rank' }, String(index + 1)),
         h('h3', {}, trial.name),
         h(
-          'span',
-          { class: `badge ${trial.safe ? 'pass' : 'fail'}` },
-          trial.safe ? 'Safe' : 'Unsafe'
+          'div',
+          { class: 'trial-badges' },
+          trial.chosen ? badge('chosen', 'Chosen') : null,
+          cheapest && cheapest.id === trial.id ? badge('pass', 'Lowest cost') : null,
+          trial.safe ? null : badge('fail', 'Not safe')
         )
       ),
-      trial.projectName
-        ? h('p', { class: 'muted', style: { margin: '2px 0 0' } }, trial.projectName)
-        : null,
       h(
         'div',
-        { class: 'metric-grid', style: { marginTop: '10px' } },
-        h(
-          'div',
-          { class: 'metric' },
-          h('span', { class: 'metric-label' }, 'Total thickness'),
-          h('span', { class: 'metric-value' }, `${trial.totalThicknessMm} mm`)
-        ),
-        h(
-          'div',
-          { class: 'metric' },
-          h('span', { class: 'metric-label' }, 'Governing life'),
-          h('span', { class: 'metric-value' }, msa(trial.governingLifeMsa))
-        ),
-        h(
-          'div',
-          { class: 'metric' },
-          h('span', { class: 'metric-label' }, 'Design traffic'),
-          h('span', { class: 'metric-value' }, msa(trial.designTrafficMsa))
-        ),
-        h(
-          'div',
-          { class: 'metric' },
-          h('span', { class: 'metric-label' }, 'Cost'),
-          h(
-            'span',
-            { class: 'metric-value' },
-            trial.cost?.total ? formatCurrency(trial.cost.total) : '—'
-          )
-        )
-      ),
-      h(
-        'p',
-        { class: 'muted', style: { marginBottom: 0 } },
+        { class: 'layer-strip' },
         trial.slots
           .filter((s) => s.thicknessMm > 0)
-          .map((s) => `${s.label} ${s.thicknessMm}`)
-          .join(' · ') + ' mm'
-      ),
-      cheapest && cheapest.id === trial.id && !trial.chosen
-        ? h(
-            'p',
-            { class: 'muted', style: { marginBottom: 0 } },
-            'Lowest cost among the safe trials.'
+          .map((s) =>
+            h(
+              'span',
+              { class: `layer-chip ${s.behaviour}` },
+              h('span', {}, s.materialId || s.label),
+              h('strong', {}, String(s.thicknessMm))
+            )
           )
-        : null,
+      ),
       h(
         'div',
-        { class: 'button-row', style: { marginTop: '12px' } },
-        h(
-          'button',
-          {
-            class: 'button secondary',
-            onclick: () => {
-              setChosenTrial(trial.chosen ? null : trial.id);
-              app.render();
-            },
-          },
-          trial.chosen ? 'Chosen to build' : 'Mark as chosen'
-        ),
-        h(
-          'button',
-          {
-            class: 'button danger',
-            onclick: () => {
-              deleteTrial(trial.id);
-              app.render();
-            },
-          },
-          'Delete'
-        )
+        { class: 'metric-grid three' },
+        metric('Total', `${trial.totalThicknessMm} mm`),
+        metric('Life', msa(trial.governingLifeMsa)),
+        metric('Per km', trial.cost?.costPerKm > 0 ? formatCompactCurrency(trial.cost.costPerKm) : '—')
+      ),
+      h(
+        'div',
+        { class: 'trial-actions' },
+        button('Edit', () => edit(trial), { kind: 'ghost' }),
+        button(trial.chosen ? 'Chosen' : 'Choose', () => {
+          setChosenTrial(trial.chosen ? null : trial.id);
+          app.render();
+        }, { kind: trial.chosen ? 'chosen' : 'ghost' }),
+        button('Delete', () => {
+          if (window.confirm(`Delete ${trial.name}?`)) {
+            deleteTrial(trial.id);
+            app.render();
+          }
+        }, { kind: 'ghost danger' })
       )
     );
-
-  const sorted = [...trials].sort((a, b) => {
-    if (a.chosen !== b.chosen) return a.chosen ? -1 : 1;
-    if (a.safe !== b.safe) return a.safe ? -1 : 1;
-    const ac = a.cost?.total ?? Infinity;
-    const bc = b.cost?.total ?? Infinity;
-    if (ac !== bc) return ac - bc;
-    return a.totalThicknessMm - b.totalThicknessMm;
-  });
 
   return h(
     'div',
     { class: 'card-stack' },
-    h(
-      'div',
-      {},
-      h('h2', { class: 'screen-title' }, 'Saved trials'),
-      h(
-        'p',
-        { class: 'screen-intro' },
-        'Safe trials first, then cheapest. Mark the one you intend to build.'
-      ),
-      h('div', { style: { marginTop: '6px' } }, syncStatusLine())
-    ),
-
-    trials.some((t) => t.cost?.total)
-      ? null
-      : notice(
-          'info',
-          'Add rates to compare on cost',
-          'Trials without rates can only be compared on thickness. Open a ' +
-            'design and add layer rates to cost it.'
-        ),
-
-    sorted.map(card),
-
-    h(
-      'button',
-      { class: 'button secondary', onclick: () => app.go('home') },
-      'Design another section'
-    )
+    stepper(app),
+    sorted.map(row)
   );
 }

@@ -2,6 +2,8 @@
  * App shell: state, navigation and rendering.
  *
  * Screens are plain functions that take the app object and return an element.
+ * A screen that has actions puts them in the bar pinned to the bottom of the
+ * window with `app.setActions`, so the next step is always in reach of a thumb.
  * There is no framework and no build step — this file is the whole runtime.
  */
 
@@ -10,6 +12,7 @@ import { closeSheet } from './ui/citations.js';
 import { loadProject, saveProject } from './store/trials.js';
 import { connectCloud, onCloudChange } from './store/cloud.js';
 import { subscribe as onStoreChange } from './store/sync.js';
+import { BINDER_GRADES } from './data/layerCatalog.js';
 
 import renderHome from './ui/screens/home.js';
 import renderTraffic from './ui/screens/traffic.js';
@@ -20,20 +23,18 @@ import renderRates from './ui/screens/rates.js';
 import renderTrials from './ui/screens/trials.js';
 import renderRural from './ui/screens/rural.js';
 import renderRigid from './ui/screens/rigid.js';
-import renderCodebook from './ui/screens/codebook.js';
 import renderDesignSteps from './ui/screens/designSteps.js';
 
 const SCREENS = {
   home: { render: renderHome, title: 'IRC Pavement Design', back: null },
   traffic: { render: renderTraffic, title: 'Design traffic', back: 'home' },
-  layers: { render: renderLayers, title: 'Layer combination', back: 'traffic' },
+  layers: { render: renderLayers, title: 'Layers', back: 'traffic' },
   inputs: { render: renderInputs, title: 'Design inputs', back: 'layers' },
   results: { render: renderResults, title: 'Design result', back: 'inputs' },
-  rates: { render: renderRates, title: 'Rates and cost', back: 'results' },
-  trials: { render: renderTrials, title: 'Saved trials', back: 'home' },
+  rates: { render: renderRates, title: 'Cost', back: 'results' },
+  trials: { render: renderTrials, title: 'Compare trials', back: 'home' },
   rural: { render: renderRural, title: 'Low volume rural road', back: 'traffic' },
   rigid: { render: renderRigid, title: 'Rigid pavement', back: 'home' },
-  codebook: { render: renderCodebook, title: 'Code references', back: 'home' },
   // Reached from the header, so it returns to wherever it was opened from.
   designSteps: { render: renderDesignSteps, title: 'Design steps', back: () => app.designStepsReturn },
 };
@@ -42,19 +43,21 @@ export const defaultState = () => ({
   screen: 'home',
   project: {
     name: '',
-    location: '',
+    roadCategory: 'nh',
     terrain: 'plain',
   },
   traffic: {
     presentCVPD: 1500,
     growthRatePercent: 5,
-    yearsToCompletion: 3,
-    designLifeYears: 15,
+    yearsToCompletion: 2,
+    designLifeYears: 20,
     laneDistributionId: 'dual-two-lane',
+    directionalSplitPercent: 50,
     vdfMode: 'indicative',
     vehicleDamageFactor: null,
   },
-  trafficResult: null,
+  /** Below 2 msa the designer may take the regular route instead. */
+  routeChoice: 'rural',
   combination: {
     bituminousId: 'BC_DBM',
     baseId: 'WMM',
@@ -68,7 +71,7 @@ export const defaultState = () => ({
     pavementTemperatureC: 35,
   },
   mix: {
-    airVoidsPercent: 4.5,
+    airVoidsPercent: 3.5,
     effectiveBinderPercent: 11.5,
   },
   result: null,
@@ -92,16 +95,40 @@ export const defaultState = () => ({
   openDesignStep: 0,
 });
 
+/**
+ * Bring a saved project up to the current shape: fill in fields added since it
+ * was saved, and drop values the app no longer offers.
+ */
+function migrate(saved) {
+  const defaults = defaultState();
+  const state = { ...defaults, ...saved, screen: 'home' };
+  for (const [key, value] of Object.entries(defaults)) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && key !== 'thicknesses' && key !== 'rates') {
+      state[key] = { ...value, ...(saved[key] || {}) };
+    }
+  }
+  if (state.traffic.vdfMode === 'manual') state.traffic.vdfMode = 'survey';
+  if (!BINDER_GRADES.includes(state.materials.binderGrade)) {
+    state.materials.binderGrade = defaults.materials.binderGrade;
+  }
+  return state;
+}
+
 const app = {
   state: defaultState(),
   root: null,
   header: null,
+  actions: null,
   /** Screen the design steps were opened from. Deliberately not persisted. */
   designStepsReturn: 'home',
+  /** Open/closed state of collapsible sections, for this session only. */
+  folds: {},
+  entering: false,
 
   go(screen) {
     closeSheet();
     this.state.screen = screen;
+    this.entering = true;
     this.render();
     window.scrollTo({ top: 0 });
   },
@@ -127,23 +154,30 @@ const app = {
   },
 
   persist() {
-    const { screen, result, trafficResult, rigidResult, ...rest } = this.state;
+    const { screen, result, rigidResult, ...rest } = this.state;
     saveProject(rest);
+  },
+
+  /** Fill the bottom action bar for the current screen. */
+  setActions(...buttons) {
+    clear(this.actions);
+    const items = buttons.flat().filter(Boolean);
+    if (items.length) {
+      this.actions.appendChild(h('div', { class: 'action-bar-inner' }, items));
+    }
+    document.body.classList.toggle('has-actions', items.length > 0);
   },
 
   render() {
     const screen = SCREENS[this.state.screen] || SCREENS.home;
     const back = typeof screen.back === 'function' ? screen.back() : screen.back;
 
-    // Back button where there is somewhere to go back to, then the title,
-    // then the design procedure. Code references are not up here: they sit on
-    // the individual steps, next to the number they justify.
     clear(this.header);
-    if (back) {
-      this.header.appendChild(
-        h('button', { class: 'back-button', onclick: () => this.go(back) }, '‹ Back')
-      );
-    }
+    this.header.appendChild(
+      back
+        ? h('button', { class: 'back-button', 'aria-label': 'Back', onclick: () => this.go(back) }, '‹')
+        : h('span', { class: 'header-mark', 'aria-hidden': 'true' })
+    );
     this.header.appendChild(h('h1', {}, screen.title));
     // Top right: the design procedure, readable from anywhere in the flow.
     if (this.state.screen !== 'designSteps') {
@@ -151,7 +185,7 @@ const app = {
         h(
           'button',
           {
-            class: 'icon-button',
+            class: 'header-button',
             onclick: () => {
               this.designStepsReturn = this.state.screen;
               this.go('designSteps');
@@ -162,23 +196,32 @@ const app = {
       );
     }
 
+    this.setActions();
     clear(this.root);
     this.root.appendChild(screen.render(this));
+
+    if (this.entering) {
+      this.entering = false;
+      this.root.classList.remove('entering');
+      // Restart the entrance animation for the new screen.
+      void this.root.offsetWidth;
+      this.root.classList.add('entering');
+    }
   },
 };
 
 function boot() {
   app.header = document.getElementById('app-header');
   app.root = document.getElementById('app-main');
+  app.actions = document.getElementById('app-actions');
+  app.root.addEventListener('animationend', () => app.root.classList.remove('entering'));
 
   const saved = loadProject();
-  if (saved) {
-    app.state = { ...defaultState(), ...saved, screen: 'home' };
-  }
+  if (saved) app.state = migrate(saved);
 
   app.render();
 
-  // Screens that show saved work refresh when the cloud changes it. Input
+  // The comparison refreshes when the cloud changes saved trials. Input
   // screens are left alone so a re-render never interrupts typing.
   const SYNCED_SCREENS = new Set(['trials', 'rural']);
   const refreshIfShowingSavedWork = () => {

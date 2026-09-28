@@ -1,67 +1,54 @@
-import { h, notice, msa } from '../dom.js';
-import { stepCard, citationChip } from '../citations.js';
+import { h, card, fold, metric, badge, notice, button, msa, micro } from '../dom.js';
+import { stepCard, citationChip, formatCitation } from '../citations.js';
+import { stepper } from '../stepper.js';
+import { designTraffic } from '../project.js';
 import { sectionDiagram } from './layers.js';
-import { combinationName } from '../../data/layerCatalog.js';
-import { saveTrial } from '../../store/trials.js';
 
-/** Poisson's ratios, grouped so identical values are stated once. */
-function poissonSummary(layers) {
-  const byValue = new Map();
-  for (const layer of layers) {
-    const key = layer.nu.toFixed(2);
-    if (!byValue.has(key)) byValue.set(key, []);
-    byValue.get(key).push(layer.label.replace(/\s*\(.*\)\s*/, ''));
-  }
-  if (byValue.size === 1) {
-    return `Poisson's ratio: ${[...byValue.keys()][0]} for every layer.`;
-  }
-  const parts = [...byValue.entries()].map(
-    ([value, labels]) => `${value} for ${labels.join(', ')}`
-  );
-  return `Poisson's ratio: ${parts.join('; ')}.`;
-}
+/** One performance check: the computed strain against the allowable one. */
+function checkRow(check) {
+  const compressive = check.compressive === true;
+  const ratio =
+    check.allowableMicro > 0 ? check.strainMicro / check.allowableMicro : check.utilisation;
+  const fill = Math.min(100, Math.max(2, ratio * 100));
 
-function checkCard(check) {
-  const provisional = check.provisional === true;
   return h(
     'div',
-    { class: 'check', 'data-safe': String(provisional ? true : check.safe) },
+    { class: 'check', 'data-safe': String(check.safe) },
     h(
       'div',
       { class: 'check-head' },
       h('strong', {}, check.title),
-      h(
-        'span',
-        { class: `badge ${provisional ? 'info' : check.safe ? 'pass' : 'fail'}` },
-        provisional ? 'Provisional' : check.safe ? 'Safe' : 'Unsafe'
-      )
+      badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail')
     ),
-    h(
-      'div',
-      { class: 'metric-grid' },
-      h(
-        'div',
-        { class: 'metric' },
-        h('span', { class: 'metric-label' }, check.strainLabel),
-        h('span', { class: 'metric-value' }, `${check.strainMicro.toFixed(1)} µε`)
-      ),
-      h(
-        'div',
-        { class: 'metric' },
-        h('span', { class: 'metric-label' }, 'Allowable traffic'),
-        h('span', { class: 'metric-value' }, msa(check.allowableMsa))
-      )
-    ),
+    compressive
+      ? h('div', { class: 'check-figures' }, h('span', {}, 'Compressive at the underside'))
+      : h(
+          'div',
+          { class: 'check-figures' },
+          h('span', { class: 'check-actual' }, micro(check.strainMicro)),
+          check.allowableMicro != null
+            ? h('span', { class: 'check-allowable' }, `of ${micro(check.allowableMicro)} allowable`)
+            : null
+        ),
+    compressive
+      ? null
+      : h('div', { class: 'meter', role: 'presentation' }, h('span', { style: { width: `${fill}%` } }))
+  );
+}
+
+/** The arithmetic behind one check, for the working section. */
+function checkWorking(check) {
+  return h(
+    'div',
+    { class: 'step' },
+    h('h4', {}, check.title),
+    h('div', { class: 'step-line' }, check.strainLabel),
     check.formula ? h('div', { class: 'formula' }, check.formula) : null,
     check.substitution ? h('div', { class: 'formula' }, check.substitution) : null,
     h(
       'div',
       { class: 'step-result' },
-      provisional
-        ? 'Reported for information; this criterion is not yet verified.'
-        : check.safe
-          ? `Allowable ${msa(check.allowableMsa)} is at or above the design traffic of ${msa(check.demandMsa)}.`
-          : `Allowable ${msa(check.allowableMsa)} is below the design traffic of ${msa(check.demandMsa)}.`
+      `Allowable ${msa(check.allowableMsa)} against ${msa(check.demandMsa)}`
     ),
     citationChip(check)
   );
@@ -72,215 +59,143 @@ export default function renderResults(app) {
   if (!result) {
     return h(
       'div',
-      { class: 'empty-state' },
-      'No design has been run yet.',
-      h('div', { style: { height: '12px' } }),
-      h('button', { class: 'button', onclick: () => app.go('inputs') }, 'Go to inputs')
+      { class: 'card-stack' },
+      stepper(app),
+      h(
+        'div',
+        { class: 'empty-state' },
+        h('p', {}, 'No design yet.'),
+        button('Go to inputs', () => app.go('inputs'))
+      )
     );
   }
 
-  const { combination, trafficResult } = app.state;
+  const traffic = designTraffic(app.state);
 
-  const save = () => {
-    saveTrial({
-      name: combinationName(combination),
-      combination: { ...combination },
-      thicknesses: { ...app.state.thicknesses },
-      materials: { ...app.state.materials },
-      mix: { ...app.state.mix },
-      designTrafficMsa: result.designTrafficMsa,
-      totalThicknessMm: result.totalThicknessMm,
-      governingLifeMsa: result.governingLifeMsa,
-      safe: result.safe,
-      reliability: result.reliability,
-      slots: result.slots.map((s) => ({
-        slotId: s.slotId,
-        label: s.label,
-        thicknessMm: s.thicknessMm,
-        behaviour: s.behaviour,
-      })),
-      projectName: app.state.project.name,
-    });
-    app.go('rates');
-  };
+  app.setActions(
+    button('Edit', () => app.go('inputs'), { kind: 'secondary' }),
+    button('Cost and save', () => app.go('rates'))
+  );
 
   return h(
     'div',
     { class: 'card-stack' },
+    stepper(app),
 
     h(
-      'div',
-      {},
-      h('span', { class: 'step-label' }, 'Step 4 of 4'),
-      h('h2', { class: 'screen-title' }, 'Design result')
-    ),
-
-    h(
-      'div',
+      'section',
       { class: `verdict ${result.safe ? 'safe' : 'unsafe'}` },
-      h('h3', {}, result.safe ? 'Section is safe' : 'Section is not safe'),
+      h('h2', {}, result.safe ? 'Safe' : 'Not safe'),
       h(
-        'p',
-        { style: { margin: 0 } },
-        result.safe
-          ? `This section carries ${msa(result.governingLifeMsa)} against a design ` +
-            `traffic of ${msa(result.designTrafficMsa)}, at ${result.reliability}% reliability.`
-          : `This section carries only ${msa(result.governingLifeMsa)} against a design ` +
-            `traffic of ${msa(result.designTrafficMsa)}. Thicken the section or ` +
-            'improve the materials, then check it again.'
+        'div',
+        { class: 'verdict-figures' },
+        metric('Life', msa(result.governingLifeMsa)),
+        metric('Design', msa(result.designTrafficMsa)),
+        metric('Reliability', `${result.reliability}%`)
       )
     ),
 
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Section'),
+    card(
+      'Section',
       sectionDiagram(result.slots),
       h(
         'div',
-        { class: 'metric-grid', style: { marginTop: '12px' } },
-        h(
-          'div',
-          { class: 'metric' },
-          h('span', { class: 'metric-label' }, 'Total thickness'),
-          h('span', { class: 'metric-value' }, `${result.totalThicknessMm} mm`)
-        ),
-        h(
-          'div',
-          { class: 'metric' },
-          h('span', { class: 'metric-label' }, 'Governing life'),
-          h('span', { class: 'metric-value' }, msa(result.governingLifeMsa))
-        )
+        { class: 'metric-grid' },
+        metric('Total', `${result.totalThicknessMm} mm`),
+        metric('Bituminous', `${result.bituminousMm} mm`)
       )
     ),
+
+    card('Checks', result.checks.map(checkRow)),
 
     result.thicknessWarnings.length
       ? notice(
           'warn',
-          'Check against the minimum thickness requirements',
-          h('ul', { style: { margin: '4px 0 0', paddingLeft: '18px' } },
-            result.thicknessWarnings.map((w) => h('li', {}, w))
-          )
+          'Below minimum thickness',
+          h('ul', { class: 'plain-list' }, result.thicknessWarnings.map((w) => h('li', {}, w)))
         )
       : null,
 
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Performance checks'),
-      result.checks.map(checkCard)
+    result.notChecked.map((item) =>
+      notice('warn', 'Not checked here', `${item.title} · ${formatCitation(item.ref)}`)
     ),
 
     h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Layer moduli'),
-      h(
-        'div',
-        { class: 'table-scroll' },
-        h(
-          'table',
-          { class: 'data' },
+      'section',
+      { class: 'card folds' },
+      fold({
+        title: 'Layer moduli',
+        memory: app.folds,
+        key: 'result-moduli',
+        children: [
           h(
-            'thead',
-            {},
+            'div',
+            { class: 'table-scroll' },
             h(
-              'tr',
-              {},
-              h('th', {}, 'Layer'),
-              h('th', {}, 'Thickness'),
-              h('th', {}, 'E (MPa)')
-            )
-          ),
-          h(
-            'tbody',
-            {},
-            result.layers.map((layer) =>
+              'table',
+              { class: 'data' },
+              h('thead', {}, h('tr', {}, h('th', {}, 'Layer'), h('th', {}, 'mm'), h('th', {}, 'E, MPa'), h('th', {}, 'μ'))),
               h(
-                'tr',
+                'tbody',
                 {},
-                h('td', {}, layer.label),
-                h(
-                  'td',
-                  { class: 'numeric' },
-                  layer.behaviour === 'subgrade' ? '—' : `${layer.thicknessMm} mm`
-                ),
-                h('td', { class: 'numeric' }, layer.E.toFixed(0))
+                result.layers.map((layer) =>
+                  h(
+                    'tr',
+                    {},
+                    h('td', {}, layer.label),
+                    h('td', { class: 'numeric' }, layer.behaviour === 'subgrade' ? '—' : String(layer.thicknessMm)),
+                    h('td', { class: 'numeric' }, layer.E.toFixed(0)),
+                    h('td', { class: 'numeric' }, layer.nu.toFixed(2))
+                  )
+                )
               )
             )
-          )
-        )
-      ),
-      h('p', { class: 'muted' }, poissonSummary(result.layers)),
-      result.modulusSteps.map(stepCard)
-    ),
+          ),
+          result.modulusSteps.map(stepCard),
+        ],
+      }),
 
-    trafficResult
-      ? h(
+      fold({
+        title: 'Computed strains',
+        memory: app.folds,
+        key: 'result-strains',
+        children: h(
           'div',
-          { class: 'card' },
-          h('h2', { class: 'section-title' }, 'Design traffic working'),
-          trafficResult.steps.map(stepCard)
-        )
-      : null,
-
-    h(
-      'div',
-      { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Computed strains'),
-      h('p', { class: 'muted', style: { marginTop: 0 } },
-        'From an exact layered elastic analysis under the IRC standard axle: ' +
-          '20 kN per wheel at 0.56 MPa, dual wheels at 310 mm centres. ' +
-          'Responses are taken under one wheel and between the pair, and the ' +
-          'worse of the two governs.'
-      ),
-      h(
-        'div',
-        { class: 'table-scroll' },
-        h(
-          'table',
-          { class: 'data' },
+          { class: 'table-scroll' },
           h(
-            'thead',
-            {},
+            'table',
+            { class: 'data' },
+            h('thead', {}, h('tr', {}, h('th', {}, 'Point'), h('th', {}, 'Horiz. µε'), h('th', {}, 'Vert. µε'))),
             h(
-              'tr',
+              'tbody',
               {},
-              h('th', {}, 'Point'),
-              h('th', {}, 'Horiz. µε'),
-              h('th', {}, 'Vert. µε')
-            )
-          ),
-          h(
-            'tbody',
-            {},
-            result.responses.map((r) =>
-              h(
-                'tr',
-                {},
+              result.responses.map((r) =>
                 h(
-                  'td',
+                  'tr',
                   {},
-                  `${r.x === 0 ? 'Under a wheel' : 'Between wheels'} at ${r.z.toFixed(0)} mm`
-                ),
-                h('td', { class: 'numeric' }, (r.maxHorizontalStrain * 1e6).toFixed(1)),
-                h('td', { class: 'numeric' }, (-r.epsZZ * 1e6).toFixed(1))
+                  h('td', {}, `${r.z.toFixed(0)} mm, ${r.label}${r.pressureMPa !== 0.56 ? `, ${r.pressureMPa} MPa` : ''}`),
+                  h('td', { class: 'numeric' }, (r.maxHorizontalStrain * 1e6).toFixed(1)),
+                  h('td', { class: 'numeric' }, (-r.epsZZ * 1e6).toFixed(1))
+                )
               )
             )
           )
-        )
-      )
-    ),
+        ),
+      }),
 
-    h(
-      'div',
-      { class: 'button-row' },
-      h(
-        'button',
-        { class: 'button secondary', onclick: () => app.go('inputs') },
-        'Change and retry'
-      ),
-      h('button', { class: 'button', onclick: save }, 'Save trial and add rates')
+      fold({
+        title: 'Performance criteria',
+        memory: app.folds,
+        key: 'result-criteria',
+        children: result.checks.map(checkWorking),
+      }),
+
+      fold({
+        title: 'Design traffic',
+        memory: app.folds,
+        key: 'result-traffic',
+        children: traffic.result.steps.map(stepCard),
+      })
     )
   );
 }

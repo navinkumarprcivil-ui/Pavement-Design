@@ -2,10 +2,14 @@
  * IRC design constants, tables and equation coefficients.
  *
  * EVERY value in this file carries a `ref` naming the code, clause and table it
- * comes from, and a `verified` flag. `verified: false` means the value was
- * entered from engineering references rather than read off a controlled copy of
- * the code — it must be checked against your own copy before the output is used
- * for construction. The app surfaces this status on screen; it does not hide it.
+ * comes from, and a `verified` flag. `verified: true` means the value has been
+ * read off a copy of the code; `verified: false` means it was entered from
+ * engineering references and must be checked against your own copy before the
+ * output is used for construction.
+ *
+ * The IRC:37-2018 values below were checked clause by clause against the code,
+ * and the strains the app computes with them reproduce the IITPAVE results
+ * printed in its Annex-II and Annex-III (see tests/annexII.test.js).
  *
  * IRC codes are copyrighted publications of the Indian Roads Congress. Only the
  * numerical parameters needed to compute are held here, alongside the citation
@@ -50,179 +54,191 @@ export function ref(codeId, clause, extra = {}) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Road category
+ *
+ * The category decides the reliability level, the design period and the
+ * reliability factor of a cement treated base. Expressways, national and
+ * state highways and urban roads are the code's "important roads".
+ * ------------------------------------------------------------------ */
+
+export const ROAD_CATEGORIES = {
+  ref: ref('IRC37', 'Cl. 3.7 / 4.3.1'),
+  verified: true,
+  options: [
+    { id: 'expressway', label: 'Expressway', important: true, designPeriodYears: 30 },
+    { id: 'nh', label: 'National Highway', important: true, designPeriodYears: 20 },
+    { id: 'sh', label: 'State Highway', important: true, designPeriodYears: 20 },
+    { id: 'urban', label: 'Urban road', important: true, designPeriodYears: 20 },
+    { id: 'mdr', label: 'Major District Road', important: false, designPeriodYears: 15 },
+    { id: 'other', label: 'Other road', important: false, designPeriodYears: 15 },
+  ],
+};
+
+export function roadCategory(id) {
+  return ROAD_CATEGORIES.options.find((o) => o.id === id) || null;
+}
+
+/* ------------------------------------------------------------------ *
  * Traffic
  * ------------------------------------------------------------------ */
 
 export const TRAFFIC = {
   /**
    * Cumulative standard axles.
-   *   N = 365 * A * D * F * [(1+r)^n - 1] / r
-   * with A = P(1+r)^x projected to the year of completion of construction.
+   *   N = 365 * A * D * F * [(1+r)^n - 1] / r        (Eq. 4.5)
+   *   A = P(1+r)^x, the traffic in the year of completion   (Eq. 4.6)
+   * A is directional on a divided carriageway and two-way otherwise.
    */
   growthEquation: {
-    ref: ref('IRC37', 'Cl. 4.7', { equation: 'Eq. 4.1' }),
-    verified: false,
+    ref: ref('IRC37', 'Cl. 4.6.1', { equation: 'Eq. 4.5 / 4.6' }),
+    verified: true,
+  },
+
+  /** Below this growth rate the code has the design use it anyway. */
+  minimumGrowthRate: {
+    percent: 5,
+    ref: ref('IRC37', 'Cl. 4.2.2'),
+    verified: true,
   },
 
   /**
-   * Lane distribution factor D: the share of total commercial vehicles that the
-   * design lane carries.
+   * Lateral distribution factor D. On a divided carriageway it applies to the
+   * traffic in one direction, so those options are flagged `directional`.
    */
   laneDistributionFactors: {
-    ref: ref('IRC37', 'Cl. 4.6'),
-    verified: false,
+    ref: ref('IRC37', 'Cl. 4.5.1'),
+    verified: true,
     options: [
-      {
-        id: 'single-lane',
-        label: 'Single lane road (carriageway < 5.5 m)',
-        value: 1.0,
-        note: 'Traffic is channelised; the total of both directions is applied.',
-      },
-      {
-        id: 'two-lane-single-cw',
-        label: 'Two-lane single carriageway',
-        value: 0.5,
-        note: '50% of the total commercial vehicles in both directions.',
-      },
-      {
-        id: 'four-lane-single-cw',
-        label: 'Four-lane single carriageway',
-        value: 0.4,
-        note: '40% of the total commercial vehicles in both directions.',
-      },
-      {
-        id: 'dual-two-lane',
-        label: 'Dual carriageway, two lanes each direction',
-        value: 0.75,
-        note: '75% of the vehicles in the direction of predominant traffic.',
-      },
-      {
-        id: 'dual-three-lane',
-        label: 'Dual carriageway, three lanes each direction',
-        value: 0.6,
-        note: '60% of the vehicles in the direction of predominant traffic.',
-      },
-      {
-        id: 'dual-four-lane',
-        label: 'Dual carriageway, four lanes each direction',
-        value: 0.45,
-        note: '45% of the vehicles in the direction of predominant traffic.',
-      },
+      { id: 'single-lane', label: 'Single lane', value: 1.0, directional: false },
+      { id: 'intermediate-lane', label: 'Intermediate lane, 5.5 m', value: 0.75, directional: false },
+      { id: 'two-lane-single-cw', label: 'Two lane, two way', value: 0.5, directional: false },
+      { id: 'four-lane-single-cw', label: 'Four lane, undivided', value: 0.4, directional: false },
+      { id: 'dual-two-lane', label: 'Divided, two lanes each way', value: 0.75, directional: true },
+      { id: 'dual-three-lane', label: 'Divided, three lanes each way', value: 0.6, directional: true },
+      { id: 'dual-four-lane', label: 'Divided, four lanes each way', value: 0.45, directional: true },
     ],
   },
 
   /**
-   * Indicative vehicle damage factors where axle load survey data is absent.
-   * An axle load survey always takes precedence over these.
+   * Indicative vehicle damage factors where no axle load survey exists, by
+   * initial two-way commercial traffic. A survey always takes precedence.
    */
   indicativeVDF: {
-    ref: ref('IRC37', 'Cl. 4.5', { table: 'Table 4.1' }),
-    verified: false,
+    ref: ref('IRC37', 'Cl. 4.4.6', { table: 'Table 4.2' }),
+    verified: true,
     rows: [
-      { maxCVPD: 150, plainRolling: 1.5, hilly: 0.5 },
-      { maxCVPD: 1500, plainRolling: 3.5, hilly: 1.5 },
-      { maxCVPD: Infinity, plainRolling: 4.5, hilly: 2.5 },
+      { maxCVPD: 150, plainRolling: 1.7, hilly: 0.6 },
+      { maxCVPD: 1500, plainRolling: 3.9, hilly: 1.7 },
+      { maxCVPD: Infinity, plainRolling: 5.0, hilly: 2.8 },
     ],
   },
 
-  /**
-   * Below this design traffic, IRC:37 hands over to the low volume rural roads
-   * guidelines. This is the branch the app uses to route a flexible design.
-   */
+  /** IRC:37 covers 2 msa and above; below that IRC:SP:72 applies. */
   lowVolumeThresholdMsa: {
     value: 2,
-    ref: ref('IRC37', 'Cl. 1.2', {
-      note: 'IRC:37 covers design traffic of 2 msa and above; below that IRC:SP:72 applies.',
-    }),
-    verified: false,
+    ref: ref('IRC37', 'Cl. 2.1'),
+    verified: true,
   },
 
-  minimumDesignLifeYears: {
-    value: 15,
-    ref: ref('IRC37', 'Cl. 4.2'),
-    verified: false,
+  /** Very high density corridors: long-life, or at least 30 years. */
+  longLife: {
+    thresholdMsa: 300,
+    minimumDesignPeriodYears: 30,
+    ref: ref('IRC37', 'Cl. 4.3.1'),
+    verified: true,
   },
 };
 
 /* ------------------------------------------------------------------ *
- * Standard axle and analysis geometry
+ * Standard axle and analysis conditions
  * ------------------------------------------------------------------ */
 
 export const STANDARD_AXLE = {
-  ref: ref('IRC37', 'Cl. 5.1'),
-  verified: false,
+  ref: ref('IRC37', 'Cl. 3.6.1', { table: 'Table 3.1' }),
+  verified: true,
   axleLoadKN: 80,
   wheelLoadN: 20000,
   tyrePressureMPa: 0.56,
+  /** The cement treated base strain is analysed at a higher contact stress. */
+  ctbTyrePressureMPa: 0.8,
   dualSpacingMm: 310,
-  note:
-    'Standard axle 80 kN, dual wheel set, 20 kN per wheel at 0.56 MPa. ' +
-    'Responses are examined under the centre of one wheel and at the centre ' +
-    'of the dual wheel set.',
 };
 
 /* ------------------------------------------------------------------ *
- * Subgrade and granular layer moduli
+ * Layer moduli
  * ------------------------------------------------------------------ */
 
 export const MODULI = {
-  /** Subgrade resilient modulus from effective CBR. */
+  /** Subgrade resilient modulus from effective CBR, capped for design. */
   subgrade: {
-    ref: ref('IRC37', 'Cl. 6.2', { equation: 'Eq. 6.1 / 6.2' }),
-    verified: false,
-    note:
-      'MR = 10 x CBR for CBR <= 5%; MR = 17.6 x CBR^0.64 for CBR > 5%. ' +
-      'CBR is the effective CBR of the 500 mm of subgrade below the sub-base, ' +
-      'at the design moisture content and 97% of MDD.',
+    ref: ref('IRC37', 'Cl. 6.3 / 6.4.2', { equation: 'Eq. 6.1 / 6.2' }),
+    verified: true,
     capMPa: 100,
   },
 
-  /** Granular (unbound) layer modulus, from the supporting layer modulus. */
-  granular: {
-    ref: ref('IRC37', 'Cl. 7.3', { equation: 'Eq. 7.1' }),
-    verified: false,
-    note:
-      'MR(granular) = 0.2 x h^0.45 x MR(support), h in mm, valid for total ' +
-      'granular thickness of roughly 150-450 mm.',
-    coefficient: 0.2,
-    exponent: 0.45,
-    minThicknessMm: 150,
-    maxThicknessMm: 450,
+  /** Effective CBR floor for roads above a traffic volume. */
+  minimumCBR: {
+    percent: 5,
+    aboveCVPD: 450,
+    ref: ref('IRC37', 'Cl. 6.4.3'),
+    verified: true,
   },
 
   /**
-   * Indicative resilient moduli of bituminous mixes, MPa, by binder grade and
-   * mean annual pavement temperature. Laboratory-measured values for the actual
-   * mix always take precedence.
+   * Unbound granular layer modulus from its thickness and its support:
+   * MR = 0.2 x h^0.45 x MR(support). A granular base on a granular sub-base is
+   * treated as one layer of their combined thickness on the subgrade.
+   */
+  granular: {
+    ref: ref('IRC37', 'Cl. 7.2.3', { equation: 'Eq. 7.1' }),
+    verified: true,
+    coefficient: 0.2,
+    exponent: 0.45,
+  },
+
+  /** A granular base on a cement treated sub-base takes a fixed modulus. */
+  granularOverCTSB: {
+    ref: ref('IRC37', 'Cl. 8.1', { table: 'Table 11.1' }),
+    verified: true,
+    naturalGravelMPa: 300,
+    crushedRockMPa: 350,
+  },
+
+  /** The aggregate crack relief layer over a cement treated base. */
+  crackReliefAggregate: {
+    ref: ref('IRC37', 'Cl. 8.3', { table: 'Table 11.1' }),
+    verified: true,
+    modulusMPa: 450,
+  },
+
+  /**
+   * Indicative maximum resilient moduli of bituminous mixes, MPa, by binder
+   * and average annual pavement temperature. The whole bituminous layer takes
+   * the modulus of the bottom (DBM) mix, whose binder is VG40 or VG30; the
+   * code does not recommend modified binder in DBM.
    */
   bituminous: {
-    ref: ref('IRC37', 'Cl. 8.2', { table: 'Table 8.1' }),
-    verified: false,
+    ref: ref('IRC37', 'Cl. 9.2', { table: 'Table 9.2' }),
+    verified: true,
     temperaturesC: [20, 25, 30, 35, 40],
     byBinder: {
       VG10: [2300, 2000, 1450, 1000, 800],
-      VG30: [3500, 3000, 2500, 1700, 1250],
+      VG30: [3500, 3000, 2500, 2000, 1250],
       VG40: [6000, 5000, 4000, 3000, 2000],
-      'Modified (PMB/CRMB)': [5700, 4700, 3800, 2800, 1900],
     },
-    poissonRatio: 0.35,
   },
 
-  /** Cement treated / cementitious layers. */
+  /** Cement treated base and sub-base. */
   cemented: {
-    ref: ref('IRC37', 'Cl. 7.4'),
-    verified: false,
+    ref: ref('IRC37', 'Cl. 7.3.2 / 8.2.1', { table: 'Table 11.1' }),
+    verified: true,
     ctbModulusMPa: 5000,
     ctsbModulusMPa: 600,
-    poissonRatio: 0.25,
-    note:
-      'Cement treated base taken as 5000 MPa for a 7-day UCS in the 4.5-7 MPa ' +
-      'range; cement treated sub-base taken as 600 MPa.',
   },
 
   poissonRatios: {
-    ref: ref('IRC37', 'Cl. 5.3'),
-    verified: false,
+    ref: ref('IRC37', 'Cl. 11', { table: 'Table 11.1' }),
+    verified: true,
     granular: 0.35,
     subgrade: 0.35,
     bituminous: 0.35,
@@ -236,14 +252,14 @@ export const MODULI = {
 
 export const CRITERIA = {
   /**
-   * Fatigue of the bituminous layer, driven by horizontal tensile strain at its
-   * underside:
-   *   Nf = C * k1 * 1e-4 * (1/eps_t)^3.89 * (1/MR)^0.854
-   *   C  = 10^M,  M = 4.84 * (Vbe / (Va + Vbe) - 0.69)
+   * Fatigue of the bottom bituminous layer:
+   *   Nf = k * C * (1/eps_t)^3.89 * (1/MR)^0.854,  C = 10^[4.84 (Vbe/(Va+Vbe) - 0.69)]
+   * Va and Vbe are those of the bottom layer: 3.5% air voids for a single DBM
+   * layer and 3.0% for the bottom of two (Cl. 9.2).
    */
   bituminousFatigue: {
-    ref: ref('IRC37', 'Cl. 6.4', { equation: 'Eq. 6.2 / 6.3' }),
-    verified: false,
+    ref: ref('IRC37', 'Cl. 3.6.2', { equation: 'Eq. 3.3 / 3.4' }),
+    verified: true,
     strainExponent: 3.89,
     modulusExponent: 0.854,
     coefficients: {
@@ -251,73 +267,70 @@ export const CRITERIA = {
       90: 0.5161e-4,
     },
     mixFactor: { slope: 4.84, offset: 0.69 },
-    note:
-      'Reliability of 80% is normally used for design traffic below 20 msa and ' +
-      '90% at or above 20 msa. Va is air void content and Vbe the volume of ' +
-      'effective binder, both per cent by volume of the mix.',
   },
 
-  /**
-   * Subgrade rutting, driven by vertical compressive strain at the top of the
-   * subgrade:  Nr = k * (1/eps_v)^4.5337
-   */
+  /** Subgrade rutting (20 mm):  Nr = k * (1/eps_v)^4.5337 */
   subgradeRutting: {
-    ref: ref('IRC37', 'Cl. 6.5', { equation: 'Eq. 6.4 / 6.5' }),
-    verified: false,
+    ref: ref('IRC37', 'Cl. 3.6.1', { equation: 'Eq. 3.1 / 3.2' }),
+    verified: true,
     strainExponent: 4.5337,
     coefficients: {
       80: 4.1656e-8,
       90: 1.41e-8,
     },
-    note:
-      'Rut depth of 20 mm in the design period. Reliability is selected on the ' +
-      'same basis as the fatigue check.',
   },
 
   /**
-   * Fatigue of a cement treated base, driven by tensile strain at its underside.
-   *   Nf = RF * 1.0957e-4 * (1/eps_t)^(1/0.804)   [see note]
-   * Held separately so it can be corrected without touching the rest.
+   * Fatigue of a cement treated base, strain in microstrain:
+   *   N = RF * [(113000 / E^0.804 + 191) / eps_t]^12
+   * RF is 1 on important roads and above 10 msa, 2 otherwise. The strain is
+   * analysed at 0.80 MPa contact stress.
    */
   cementedFatigue: {
-    ref: ref('IRC37', 'Cl. 6.6'),
-    verified: false,
-    reliabilityFactors: { 80: 1.0, 90: 0.5 },
-    coefficient: 1.0957e-4,
-    strainExponent: 1 / 0.804,
-    note:
-      'UNVERIFIED — the cement treated base fatigue relation must be checked ' +
-      'against IRC:37-2018 before this check is relied upon. The structural ' +
-      'analysis feeding it is exact; only this criterion is provisional.',
+    ref: ref('IRC37', 'Cl. 3.6.3.1', { equation: 'Eq. 3.5' }),
+    verified: true,
+    numerator: 113000,
+    modulusExponent: 0.804,
+    constant: 191,
+    exponent: 12,
+    reliabilityFactorThresholdMsa: 10,
   },
 
-  reliabilityThresholdMsa: {
-    value: 20,
-    ref: ref('IRC37', 'Cl. 6.1'),
-    verified: false,
-    note: 'Below 20 msa design at 80% reliability; at or above 20 msa use 90%.',
+  /** Cumulative fatigue damage of a CTB, which needs the axle load spectrum. */
+  cementedDamage: {
+    ref: ref('IRC37', 'Cl. 3.6.3.2', { equation: 'Eq. 3.6 / 3.7' }),
+    verified: true,
+  },
+
+  /** 90% on important roads, and on others from 20 msa; 80% below. */
+  reliability: {
+    thresholdMsa: 20,
+    ref: ref('IRC37', 'Cl. 3.7'),
+    verified: true,
+  },
+
+  /** The sub-base is checked for rutting under construction traffic. */
+  constructionTraffic: {
+    minimumRepetitions: 10000,
+    ref: ref('IRC37', 'Cl. 7.2.2'),
+    verified: true,
   },
 };
 
 /* ------------------------------------------------------------------ *
- * Minimum thickness and constructability rules
+ * Minimum thicknesses
  * ------------------------------------------------------------------ */
 
 export const MINIMUM_THICKNESS = {
-  ref: ref('IRC37', 'Cl. 9'),
-  verified: false,
+  ref: ref('IRC37', 'Cl. 7.2.2 / 7.3.1 / 8.1 / 8.2.1 / 9.2'),
+  verified: true,
   granularSubBaseMm: 150,
-  granularBaseMm: 150,
-  wetMixMacadamMm: 250,
-  waterBoundMacadamMm: 225,
-  cementTreatedBaseMm: 100,
-  cementTreatedSubBaseMm: 150,
-  bituminousCourseMm: 40,
+  unboundBaseMm: 150,
   crackReliefLayerMm: 100,
-  note:
-    'A cement treated base requires a crack relief interlayer (an aggregate ' +
-    'interlayer of about 100 mm, or a stress absorbing membrane interlayer) ' +
-    'between it and the bituminous layer.',
+  cementTreatedBaseMm: 100,
+  cementTreatedSubBaseMm: 200,
+  /** Bituminous layers over a CTB, above this design traffic. */
+  bituminousOverCTB: { mm: 100, aboveMsa: 20 },
 };
 
 /**
@@ -329,27 +342,3 @@ export const THICKNESS_INCREMENTS = {
   granularMm: 10,
   cementedMm: 10,
 };
-
-/**
- * Every constant table in this module, for the "code references" screen and the
- * verification banner.
- */
-export const CONSTANT_GROUPS = [
-  { key: 'Traffic growth', entry: TRAFFIC.growthEquation },
-  { key: 'Lane distribution factor', entry: TRAFFIC.laneDistributionFactors },
-  { key: 'Indicative VDF', entry: TRAFFIC.indicativeVDF },
-  { key: 'Low volume threshold', entry: TRAFFIC.lowVolumeThresholdMsa },
-  { key: 'Standard axle', entry: STANDARD_AXLE },
-  { key: 'Subgrade modulus', entry: MODULI.subgrade },
-  { key: 'Granular modulus', entry: MODULI.granular },
-  { key: 'Bituminous modulus', entry: MODULI.bituminous },
-  { key: 'Cemented modulus', entry: MODULI.cemented },
-  { key: 'Bituminous fatigue', entry: CRITERIA.bituminousFatigue },
-  { key: 'Subgrade rutting', entry: CRITERIA.subgradeRutting },
-  { key: 'Cemented fatigue', entry: CRITERIA.cementedFatigue },
-  { key: 'Minimum thicknesses', entry: MINIMUM_THICKNESS },
-];
-
-export function unverifiedCount() {
-  return CONSTANT_GROUPS.filter((g) => g.entry.verified === false).length;
-}

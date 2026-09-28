@@ -10,79 +10,64 @@
  */
 
 import { analyze } from './elastic.js';
-import { buildLayerStack } from './materials.js';
+import { buildLayerStack, granularModulus, subgradeModulus } from './materials.js';
 import {
   bituminousFatigueLife,
   cementedFatigueLife,
+  ctbReliabilityFactor,
   reliabilityFor,
   subgradeRuttingLife,
 } from './criteria.js';
-import { STANDARD_AXLE, THICKNESS_INCREMENTS, MINIMUM_THICKNESS } from '../data/ircConstants.js';
+import {
+  CRITERIA,
+  MINIMUM_THICKNESS,
+  STANDARD_AXLE,
+  THICKNESS_INCREMENTS,
+} from '../data/ircConstants.js';
 import { BEHAVIOUR, describeCombination } from '../data/layerCatalog.js';
 
-/** Depths at which the design-critical strains are read. */
-function criticalPoints(layers) {
-  const points = [];
-  const analysisOffsets = [
-    { x: 0, label: 'under the centre of one wheel' },
-    { x: STANDARD_AXLE.dualSpacingMm / 2, label: 'between the dual wheels' },
-  ];
+/** Under the centre of one wheel, and on the axis between the dual pair. */
+const OFFSETS = [
+  { x: 0, label: 'under a wheel' },
+  { x: STANDARD_AXLE.dualSpacingMm / 2, label: 'between the wheels' },
+];
 
-  // Bottom of the lowest bituminous layer.
-  let lastBituminous = -1;
+const pointsAt = (z, layerIndex, role) =>
+  OFFSETS.map((o) => ({ x: o.x, y: 0, z, layerIndex, role, label: o.label }));
+
+const standardLoad = (tyrePressureMPa) => ({
+  wheelLoadN: STANDARD_AXLE.wheelLoadN,
+  tyrePressureMPa,
+  dualSpacingMm: STANDARD_AXLE.dualSpacingMm,
+});
+
+/** Depth to the underside of every layer, top down. */
+function interfaceDepths(layers) {
+  const depths = [];
   let depth = 0;
-  const depthToBottomOf = [];
-  for (let i = 0; i < layers.length; i++) {
-    depth += layers[i].thicknessMm || 0;
-    depthToBottomOf[i] = depth;
-    if (layers[i].behaviour === BEHAVIOUR.BITUMINOUS) lastBituminous = i;
+  for (const layer of layers) {
+    depth += layer.thicknessMm || 0;
+    depths.push(depth);
   }
+  return depths;
+}
 
-  if (lastBituminous >= 0) {
-    for (const o of analysisOffsets) {
-      points.push({
-        x: o.x,
-        y: 0,
-        z: depthToBottomOf[lastBituminous],
-        layerIndex: lastBituminous,
-        label: `Tensile strain at the underside of the bituminous layer, ${o.label}`,
-        role: 'bituminous-tension',
-      });
-    }
-  }
+/** The largest response among points of one role. */
+const worst = (responses, role, selector) =>
+  responses
+    .filter((r) => r.role === role)
+    .reduce((best, r) => Math.max(best, selector(r)), -Infinity);
 
-  // Bottom of a cemented base, if present.
-  const cementedBase = layers.findIndex(
-    (l) => l.behaviour === BEHAVIOUR.CEMENTED && l.slotId === 'BASE'
-  );
-  if (cementedBase >= 0) {
-    for (const o of analysisOffsets) {
-      points.push({
-        x: o.x,
-        y: 0,
-        z: depthToBottomOf[cementedBase],
-        layerIndex: cementedBase,
-        label: `Tensile strain at the underside of the cemented base, ${o.label}`,
-        role: 'cemented-tension',
-      });
-    }
-  }
-
-  // Top of the subgrade.
-  const subgradeIndex = layers.length - 1;
-  const subgradeTop = depthToBottomOf[subgradeIndex - 1];
-  for (const o of analysisOffsets) {
-    points.push({
-      x: o.x,
-      y: 0,
-      z: subgradeTop,
-      layerIndex: subgradeIndex,
-      label: `Vertical compressive strain at the top of the subgrade, ${o.label}`,
-      role: 'subgrade-compression',
-    });
-  }
-
-  return points;
+function check(fields) {
+  const { strain, allowableStrain, allowableMsa, demandMsa } = fields;
+  return {
+    ...fields,
+    strainMicro: strain * 1e6,
+    allowableMicro: allowableStrain == null ? null : allowableStrain * 1e6,
+    // How much of the allowable is used; above 1 the check fails.
+    utilisation: allowableMsa > 0 ? demandMsa / allowableMsa : Infinity,
+    safe: allowableMsa >= demandMsa,
+  };
 }
 
 /**
@@ -94,151 +79,214 @@ function criticalPoints(layers) {
  * @param {object} input.materials  {subgradeCBR, binderGrade, pavementTemperatureC, overrides}
  * @param {object} input.mix        {airVoidsPercent, effectiveBinderPercent}
  * @param {number} input.designTrafficMsa
+ * @param {string} [input.roadCategory]
  * @param {80|90} [input.reliability]
  */
 export function evaluateTrial(input) {
-  const {
-    combination,
-    thicknesses,
-    materials,
-    mix,
-    designTrafficMsa,
-  } = input;
+  const { combination, thicknesses, materials, mix, designTrafficMsa, roadCategory } = input;
 
-  const reliability = input.reliability ?? reliabilityFor(designTrafficMsa);
+  const reliability = input.reliability ?? reliabilityFor(designTrafficMsa, roadCategory);
+  const designAxles = designTrafficMsa * 1e6;
   const described = describeCombination(combination);
 
   const slots = described.slots.map((slot) => ({
     ...slot,
     thicknessMm:
-      slot.behaviour === BEHAVIOUR.SUBGRADE
-        ? 0
-        : thicknesses[slot.slotId] ?? slot.defaultMm,
+      slot.behaviour === BEHAVIOUR.SUBGRADE ? 0 : thicknesses[slot.slotId] ?? slot.defaultMm,
   }));
 
   const { layers, steps: modulusSteps } = buildLayerStack(slots, materials);
+  const elasticLayers = layers.map((l) => ({ h: l.thicknessMm, E: l.E, nu: l.nu }));
+  const depths = interfaceDepths(layers);
+  const subgradeIndex = layers.length - 1;
 
-  const elasticLayers = layers.map((l) => ({
-    h: l.thicknessMm,
-    E: l.E,
-    nu: l.nu,
-  }));
-
-  const points = criticalPoints(layers);
-  const responses = analyze({
-    layers: elasticLayers,
-    load: {
-      wheelLoadN: STANDARD_AXLE.wheelLoadN,
-      tyrePressureMPa: STANDARD_AXLE.tyrePressureMPa,
-      dualSpacingMm: STANDARD_AXLE.dualSpacingMm,
-    },
-    points,
-  });
-
-  const withRoles = responses.map((r, i) => ({ ...r, role: points[i].role }));
-
-  const pick = (role, selector) =>
-    withRoles
-      .filter((r) => r.role === role)
-      .reduce((best, r) => Math.max(best, selector(r)), -Infinity);
-
-  const checks = [];
-  let governingLifeMsa = Infinity;
-
-  const bituminousLayers = layers.filter(
-    (l) => l.behaviour === BEHAVIOUR.BITUMINOUS
+  const lastBituminous = layers.reduce(
+    (found, l, i) => (l.behaviour === BEHAVIOUR.BITUMINOUS ? i : found),
+    -1
+  );
+  const ctbIndex = layers.findIndex(
+    (l) => l.behaviour === BEHAVIOUR.CEMENTED && l.slotId === 'BASE'
   );
 
-  if (bituminousLayers.length > 0) {
-    const tensileStrain = pick('bituminous-tension', (r) => r.maxHorizontalStrain);
-    const lowest = bituminousLayers[bituminousLayers.length - 1];
+  // Bituminous fatigue and subgrade rutting under the standard contact stress.
+  const points = [
+    ...(lastBituminous >= 0
+      ? pointsAt(depths[lastBituminous], lastBituminous, 'bituminous-tension')
+      : []),
+    ...pointsAt(depths[subgradeIndex - 1], subgradeIndex, 'subgrade-compression'),
+  ];
+  const responses = analyze({
+    layers: elasticLayers,
+    load: standardLoad(STANDARD_AXLE.tyrePressureMPa),
+    points,
+  }).map((r, i) => ({ ...r, role: points[i].role, pressureMPa: STANDARD_AXLE.tyrePressureMPa }));
+
+  // The cement treated base is analysed at its own, higher, contact stress.
+  if (ctbIndex >= 0) {
+    const ctbPoints = pointsAt(depths[ctbIndex], ctbIndex, 'cemented-tension');
+    responses.push(
+      ...analyze({
+        layers: elasticLayers,
+        load: standardLoad(STANDARD_AXLE.ctbTyrePressureMPa),
+        points: ctbPoints,
+      }).map((r, i) => ({
+        ...r,
+        role: ctbPoints[i].role,
+        pressureMPa: STANDARD_AXLE.ctbTyrePressureMPa,
+      }))
+    );
+  }
+
+  const checks = [];
+
+  if (lastBituminous >= 0) {
+    const strain = worst(responses, 'bituminous-tension', (r) => r.maxHorizontalStrain);
     const fatigue = bituminousFatigueLife({
-      tensileStrain,
-      modulusMPa: lowest.E,
+      tensileStrain: strain,
+      modulusMPa: layers[lastBituminous].E,
       airVoidsPercent: mix.airVoidsPercent,
       effectiveBinderPercent: mix.effectiveBinderPercent,
       reliability,
+      designAxles,
     });
-    checks.push({
-      id: 'bituminous-fatigue',
-      title: 'Fatigue cracking of the bituminous layer',
-      strainLabel: 'Horizontal tensile strain, eps_t',
-      strainMicro: tensileStrain * 1e6,
-      allowableMsa: fatigue.allowableMsa,
-      demandMsa: designTrafficMsa,
-      safe: fatigue.allowableMsa >= designTrafficMsa,
-      ...fatigue,
-    });
-    governingLifeMsa = Math.min(governingLifeMsa, fatigue.allowableMsa);
+    checks.push(
+      check({
+        id: 'bituminous-fatigue',
+        title: 'Fatigue of the bituminous layer',
+        strainLabel: 'Tensile strain, bottom of bituminous layer',
+        strain: Math.max(strain, 0),
+        demandMsa: designTrafficMsa,
+        inService: true,
+        ...fatigue,
+      })
+    );
   }
 
-  const verticalStrain = pick(
-    'subgrade-compression',
-    (r) => r.verticalCompressiveStrain
-  );
-  const rutting = subgradeRuttingLife(verticalStrain, reliability);
-  checks.push({
-    id: 'subgrade-rutting',
-    title: 'Rutting of the subgrade',
-    strainLabel: 'Vertical compressive strain, eps_v',
-    strainMicro: verticalStrain * 1e6,
-    allowableMsa: rutting.allowableMsa,
-    demandMsa: designTrafficMsa,
-    safe: rutting.allowableMsa >= designTrafficMsa,
-    ...rutting,
-  });
-  governingLifeMsa = Math.min(governingLifeMsa, rutting.allowableMsa);
-
-  const hasCementedBase = layers.some(
-    (l) => l.behaviour === BEHAVIOUR.CEMENTED && l.slotId === 'BASE'
-  );
-  if (hasCementedBase) {
-    const strain = pick('cemented-tension', (r) => r.maxHorizontalStrain);
-    const ctbFatigue = cementedFatigueLife(strain, reliability);
-    checks.push({
-      id: 'cemented-fatigue',
-      title: 'Fatigue cracking of the cement treated base',
-      strainLabel: 'Horizontal tensile strain, eps_t',
-      strainMicro: strain * 1e6,
-      allowableMsa: ctbFatigue.allowableMsa,
+  const verticalStrain = worst(responses, 'subgrade-compression', (r) => r.verticalCompressiveStrain);
+  checks.push(
+    check({
+      id: 'subgrade-rutting',
+      title: 'Rutting of the subgrade',
+      strainLabel: 'Vertical strain, top of subgrade',
+      strain: verticalStrain,
       demandMsa: designTrafficMsa,
-      safe: ctbFatigue.allowableMsa >= designTrafficMsa,
-      ...ctbFatigue,
-    });
-    // Provisional coefficients, so this does not govern the reported life.
+      inService: true,
+      ...subgradeRuttingLife(verticalStrain, reliability, designAxles),
+    })
+  );
+
+  if (ctbIndex >= 0) {
+    const strain = worst(responses, 'cemented-tension', (r) => r.maxHorizontalStrain);
+    const reliabilityFactor = ctbReliabilityFactor(designTrafficMsa, roadCategory);
+    checks.push(
+      check({
+        id: 'cemented-fatigue',
+        title: 'Fatigue of the cement treated base',
+        strainLabel: 'Tensile strain, bottom of CTB at 0.80 MPa',
+        strain: Math.max(strain, 0),
+        demandMsa: designTrafficMsa,
+        inService: true,
+        ...cementedFatigueLife(strain, {
+          modulusMPa: layers[ctbIndex].E,
+          reliabilityFactor,
+          designAxles,
+        }),
+      })
+    );
   }
+
+  const construction = constructionTrafficCheck(layers, reliability);
+  if (construction) checks.push(construction);
+
+  const inServiceChecks = checks.filter((c) => c.inService);
+  const governingLifeMsa = Math.min(...inServiceChecks.map((c) => c.allowableMsa));
+  const totalThicknessMm = slots.reduce((sum, s) => sum + (s.thicknessMm || 0), 0);
+  const bituminousMm = slots
+    .filter((s) => s.behaviour === BEHAVIOUR.BITUMINOUS)
+    .reduce((sum, s) => sum + s.thicknessMm, 0);
 
   const thicknessWarnings = slots
     .filter((s) => s.minMm != null && s.thicknessMm < s.minMm)
-    .map(
-      (s) =>
-        `${s.label} is ${s.thicknessMm} mm, below the minimum of ${s.minMm} mm.`
-    );
+    .map((s) => `${s.label}: ${s.thicknessMm} mm, below the ${s.minMm} mm minimum`);
 
-  if (
-    combination.baseId === 'CTB' &&
-    (!combination.crackReliefId || combination.crackReliefId === '')
-  ) {
-    thicknessWarnings.push(MINIMUM_THICKNESS.note);
+  const overCTB = MINIMUM_THICKNESS.bituminousOverCTB;
+  if (ctbIndex >= 0 && designTrafficMsa > overCTB.aboveMsa && bituminousMm < overCTB.mm) {
+    thicknessWarnings.push(
+      `Bituminous layers over a CTB: ${bituminousMm} mm, below the ${overCTB.mm} mm minimum above ${overCTB.aboveMsa} msa`
+    );
   }
 
-  const totalThicknessMm = slots
-    .filter((s) => s.behaviour !== BEHAVIOUR.SUBGRADE)
-    .reduce((sum, s) => sum + s.thicknessMm, 0);
+  const notChecked =
+    ctbIndex >= 0
+      ? [{ title: 'Cumulative fatigue damage of the CTB', ref: CRITERIA.cementedDamage.ref }]
+      : [];
 
   return {
     reliability,
     slots,
     layers,
-    responses: withRoles,
+    responses,
     checks,
     modulusSteps,
-    safe: checks.every((c) => c.id === 'cemented-fatigue' || c.safe),
+    safe: checks.every((c) => c.safe),
+    serviceSafe: inServiceChecks.every((c) => c.safe),
     governingLifeMsa,
     totalThicknessMm,
+    bituminousMm,
     thicknessWarnings,
+    notChecked,
     designTrafficMsa,
   };
+}
+
+/**
+ * The granular sub-base carries loaded tippers before anything is laid on it.
+ * It is checked as a two-layer system on the subgrade for subgrade rutting
+ * under the construction traffic, taken as the code's floor of repetitions.
+ */
+function constructionTrafficCheck(layers, reliability) {
+  const subBase = layers.find((l) => l.slotId === 'SUB_BASE');
+  if (!subBase || subBase.behaviour !== BEHAVIOUR.GRANULAR || !(subBase.thicknessMm > 0)) {
+    return null;
+  }
+  const subgrade = layers[layers.length - 1];
+  return subBaseCheck(subBase.thicknessMm, subgrade.E, reliability);
+}
+
+/** Two-layer check of a granular sub-base of given thickness on the subgrade. */
+function subBaseCheck(thicknessMm, subgradeMPa, reliability) {
+  const nu = 0.35;
+  const modulus = granularModulus(thicknessMm, subgradeMPa);
+  const pts = pointsAt(thicknessMm, 1, 'construction');
+  const strain = worst(
+    analyze({
+      layers: [
+        { h: thicknessMm, E: modulus, nu },
+        { h: 0, E: subgradeMPa, nu },
+      ],
+      load: standardLoad(STANDARD_AXLE.tyrePressureMPa),
+      points: pts,
+    }).map((r) => ({ ...r, role: 'construction' })),
+    'construction',
+    (r) => r.verticalCompressiveStrain
+  );
+
+  const repetitions = CRITERIA.constructionTraffic.minimumRepetitions;
+  const rutting = subgradeRuttingLife(strain, reliability, repetitions);
+  return check({
+    id: 'construction-traffic',
+    title: 'Sub-base under construction traffic',
+    strainLabel: `Vertical strain, top of subgrade, ${thicknessMm} mm GSB alone`,
+    strain,
+    demandMsa: repetitions / 1e6,
+    inService: false,
+    ...rutting,
+    ref: CRITERIA.constructionTraffic.ref,
+    verified: CRITERIA.constructionTraffic.verified,
+    substitution:
+      `GSB modulus = 0.2 x ${thicknessMm}^0.45 x ${subgradeMPa.toFixed(0)} = ` +
+      `${modulus.toFixed(0)} MPa;  ${rutting.substitution ?? ''}`,
+  });
 }
 
 /**
@@ -249,10 +297,14 @@ export function evaluateTrial(input) {
  * can converge on the wrong side of the peak. A coarse scan brackets the answer
  * and a fine scan inside the bracket lands on the construction increment.
  *
+ * Only the in-service checks steer the search. The sub-base check under
+ * construction traffic does not depend on the bituminous thickness, so it is
+ * reported on the result rather than searched on.
+ *
  * @param {(progress:{done:number,total:number}) => void} [onProgress]
  */
 export function findMinimumBituminous(input, onProgress) {
-  const { combination, thicknesses } = input;
+  const { combination, thicknesses, designTrafficMsa } = input;
   const described = describeCombination(combination);
   const courses = described.bituminous.courses;
 
@@ -260,27 +312,32 @@ export function findMinimumBituminous(input, onProgress) {
   // absorbs the search, since that is how a section is actually adjusted.
   const wearing = courses[0];
   const adjustable = courses.length > 1 ? courses[courses.length - 1] : courses[0];
-  // Catalogue courses key off `id`; that is the slot id used in `thicknesses`.
   const wearingSlot = wearing.id;
   const adjustableSlot = adjustable.id;
-  const wearingThickness = thicknesses[wearingSlot] ?? wearing.defaultMm;
+  const wearingThickness =
+    courses.length > 1 ? thicknesses[wearingSlot] ?? wearing.defaultMm : 0;
 
+  // Over a CTB on heavier roads the bituminous layers have a combined minimum.
+  const overCTB = MINIMUM_THICKNESS.bituminousOverCTB;
+  const needsCombinedMinimum =
+    described.base.behaviour === BEHAVIOUR.CEMENTED && designTrafficMsa > overCTB.aboveMsa;
   const step = THICKNESS_INCREMENTS.bituminousMm;
-  const minAdjustable = adjustable.minMm;
+  const minAdjustable = Math.max(
+    adjustable.minMm,
+    needsCombinedMinimum ? Math.ceil((overCTB.mm - wearingThickness) / step) * step : 0
+  );
   const maxAdjustable = 400;
   const coarseStep = 20;
 
+  const withThickness = (value) =>
+    courses.length > 1
+      ? { ...thicknesses, [wearingSlot]: wearingThickness, [adjustableSlot]: value }
+      : { ...thicknesses, [adjustableSlot]: value };
+
   const attempts = [];
   const tryThickness = (value) => {
-    const trial = evaluateTrial({
-      ...input,
-      thicknesses: {
-        ...thicknesses,
-        [wearingSlot]: wearingThickness,
-        [adjustableSlot]: value,
-      },
-    });
-    attempts.push({ thickness: value, safe: trial.safe, governingLifeMsa: trial.governingLifeMsa });
+    const trial = evaluateTrial({ ...input, thicknesses: withThickness(value) });
+    attempts.push({ thickness: value, safe: trial.serviceSafe, governingLifeMsa: trial.governingLifeMsa });
     return trial;
   };
 
@@ -293,7 +350,7 @@ export function findMinimumBituminous(input, onProgress) {
     const trial = tryThickness(t);
     done += 1;
     onProgress?.({ done, total: coarseCount });
-    if (trial.safe) {
+    if (trial.serviceSafe) {
       bracketHigh = t;
       bracketLow = Math.max(minAdjustable, t - coarseStep);
       break;
@@ -305,9 +362,8 @@ export function findMinimumBituminous(input, onProgress) {
       found: false,
       attempts,
       message:
-        `No safe section was found up to ${maxAdjustable} mm of ${adjustable.label}. ` +
-        'Strengthen the foundation — a thicker or stiffer base, sub-base or subgrade — ' +
-        'rather than adding more bitumen.',
+        `No safe section up to ${maxAdjustable} mm of ${adjustable.label}. ` +
+        'Strengthen the foundation — base, sub-base or subgrade.',
     };
   }
 
@@ -315,7 +371,7 @@ export function findMinimumBituminous(input, onProgress) {
   let bestTrial = null;
   for (let t = bracketLow; t <= bracketHigh; t += step) {
     const trial = tryThickness(t);
-    if (trial.safe) {
+    if (trial.serviceSafe) {
       best = t;
       bestTrial = trial;
       break;
@@ -330,10 +386,92 @@ export function findMinimumBituminous(input, onProgress) {
     thicknessMm: best,
     trial: bestTrial,
     attempts,
-    thicknesses: {
-      ...thicknesses,
-      [wearingSlot]: wearingThickness,
-      [adjustableSlot]: best,
-    },
+    thicknesses: withThickness(best),
   };
+}
+
+/**
+ * Layer thicknesses for a chosen combination, worked from the bottom up:
+ *
+ *   1. a granular sub-base just thick enough to carry the construction
+ *      traffic, and a cement treated one at its minimum;
+ *   2. a cement treated base just thick enough for its own fatigue, with the
+ *      bituminous layers at their minimum over it;
+ *   3. the thinnest bituminous layer that passes fatigue and rutting.
+ *
+ * A granular base is kept at the thickness entered, not below its minimum,
+ * and the wearing course likewise — those are choices, not results.
+ */
+export function designSection(input) {
+  const { combination, materials, designTrafficMsa, roadCategory } = input;
+  const described = describeCombination(combination);
+  const reliability = input.reliability ?? reliabilityFor(designTrafficMsa, roadCategory);
+  const atLeast = (slot, value) => Math.max(slot.minMm ?? 0, value ?? slot.defaultMm ?? 0);
+
+  const thicknesses = {};
+  for (const slot of described.slots) {
+    if (slot.behaviour === BEHAVIOUR.SUBGRADE) continue;
+    thicknesses[slot.slotId] = atLeast(slot, input.thicknesses?.[slot.slotId]);
+  }
+
+  // 1. Sub-base.
+  const subBase = described.slots.find((s) => s.slotId === 'SUB_BASE');
+  if (subBase.behaviour === BEHAVIOUR.GRANULAR) {
+    const subgradeMPa = materials.overrides?.SUBGRADE ?? subgradeModulus(materials.subgradeCBR);
+    const step = THICKNESS_INCREMENTS.granularMm;
+    let sized = null;
+    for (let t = subBase.minMm; t <= 600; t += step) {
+      if (subBaseCheck(t, subgradeMPa, reliability).safe) {
+        sized = t;
+        break;
+      }
+    }
+    if (sized == null) {
+      return {
+        found: false,
+        message: 'No granular sub-base up to 600 mm carries the construction traffic. Improve the subgrade or use a CTSB.',
+      };
+    }
+    thicknesses.SUB_BASE = sized;
+  } else {
+    thicknesses.SUB_BASE = subBase.minMm;
+  }
+
+  if (thicknesses.CRACK_RELIEF != null) {
+    thicknesses.CRACK_RELIEF = described.slots.find((s) => s.slotId === 'CRACK_RELIEF').minMm;
+  }
+
+  // 2. Cement treated base, sized with the bituminous layers at their minimum.
+  if (described.base.behaviour === BEHAVIOUR.CEMENTED) {
+    const courses = described.bituminous.courses;
+    const overCTB = MINIMUM_THICKNESS.bituminousOverCTB;
+    // The lower course starts from its minimum: the bituminous search below
+    // only ever adds to it, which can only relieve the CTB further.
+    const lower = courses[courses.length - 1];
+    thicknesses[lower.id] = lower.minMm;
+    const bituminousMm = courses.reduce((sum, c) => sum + thicknesses[c.id], 0);
+    if (designTrafficMsa > overCTB.aboveMsa && bituminousMm < overCTB.mm) {
+      thicknesses[lower.id] += overCTB.mm - bituminousMm;
+    }
+
+    const step = THICKNESS_INCREMENTS.cementedMm;
+    let sized = null;
+    for (let t = described.base.minMm; t <= 400; t += step) {
+      const trial = evaluateTrial({ ...input, reliability, thicknesses: { ...thicknesses, BASE: t } });
+      if (trial.checks.find((c) => c.id === 'cemented-fatigue').safe) {
+        sized = t;
+        break;
+      }
+    }
+    if (sized == null) {
+      return {
+        found: false,
+        message: 'No cement treated base up to 400 mm passes fatigue. Check the design traffic and the CTB modulus.',
+      };
+    }
+    thicknesses.BASE = sized;
+  }
+
+  // 3. Bituminous layers.
+  return findMinimumBituminous({ ...input, reliability, thicknesses });
 }

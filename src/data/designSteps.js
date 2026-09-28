@@ -39,7 +39,7 @@ export const FLEXIBLE_DESIGN_STEPS = [
       'Half of 5,000 CVPD runs in each direction. With a lane distribution ' +
       'factor of 0.75, a VDF of 5.2 and 20 years at 6% growth, the design ' +
       'traffic is 131 msa.',
-    ref: ref('IRC37', 'Cl. 4.7', { equation: 'Eq. 4.1' }),
+    ref: ref('IRC37', 'Cl. 4.6.1', { equation: 'Eq. 4.5 / 4.6' }),
   },
   {
     title: 'Find the effective subgrade strength',
@@ -51,7 +51,7 @@ export const FLEXIBLE_DESIGN_STEPS = [
     example:
       'An effective CBR of 7% gives a subgrade modulus of 62 MPa, below the ' +
       '100 MPa cap, so it is used as it stands.',
-    ref: ref('IRC37', 'Cl. 6.3', { equation: 'Eq. 6.1 / 6.2 / 6.3' }),
+    ref: ref('IRC37', 'Cl. 6.3 / 6.4', { equation: 'Eq. 6.1 – 6.3' }),
   },
   {
     title: 'Choose the reliability level',
@@ -60,7 +60,7 @@ export const FLEXIBLE_DESIGN_STEPS = [
       '20 msa upwards, and on expressways, national and state highways and ' +
       'urban roads, use the 90% models; below that, 80%.',
     example: 'At 131 msa the 90% reliability models apply.',
-    ref: ref('IRC37', 'Cl. 6.1'),
+    ref: ref('IRC37', 'Cl. 3.7'),
   },
   {
     title: 'Choose the binder and the surfacing',
@@ -71,7 +71,7 @@ export const FLEXIBLE_DESIGN_STEPS = [
     example:
       'Above 50 msa the surface course takes a modified binder or SMA/GGRB, ' +
       'and the DBM below it takes VG40 — giving a mix modulus of 3,000 MPa.',
-    ref: ref('IRC37', 'Cl. 9'),
+    ref: ref('IRC37', 'Cl. 9.1 / 9.2', { table: 'Table 9.1 / 9.2' }),
   },
   {
     title: 'Pick a trial section',
@@ -81,7 +81,7 @@ export const FLEXIBLE_DESIGN_STEPS = [
     example:
       '190 mm of bituminous layers (40 mm surfacing, 70 mm DBM, 80 mm bottom ' +
       'rich DBM) over 250 mm WMM and 230 mm GSB, so 480 mm of granular layers.',
-    ref: ref('IRC37', 'Cl. 11'),
+    ref: ref('IRC37', 'Cl. 11.1.3'),
   },
   {
     title: 'Work out the layer moduli',
@@ -92,7 +92,7 @@ export const FLEXIBLE_DESIGN_STEPS = [
     example:
       '0.2 x 480^0.45 x 62 gives 200 MPa for the whole granular layer, over a ' +
       '62 MPa subgrade, under a 3,000 MPa bituminous layer.',
-    ref: ref('IRC37', 'Cl. 7.4', { equation: 'Eq. 7.1' }),
+    ref: ref('IRC37', 'Cl. 7.2.3', { equation: 'Eq. 7.1' }),
   },
   {
     title: 'Work out the two allowable strains',
@@ -103,7 +103,7 @@ export const FLEXIBLE_DESIGN_STEPS = [
     example:
       'At 131 msa and 90% reliability the subgrade may take 0.000301 vertical ' +
       'strain, and the bituminous layer 0.000150 tensile strain.',
-    ref: ref('IRC37', 'Cl. 3.5 / 3.6', { equation: 'Eq. 3.2 / 3.4' }),
+    ref: ref('IRC37', 'Cl. 3.6.1 / 3.6.2', { equation: 'Eq. 3.2 / 3.4' }),
   },
   {
     title: 'Analyse the trial section',
@@ -126,7 +126,7 @@ export const FLEXIBLE_DESIGN_STEPS = [
     example:
       '0.000243 is under 0.000301 and 0.000146 is under 0.000150, so both ' +
       'checks pass and the trial section stands.',
-    ref: ref('IRC37', 'Cl. 11'),
+    ref: ref('IRC37', 'Cl. 11.1.6'),
   },
   {
     title: 'Check the sub-base carries the construction plant',
@@ -138,6 +138,6 @@ export const FLEXIBLE_DESIGN_STEPS = [
       'A tipper with an 80 kN front axle and a 240 kN rear tandem does 12.41 ' +
       'standard axles a pass; 200 passes are taken as 10,000 standard axles, ' +
       'the floor for this check.',
-    ref: ref('IRC37', 'Cl. 7.3'),
+    ref: ref('IRC37', 'Cl. 7.2.2'),
   },
 ];

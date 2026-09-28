@@ -5,13 +5,22 @@ export default function renderHome(app) {
     h(
       'button',
       {
+        type: 'button',
         class: 'choice-card',
         onclick: () => {
           app.state.pavementType = pavementType;
           app.go(screen);
         },
       },
-      h('h3', {}, label)
+      h(
+        'span',
+        { class: `choice-glyph ${pavementType}`, 'aria-hidden': 'true' },
+        h('span'),
+        h('span'),
+        h('span')
+      ),
+      h('span', { class: 'choice-label' }, label),
+      h('span', { class: 'choice-chevron', 'aria-hidden': 'true' }, '›')
     );
 
   return h(
