@@ -9,6 +9,8 @@ import { reliabilityFor } from '../engine/criteria.js';
 import { evaluateTrial } from '../engine/flexibleDesign.js';
 import { sectionKey, iitpaveMeasured } from './iitpave.js';
 import { LONG_LIFE, MODULI, CBR_PERCENTILE, roadCategory } from '../data/ircConstants.js';
+import { catalogueSection } from '../engine/catalogue.js';
+import { effectiveSubgrade } from '../engine/materials.js';
 import {
   BITUMINOUS_OPTIONS,
   bituminousAllowed,
@@ -177,4 +179,20 @@ export function flexibleResult(state, { thicknesses } = {}) {
   const { measured, stresses } = iitpaveMeasured(trial, state);
   if (!Object.keys(measured).length && !Object.keys(stresses).length) return trial;
   return evaluateTrial(flexibleInput(state, { thicknesses, measured, stresses }));
+}
+
+/** The effective subgrade CBR entered, or found for a layered subgrade; null until known. */
+export function effectiveCbrOf(state) {
+  const m = state.materials;
+  const layered = m.layeredSubgrade;
+  if (!layered?.enabled) return m.subgradeCBR > 0 ? m.subgradeCBR : null;
+  const given = layered.borrowCBR > 0 && layered.embankmentCBR > 0 && (layered.subLayers !== 2 || (layered.lowerCBR > 0 && layered.lowerMm > 0));
+  return given ? effectiveSubgrade(layered).cbr : null;
+}
+
+/** The IRC:37 catalogue section (Cl. 12) for the composition, traffic and CBR entered. */
+export function catalogueFor(state, msa = designTraffic(state).result.msa) {
+  const cbr = effectiveCbrOf(state);
+  if (cbr == null) return { ok: false, reason: 'Enter the effective CBR' };
+  return catalogueSection({ combination: state.combination, designMsa: msa, cbr, roadCategory: state.project.roadCategory });
 }

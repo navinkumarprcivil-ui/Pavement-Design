@@ -42,6 +42,7 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Growth rate floor | 5% | Cl. 4.2.2 | 14 | ✓ |
 | Design period | 20 years NH, SH, urban; 15 others; 30 or long-life above 300 msa | Cl. 4.3.1 | 14 | ✓ |
 | Layer widths | Granular sub-base, drainage and filter layers to the full width, up to the embankment slopes; other layers under the carriageway and paved shoulders (cross-section, bill of quantities) | Cl. 7.2.1 | 21 | **Added** (report) |
+| Catalogues | Six compositions × CBR 5, 6, 7, 8, 9, 10, 12, 15% × 5 – 50 msa, 2 – 50 msa only, traffic up and CBR down to the next level; guidance only, never the verdict; 80% reliability and VG30 below 20 msa and the CTB checked by Eq. 3.5 alone flagged | Cl. 11.3, 12.1 – 12.3; Figs. 12.1 – 12.48; Annex-III | 34 – 51; 80 – 84 | **Added**, Note (17) |
 | Stage construction | Stage-1 bituminous layers for 1.67 × stage-1 traffic (not above N); base and sub-base for the full period; no CTB or CTSB; not long-life; reliability and binder on the full N | Cl. 4.3.2; Annex-II, II.7 | 14; 78, 79 | **Added**, Note (14) |
 | VDF from axle loads | (P/65)^4 single axle single wheel; (P/80)^4 single dual; (P/148)^4 tandem; (P/224)^4 tridem; single-wheeled tandems and tridems as 2 and 3 single axles; Σ over the vehicles weighed | Cl. 4.4.3, Eq. 4.1 – 4.4 | 15 | **Added** |
 | Survey sample | 20% below 3000 CVPD; 15% (at least 600) to 6000; 10% (at least 900) above | Cl. 4.4.4, Table 4.1 | 15 | **Added**, Note (13) |
@@ -303,10 +304,18 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
    construction practice, not a clause of these codes. The drawing is
    schematic: depths are not to the scale of the widths.
 
+17. **IRC:37 catalogues.** The 48 figures were read off the code and checked
+   against Annex-III, which sets out the 10% CBR sections layer by layer
+   (`tests/catalogue.test.js`). Two figures differ from their tables: Fig.
+   12.22 gives a 140 mm CTB at 50 msa where Table III.3 has 135 mm, and Fig.
+   12.38 gives 30 + 50 mm bituminous at 20 msa where Table III.5 has 85 mm.
+   The app keeps the figures, which are the catalogue. The section is offered
+   as a starting trial on the inputs step and set beside the design in the
+   report; the analysis still decides it (Cl. 12.1).
+
 **Not built.** DCP route to CBR (IRC:58 Cl. 5.7.3.7, Eq. 3, optional);
 jointed reinforced concrete pavements (IRC:58 Cl. 9) — joints are held to
-4.5 m with a warning; the time-to-drain route of IRC:58 VI-VI; the IRC:37
-catalogues (Cl. 12), which the code gives for guidance only.
+4.5 m with a warning; the time-to-drain route of IRC:58 VI-VI.
 
 ## How it is kept checked
 
@@ -323,6 +332,7 @@ catalogues (Cl. 12), which the code gives for guidance only.
 - `tests/irc58Rules.test.js` — IRC:58 plate and FWD k, fck, Appendix VIII.
 - `tests/sp72.test.js` — SP:72 Appendix A and D, Table 4, categories.
 - `tests/sp62.test.js` — SP:62 Appendix I.
+- `tests/catalogue.test.js` — IRC:37 catalogues against Annex-III.
 - `tests/crossSection.test.js` — layer widths, the separation sheet, the widened
   lane, SP:72 shoulders, SP:62 joints and the bill of quantities.
 

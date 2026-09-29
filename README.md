@@ -89,6 +89,12 @@ You can either check a trial section you have entered, or let the app find the
 thinnest bituminous thickness its own analysis passes for the foundation you
 have set; either way the section then goes to IITPAVE for its verdict.
 
+**Catalogue.** The inputs step shows the IRC:37 catalogue section (Cl. 12,
+Figs. 12.1 – 12.48) for the composition, design traffic and effective CBR,
+with the Cl. 12.3 assumptions that do not fit the road flagged. **Use as
+trial** starts the analysis from it; the report sets it beside the designed
+section. The catalogue is guidance for 2 – 50 msa only and never the verdict.
+
 **Cross-section and bill of quantities.** The report draws the road across
 its width: the layers to their widths, paved, tied concrete and earthen
 shoulders, a widened outer lane, the debonding sheet under a slab, and the
@@ -263,6 +269,7 @@ src/engine/             Calculation core — no browser APIs
   crossSection.js         The road across its width: layer widths, shoulders, joints
   quantities.js           Bill of quantities off the cross-section
   costing.js              Money and number formats
+  catalogue.js            IRC:37 catalogue section for a composition
 src/data/               IRC constants with citations and pages; layer catalogue;
                         sp72.js and sp62.js for the low volume codes
 src/config/firebase.js  Firebase project config (public, not a secret)

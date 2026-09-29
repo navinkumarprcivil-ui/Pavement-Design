@@ -15,7 +15,8 @@ import { AXLES, SUB_BASES, SHOULDERS, flexuralOf } from '../rigidProject.js';
 import { checkSteps, damageRows, fromIitpave, allFromIitpave } from './results.js';
 import { iitpaveCases, iitpaveMissing, iitpaveStore } from '../iitpave.js';
 import { ctbDamageInput, ctbSevenDay } from '../ctbProject.js';
-import { reliabilityOf, longLifeOf, cbrPercentile } from '../flexibleProject.js';
+import { reliabilityOf, longLifeOf, cbrPercentile, catalogueFor } from '../flexibleProject.js';
+import { catalogueTrial } from '../../engine/catalogue.js';
 import { CONSTRUCTION_TYPES, FACILITY_TYPES, optionLabel } from '../modules.js';
 import {
   CODES,
@@ -35,6 +36,7 @@ import {
 import { combinationName, describeCombination, displaySlots } from '../../data/layerCatalog.js';
 import { ruralDesignFor, lvRigidDesignFor } from '../lowVolumeProject.js';
 import { SP72 } from '../../data/sp72.js';
+import { IRC37_CATALOGUE } from '../../data/irc37Catalogue.js';
 import { SP62 } from '../../data/sp62.js';
 import { formatCurrency, formatNumber } from '../../engine/costing.js';
 import { billOfQuantities } from '../../engine/quantities.js';
@@ -474,6 +476,26 @@ function flexibleComposition(app, result, msa, cite) {
   return rows;
 }
 
+/** The catalogue section beside the designed one, for guidance only (Cl. 12.1). */
+function catalogueLine(app, msaValue, result, cite) {
+  const section = catalogueFor(app.state, msaValue);
+  if (!section.ok) return null;
+  const trial = catalogueTrial(section, app.state.combination);
+  const described = describeCombination(trial.combination);
+  const names = Object.fromEntries(described.slots.map((slot) => [slot.slotId, slot.materialId]));
+  const layers = Object.entries(trial.thicknesses)
+    .sort(([a], [b]) => described.slots.findIndex((x) => x.slotId === a) - described.slots.findIndex((x) => x.slotId === b))
+    .map(([id, mm]) => `${names[id] || id} ${mm}`)
+    .join(', ');
+  return para(
+    `For comparison, the IRC:37 catalogue for ${section.trafficMsa} msa and ${section.cbr}% CBR gives ${layers} mm, ${section.totalMm} mm in all, ` +
+      `against ${result.totalThicknessMm} mm designed; the catalogue is for initial cost estimation and guidance only. `,
+    cite(section.ref),
+    ' ',
+    cite(IRC37_CATALOGUE.ref)
+  );
+}
+
 function flexibleReport(app, cite) {
   const result = app.state.result;
   const traffic = designTraffic(app.state);
@@ -635,6 +657,7 @@ function flexibleReport(app, cite) {
     h('h2', {}, '4. Recommended pavement composition'),
     table(null, ['#', 'Layer', 'Thickness'], flexibleComposition(app, result, traffic.result.msa, cite)),
     para(`Total thickness ${result.totalThicknessMm} mm, of which ${result.bituminousMm} mm bituminous.`),
+    catalogueLine(app, traffic.result.msa, result, cite),
     traffic.stage
       ? para(
           `Built in stages: the base and sub-base for the full ${msa(traffic.stage.fullMsa)}, the bituminous layers for stage 1; ` +

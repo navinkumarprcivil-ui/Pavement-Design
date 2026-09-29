@@ -1,4 +1,4 @@
-import { h, card, numberField, segmented, notice, button, msa, keyResult, fold, textArea } from '../dom.js';
+import { h, card, numberField, segmented, notice, button, msa, keyResult, fold, textArea, metric } from '../dom.js';
 import { designTraffic, subgradeWarning } from '../project.js';
 import { hasCTB, ctbSevenDay } from '../ctbProject.js';
 import {
@@ -12,8 +12,11 @@ import {
   lowCtsbAllowed,
   cbrPercentile,
   flexibleMissing,
+  catalogueFor,
 } from '../flexibleProject.js';
-import { describeCombination, BEHAVIOUR } from '../../data/layerCatalog.js';
+import { catalogueTrial } from '../../engine/catalogue.js';
+import { clauseChip } from '../citations.js';
+import { describeCombination, BEHAVIOUR, BITUMINOUS_OPTIONS, findOption } from '../../data/layerCatalog.js';
 import { designSection } from '../../engine/flexibleDesign.js';
 import { bottomMixModulus } from '../../engine/materials.js';
 import { effectiveSubgradeCase } from '../iitpave.js';
@@ -96,6 +99,61 @@ function constructionCard(app, described) {
           placeholder: ctbSevenDay(app.state).derived.toFixed(2),
         })
       : null
+  );
+}
+
+/**
+ * The IRC:37 catalogue section for the composition, a starting trial for the
+ * analysis and never its verdict (Cl. 12.1).
+ */
+function catalogueCard(app, msaValue) {
+  const title = 'IRC:37 catalogue';
+  const section = catalogueFor(app.state, msaValue);
+  if (!section.ok) {
+    return card(title, h('p', { class: 'guideline' }, h('span', {}, section.reason), section.ref ? clauseChip(title, section.ref) : null));
+  }
+  const { combination } = app.state;
+  const trial = catalogueTrial(section, combination);
+  const courses = findOption(BITUMINOUS_OPTIONS, trial.combination.bituminousId).courses;
+  const described = describeCombination(trial.combination);
+  const { surface, binder, crackRelief, base, subBase } = section.layers;
+  const rows = [
+    [courses[0].id, surface],
+    binder > 0 ? [courses[1].id, binder] : null,
+    crackRelief > 0 ? [described.crackRelief.short, crackRelief] : null,
+    [described.base.short, base],
+    [described.subBase.short, subBase],
+  ].filter(Boolean);
+  return card(
+    title,
+    h(
+      'p',
+      { class: 'guideline' },
+      h('span', {}, `${section.figure} · ${section.trafficMsa} msa · CBR ${section.cbr}%`),
+      clauseChip(title, section.ref)
+    ),
+    h(
+      'div',
+      { class: 'metric-grid three' },
+      rows.map(([label, mm]) => metric(label, `${mm} mm`)),
+      metric('Total', `${section.totalMm} mm`)
+    ),
+    section.warnings.map((w) => notice('warn', null, w)),
+    h(
+      'div',
+      { class: 'spectrum-actions' },
+      button(
+        'Use as trial',
+        () => {
+          app.state.combination = trial.combination;
+          app.state.thicknesses = { ...app.state.thicknesses, ...trial.thicknesses };
+          app.state.result = null;
+          app.persist();
+          app.render();
+        },
+        { kind: 'secondary' }
+      )
+    )
   );
 }
 
@@ -396,6 +454,8 @@ export default function renderInputs(app) {
     baseCard(app, described, designTrafficMsa),
 
     constructionCard(app, described),
+
+    catalogueCard(app, designTrafficMsa),
 
     card(
       'Thicknesses',

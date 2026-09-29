@@ -705,6 +705,8 @@ h2.section-title {
 
 .guideline {
   display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   justify-content: space-between;
   align-items: center;
   margin-top: 12px;
