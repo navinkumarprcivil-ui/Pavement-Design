@@ -183,3 +183,77 @@ export function tieBars({ slabMm, laneWidthM, type, diameterMm }) {
     ],
   };
 }
+
+/**
+ * Bearing stress on the concrete under the dowel nearest the heaviest wheel,
+ * at a contraction and at an expansion joint (Cl. 7.2, Appendix-VIII).
+ *
+ * @param {object} i
+ * @param {number} i.diameterMm  @param {number} i.spacingMm  Dowels, Table 5.
+ * @param {number} i.lMm          Radius of relative stiffness.
+ * @param {number} i.axleKN       Heaviest single axle.
+ * @param {boolean} i.tiedShoulder
+ * @param {number} i.fck          Characteristic cube strength, MPa.
+ */
+export function dowelBearing({ diameterMm, spacingMm, lMm, axleKN, tiedShoulder, fck }) {
+  const spec = RIGID.dowelBearing;
+  const wheelKN = axleKN / 2;
+  const acrossKN = wheelKN * (1 - (tiedShoulder ? spec.shoulderShare : 0)) * spec.dowelShare;
+  // Dowels within l of the load carry it, falling linearly to nothing at l.
+  const shares = [];
+  for (let x = 0; x < lMm; x += spacingMm) shares.push((lMm - x) / lMm);
+  const sum = shares.reduce((a, b) => a + b, 0);
+  const PtKN = acrossKN / sum;
+  const I = (Math.PI * diameterMm ** 4) / 64;
+  const EI = spec.steelModulusMPa * I;
+  const kmds = spec.dowelSupportMPaPerM / 1000; // N/mm³
+  const beta = Math.pow((kmds * diameterMm) / (4 * EI), 0.25);
+  const at = (z) => (kmds * (2 + beta * z) * PtKN * 1000) / (4 * beta ** 3 * EI);
+  const allowable = ((101.6 - diameterMm) * fck) / 95.25;
+  const joints = Object.entries(spec.jointMm).map(([id, z]) => ({ id, z, stress: at(z), safe: at(z) <= allowable }));
+  const worst = joints.reduce((a, b) => (b.stress > a.stress ? b : a));
+  const f = (x, d = 2) => x.toFixed(d);
+  return {
+    wheelKN,
+    acrossKN,
+    dowels: shares.length,
+    sum,
+    PtKN,
+    beta,
+    I,
+    allowable,
+    joints,
+    stress: worst.stress,
+    safe: joints.every((j) => j.safe),
+    steps: [
+      {
+        title: 'Load on the dowels',
+        formula: `Wheel = axle / 2${tiedShoulder ? `, less ${spec.shoulderShare * 100}% to the tied shoulder` : ''}; ${spec.dowelShare * 100}% of it across the joint`,
+        substitution: `${axleKN} / 2 = ${f(wheelKN, 1)} kN${tiedShoulder ? ` × ${1 - spec.shoulderShare}` : ''} × ${spec.dowelShare}`,
+        result: `${f(acrossKN)} kN`,
+        ref: spec.example,
+      },
+      {
+        title: 'Dowels sharing it',
+        formula: 'Dowels within l of the load, their shares falling linearly to nothing at l',
+        substitution: `l = ${f(lMm, 1)} mm, ${spacingMm} mm apart: ${shares.length} dowels, Σ = ${f(sum)}`,
+        result: `Pt = ${f(acrossKN)} / ${f(sum)} = ${f(PtKN)} kN`,
+        ref: spec.ref,
+      },
+      {
+        title: 'Bearing stress under the dowel',
+        formula: 'β = [kmds d / 4 E I]^(1/4);  Fbmax = kmds (2 + β z) Pt / (4 β³ E I)',
+        substitution: `d = ${diameterMm} mm, I = ${Math.round(I).toLocaleString('en-IN')} mm⁴, β = ${f(beta, 4)} /mm; z = ${joints.map((j) => j.z).join(' and ')} mm`,
+        result: joints.map((j) => `${f(j.stress)} MPa at ${j.z} mm`).join(', '),
+        ref: spec.ref,
+      },
+      {
+        title: 'Allowable bearing stress',
+        formula: 'Fb = (101.6 − d) fck / 95.25',
+        substitution: `(101.6 − ${diameterMm}) × ${fck} / 95.25`,
+        result: `Fb = ${f(allowable)} MPa ${worst.stress <= allowable ? '≥' : '<'} ${f(worst.stress)} MPa`,
+        ref: spec.ref,
+      },
+    ],
+  };
+}

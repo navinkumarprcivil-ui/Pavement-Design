@@ -8,7 +8,7 @@
  * specifications, which the code defers to.
  */
 
-import { MINIMUM_THICKNESS } from './ircConstants.js';
+import { MINIMUM_THICKNESS, BITUMINOUS_RULES } from './ircConstants.js';
 
 /** How a material behaves in the structural model. */
 export const BEHAVIOUR = {
@@ -47,7 +47,58 @@ export const BITUMINOUS_OPTIONS = [
       { id: 'BC', label: 'Bituminous Concrete (BC)', minMm: 40, defaultMm: 50 },
     ],
   },
+  {
+    id: 'BC_BM',
+    label: 'BC over BM',
+    short: 'BC + BM',
+    belowMsaOnly: true,
+    courses: [
+      { id: 'BC', label: 'Bituminous Concrete (BC)', minMm: 40, defaultMm: 40 },
+      { id: 'BM', label: 'Bituminous Macadam (BM)', minMm: 50, defaultMm: 50 },
+    ],
+  },
+  {
+    id: 'SDBC_BM',
+    label: 'SDBC over BM',
+    short: 'SDBC + BM',
+    belowMsaOnly: true,
+    courses: [
+      { id: 'SDBC', label: 'Semi Dense Bituminous Concrete (SDBC)', minMm: 25, defaultMm: 30 },
+      { id: 'BM', label: 'Bituminous Macadam (BM)', minMm: 50, defaultMm: 50 },
+    ],
+  },
 ];
+
+/**
+ * Whether Table 9.1 admits a bituminous option at this traffic and road
+ * category: SDBC and BM only below 20 msa and off national highways and
+ * expressways.
+ */
+export function bituminousAllowed(option, msa, categoryId) {
+  const r = BITUMINOUS_RULES;
+  const heavy = msa >= r.vg40FromMsa || r.vg40Categories.includes(categoryId);
+  const sdbc = option.courses.some((c) => c.id === 'SDBC');
+  return !(heavy && (sdbc || option.belowMsaOnly));
+}
+
+/**
+ * Binders Table 9.1 admits for the bottom bituminous course: VG40 always;
+ * VG30 below 20 msa off national highways and expressways; VG10 where snow
+ * bound. BM has moduli for VG10 and VG30 only (Table 9.2).
+ */
+export function bindersAllowed(bottomCourseId, msa, categoryId, snowBound) {
+  const r = BITUMINOUS_RULES;
+  const heavy = msa >= r.vg40FromMsa || r.vg40Categories.includes(categoryId);
+  const allowed = BINDER_GRADES.filter((g) => {
+    if (g === 'VG10') return Boolean(snowBound);
+    if (g === 'VG30') return !heavy;
+    return bottomCourseId !== 'BM';
+  });
+  return allowed.length ? allowed : ['VG30'];
+}
+
+/** The bottom bituminous course of an option, whose mix sets the modulus. */
+export const bottomCourse = (option) => option.courses[option.courses.length - 1];
 
 export const BASE_OPTIONS = [
   {
@@ -232,6 +283,15 @@ export function describeCombination({ bituminousId, baseId, subBaseId, crackReli
   });
 
   return { bituminous, base, subBase, crackRelief, slots };
+}
+
+/** The slots as drawn: a SAMI, which carries no load, shown over the CTB it covers. */
+export function displaySlots(slots, combination) {
+  const { base, crackRelief } = describeCombination(combination);
+  if (!base.requiresCrackRelief || crackRelief?.id !== 'SAMI') return slots;
+  const at = slots.findIndex((s) => s.slotId === 'BASE');
+  const sami = { slotId: 'SAMI', materialId: null, label: 'SAMI', behaviour: 'membrane', thicknessMm: 0, note: 'not analysed' };
+  return at < 0 ? slots : [...slots.slice(0, at), sami, ...slots.slice(at)];
 }
 
 /** Human readable name for a combination, used on saved trial cards. */

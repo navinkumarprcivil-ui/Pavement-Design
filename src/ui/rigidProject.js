@@ -5,7 +5,7 @@
 
 import { RIGID, ref } from '../data/ircConstants.js';
 import { rigidTraffic, foundationK, evaluateSlab, designSlab, dowelBars } from '../engine/rigidDesign.js';
-import { bondedSlab, equivalentSlab, bondedSteps, tieBars } from '../engine/rigidDetails.js';
+import { bondedSlab, equivalentSlab, bondedSteps, tieBars, dowelBearing } from '../engine/rigidDetails.js';
 import { drainageLayer, drainageMaterial } from '../engine/drainage.js';
 import { AXLES, defaultSpectrum, frontAxlePercent, spectrumTotal } from './spectrum.js';
 
@@ -42,8 +42,13 @@ export const defaultRigidState = () => ({
     subBase: 'dlc',
     subBaseMm: 150,
     gsbMm: 150,
+    /** 'tables' from the CBR, 'measured' by plate load test, 'fwd' from a falling weight deflectometer. */
     kSource: 'tables',
     measuredK: null,
+    plateMm: RIGID.measuredK.standardPlateMm,
+    soakedCBR: null,
+    unsoakedCBR: null,
+    fwdDynamicK: null,
     /** PQC laid straight on the DLC and bonded to it (Cl. 6.7), in place of a debonding layer. */
     bonded: false,
     dlc7DayMPa: RIGID.bonded.minimumDlcSevenDayMPa,
@@ -52,6 +57,9 @@ export const defaultRigidState = () => ({
   slab: {
     shoulder: 'tied',
     doweled: true,
+    /** Flexural strength from a 'beam' test, or 'fck' as 0.7 √fck (Cl. 5.8.1). */
+    flexuralFrom: 'beam',
+    fck: RIGID.concrete.fckMPa,
     flexural28MPa: RIGID.concrete.minimumFlexural28MPa,
     ninetyDay: true,
     E: RIGID.concrete.elasticModulusMPa,
@@ -118,6 +126,64 @@ export function granularBelowMm(rigid) {
   return f.gsbMm + (hasDrainage(rigid) && boundSubBase(rigid) ? rigid.drainage.layerMm || 0 : 0);
 }
 
+/** The 28-day flexural strength: from the beam test, or 0.7 √fck (Cl. 5.8.1). */
+export function flexuralOf(slab) {
+  return slab.flexuralFrom === 'fck' && slab.fck > 0
+    ? Math.round(RIGID.concrete.fromFck * Math.sqrt(slab.fck) * 100) / 100
+    : slab.flexural28MPa;
+}
+
+/**
+ * k measured on the foundation: a plate other than 750 mm converted by Eq. 2
+ * and scaled to the soaked condition by the CBR ratio, or half the dynamic k
+ * from an FWD.
+ */
+export function measuredFoundationK(f) {
+  const spec = RIGID.measuredK;
+  const f2 = (x) => Number(x).toFixed(1);
+  if (f.kSource === 'fwd') {
+    const k = f.fwdDynamicK > 0 ? spec.fwdStaticShare * f.fwdDynamicK : null;
+    return {
+      k,
+      warnings: [],
+      steps: k
+        ? [{ title: 'Static k from the FWD', formula: `k = ${spec.fwdStaticShare} × dynamic k`, substitution: `${spec.fwdStaticShare} × ${f.fwdDynamicK}`, result: `k = ${f2(k)} MPa/m`, ref: spec.fwdRef }]
+        : [],
+    };
+  }
+  if (!(f.measuredK > 0)) return { k: null, warnings: [], steps: [] };
+  const steps = [];
+  const warnings = [];
+  let k = f.measuredK;
+  const plateM = (f.plateMm || spec.standardPlateMm) / 1000;
+  if (Math.abs(plateM * 1000 - spec.standardPlateMm) > 0.5) {
+    const factor = spec.plateSlope * plateM + spec.plateIntercept;
+    k *= factor;
+    steps.push({
+      title: 'k for the standard 750 mm plate',
+      formula: `k750 = kΦ (${spec.plateSlope} Φ + ${spec.plateIntercept})`,
+      substitution: `${f.measuredK} × (${spec.plateSlope} × ${plateM} + ${spec.plateIntercept})`,
+      result: `k = ${f2(k)} MPa/m`,
+      ref: spec.ref,
+    });
+    if (f.subBase !== 'granular' || f.subBaseMm > 0) {
+      warnings.push('A plate smaller than 750 mm on layered construction over-states k · Cl. 5.7.3.3');
+    }
+  }
+  if (f.soakedCBR > 0 && f.unsoakedCBR > 0) {
+    const before = k;
+    k *= f.soakedCBR / f.unsoakedCBR;
+    steps.push({
+      title: 'k at the soaked condition',
+      formula: 'k × soaked CBR / unsoaked CBR',
+      substitution: `${f2(before)} × ${f.soakedCBR} / ${f.unsoakedCBR}`,
+      result: `k = ${f2(k)} MPa/m`,
+      ref: spec.ref,
+    });
+  }
+  return { k, warnings, steps };
+}
+
 export function rigidFoundation(rigid) {
   const f = rigid.foundation;
   const bonded = isBonded(rigid);
@@ -132,8 +198,9 @@ export function rigidFoundation(rigid) {
       warnings.push(`Granular layers of ${b.granularMm.min} – ${b.granularMm.max} mm below the DLC, ${granular} mm given · Cl. 6.7.2`);
     }
   }
-  if (f.kSource === 'measured') {
-    return { subgradeK: null, k: f.measuredK, warnings };
+  if (f.kSource === 'measured' || f.kSource === 'fwd') {
+    const m = measuredFoundationK(f);
+    return { subgradeK: null, k: m.k, warnings: [...warnings, ...m.warnings], steps: m.steps };
   }
   // A bonded slab is designed on the granular layer below the DLC (Cl. 6.7.2, Table 3).
   const result = bonded ? foundationK({ ...f, subBase: 'granular', subBaseMm: granularBelowMm(rigid) }) : foundationK(f);
@@ -153,7 +220,7 @@ function slabInput(rigid, traffic, foundation) {
     kMPaPerM: foundation.k,
     traffic,
     spectrum: rigid.spectrum,
-    slab: rigid.slab,
+    slab: { ...rigid.slab, flexural28MPa: flexuralOf(rigid.slab) },
     temperature: rigid.temperature,
   };
 }
@@ -162,8 +229,18 @@ function slabInput(rigid, traffic, foundation) {
 function inputWarnings(rigid, traffic) {
   const warnings = [...traffic.warnings];
   const { slab, spectrum, traffic: t } = rigid;
-  if (slab.flexural28MPa < RIGID.concrete.minimumFlexural28MPa) {
-    warnings.push(`28-day flexural strength below ${RIGID.concrete.minimumFlexural28MPa} MPa`);
+  if (flexuralOf(slab) < RIGID.concrete.minimumFlexural28MPa) {
+    warnings.push(`28-day flexural strength ${flexuralOf(slab)} MPa, below ${RIGID.concrete.minimumFlexural28MPa} MPa · Cl. 5.8.2`);
+  }
+  const layout = RIGID.layout;
+  if (slab.shoulder === 'none') {
+    warnings.push(`Tied concrete shoulders are necessary for high volume roads · ${layout.shoulderRef.clause}`);
+  }
+  if (slab.shoulder === 'widened' && t.carriageway === 'divided') {
+    warnings.push(`A widened outer lane is for two-lane two-way roads; tied shoulders on divided highways · ${layout.shoulderRef.clause}`);
+  }
+  if (slab.jointSpacingM > 0 && slab.laneWidthM > 0 && slab.jointSpacingM / slab.laneWidthM > layout.maximumAspect) {
+    warnings.push(`Panel longer than ${layout.maximumAspect} times its width: reinforce it · ${layout.panelRef.clause}`);
   }
   if (!slab.doweled && traffic.openingCVPD > RIGID.scope.minimumCVPD) {
     warnings.push(`Dowel bars are required above ${RIGID.scope.minimumCVPD} CVPD`);
@@ -294,6 +371,46 @@ function workingSteps(rigid, traffic, foundation, evaluation) {
   return steps;
 }
 
+/**
+ * Table 5 dowels for the slab, checked for bearing under the heaviest single
+ * axle of the spectrum (Appendix-VIII).
+ */
+function dowelsFor(rigid, slabMm, evaluation) {
+  const table = dowelBars(slabMm);
+  if (!table) return null;
+  const heaviest = Math.max(0, ...(rigid.spectrum.single || []).filter((r) => r.percent > 0 && r.loadKN > 0).map((r) => r.loadKN));
+  const bearing =
+    heaviest > 0 && rigid.slab.fck > 0
+      ? dowelBearing({
+          diameterMm: table.diameterMm,
+          spacingMm: table.spacingMm,
+          lMm: evaluation.radiusOfRelativeStiffnessM * 1000,
+          axleKN: heaviest,
+          tiedShoulder: rigid.slab.shoulder === 'tied',
+          fck: rigid.slab.fck,
+        })
+      : null;
+  return { ...table, bearing, axleKN: heaviest };
+}
+
+/** The first slab, concrete or traffic input a rigid design still needs, or null. */
+export function missingRigid(rigid, mode) {
+  const { traffic: t, slab, temperature } = rigid;
+  const positive = (v) => Number.isFinite(v) && v > 0;
+  if (!positive(t.twoWayCVPD)) return 'commercial vehicles per day';
+  if (!positive(t.designPeriodYears)) return 'design period';
+  if (!positive(t.axlesPerVehicle)) return 'axles per commercial vehicle';
+  if (!Number.isFinite(t.nightSharePercent) || !Number.isFinite(t.shortWheelBasePercent)) return 'night and wheel base shares';
+  if (t.carriageway === 'divided' && !positive(t.directionalSplitPercent)) return 'directional share';
+  if (!positive(flexuralOf(slab))) return slab.flexuralFrom === 'fck' ? 'characteristic compressive strength, fck' : 'flexural strength';
+  if (!positive(slab.E)) return 'elastic modulus of the concrete';
+  if (!(slab.mu >= 0 && slab.mu < 0.5)) return "Poisson's ratio of the concrete";
+  if (temperature.mode === 'site' && !positive(temperature.dayC)) return 'day-time temperature differential';
+  if (mode === 'check' && !positive(slab.thicknessMm)) return 'thickness to check';
+  if (!positive(slab.jointSpacingM)) return 'transverse joint spacing';
+  return null;
+}
+
 /** Drainage inputs, each with what to ask for and whether zero is allowed. */
 const DRAINAGE_INPUTS = [
   ['pavementM', 'carriageway width draining one way', false],
@@ -347,6 +464,8 @@ export function runRigid(rigid, mode) {
   const foundation = rigidFoundation(rigid);
   const warnings = [...inputWarnings(rigid, traffic), ...foundation.warnings];
 
+  const gap = missingRigid(rigid, mode);
+  if (gap) return { ok: false, message: `Enter the ${gap}` };
   if (!(foundation.k > 0)) {
     return { ok: false, message: 'Enter the foundation k' };
   }
@@ -395,6 +514,7 @@ export function runRigid(rigid, mode) {
   const adoptedMm = fatigueMm + retexture;
   const ties = tieBars({ slabMm: adoptedMm, laneWidthM: slab.laneWidthM, type: slab.tieBarType, diameterMm: slab.tieBarDiameterMm });
   const drainage = hasDrainage(rigid) ? rigidDrainage(rigid, adoptedMm) : null;
+  const dowels = slab.doweled ? dowelsFor(rigid, adoptedMm, evaluation) : null;
 
   return {
     ok: true,
@@ -406,14 +526,14 @@ export function runRigid(rigid, mode) {
     bonded: bond,
     traffic,
     foundation,
-    dowels: slab.doweled ? dowelBars(adoptedMm) : null,
+    dowels,
     tieBars: ties,
     slots: rigidSlots(rigid, adoptedMm),
     name: rigidName(rigid),
-    steps: [...workingSteps(rigid, traffic, foundation, evaluation), ...(bond ? bond.steps : [])],
+    steps: [...(foundation.steps || []), ...workingSteps(rigid, traffic, foundation, evaluation), ...(bond ? bond.steps : [])],
     tieBarSteps: ties.steps,
     drainage,
-    warnings: [...warnings, ...ties.warnings],
+    warnings: [...warnings, ...ties.warnings, ...(dowels?.bearing && !dowels.bearing.safe ? [`Dowel bearing stress ${dowels.bearing.stress.toFixed(2)} MPa over the ${dowels.bearing.allowable.toFixed(2)} MPa allowed · Cl. 7.2.4`] : [])],
     safe: evaluation.safe,
   };
 }

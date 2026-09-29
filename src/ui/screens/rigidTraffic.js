@@ -102,7 +102,15 @@ export default function renderRigidTraffic(app) {
         numberField({ label: 'Growth rate', ref: RIGID.traffic.ref, value: t.growthRatePercent, suffix: '%', min: 0, onInput: onNumber('growthRatePercent') }),
         numberField({ label: 'Years to completion', value: t.yearsToCompletion, suffix: 'yr', min: 0, onInput: onNumber('yearsToCompletion') })
       ),
-      numberField({ label: 'Design period', value: t.designPeriodYears, suffix: 'yr', min: 1, onInput: onNumber('designPeriodYears') }),
+      numberField({
+        label: 'Design period',
+        ref: RIGID.layout.periodRef,
+        aside: `${RIGID.layout.designPeriodYears} or more`,
+        value: t.designPeriodYears,
+        suffix: 'yr',
+        min: 1,
+        onInput: onNumber('designPeriodYears'),
+      }),
       segmented({
         label: 'Carriageway',
         ref: RIGID.traffic.ref,

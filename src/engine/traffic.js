@@ -19,6 +19,59 @@ export function indicativeVDF(cvpd, terrain) {
   return terrain === 'hilly' ? row.hilly : row.plainRolling;
 }
 
+/**
+ * Vehicle damage factor from an axle load survey (Eq. 4.1 - 4.4): every axle
+ * weighed, as equivalent standard axles, over the vehicles weighed.
+ *
+ * @param {object} survey
+ * @param {number} survey.vehicles  Commercial vehicles weighed.
+ * @param {Object<string, {loadKN: number, count: number}[]>} survey  Rows of
+ *        each axle type in TRAFFIC.axleEquivalence.axles, by its id.
+ */
+export function vdfFromAxles(survey) {
+  const spec = TRAFFIC.axleEquivalence;
+  const types = spec.axles.map((axle) => {
+    const rows = (survey[axle.id] || []).filter((r) => r.loadKN > 0 && r.count > 0);
+    const axles = rows.reduce((sum, r) => sum + r.count, 0);
+    const equivalent = rows.reduce((sum, r) => sum + r.count * Math.pow(r.loadKN / axle.standardKN, spec.exponent), 0);
+    return { ...axle, classes: rows.length, axles, equivalent };
+  });
+  const equivalent = types.reduce((sum, t) => sum + t.equivalent, 0);
+  const vehicles = survey.vehicles > 0 ? survey.vehicles : 0;
+  const ready = vehicles > 0 && equivalent > 0;
+  const value = ready ? equivalent / vehicles : null;
+
+  const steps = types
+    .filter((t) => t.axles > 0)
+    .map((t) => ({
+      title: t.label,
+      formula: `Σ n × (P / ${t.standardKN})^${spec.exponent}`,
+      substitution: `${fmt(t.axles)} axles in ${t.classes} load classes`,
+      result: `${fmt(t.equivalent, 1)} standard axles`,
+      ref: spec.ref,
+      verified: spec.verified,
+    }));
+  if (ready) {
+    steps.push({
+      title: 'Vehicle damage factor',
+      formula: 'VDF = standard axles / commercial vehicles weighed',
+      substitution: `VDF = ${fmt(equivalent, 1)} / ${fmt(vehicles)}`,
+      result: `VDF = ${value.toFixed(2)}`,
+      ref: spec.ref,
+      verified: spec.verified,
+    });
+  }
+  return { value, vehicles, equivalent, types, ready, steps };
+}
+
+/** The fewest commercial vehicles an axle load survey should weigh (Table 4.1). */
+export function surveySample(cvpd) {
+  const row = TRAFFIC.axleEquivalence.sample.rows.find((r) =>
+    r.belowCVPD != null ? cvpd < r.belowCVPD : cvpd <= r.uptoCVPD
+  );
+  return { ...row, vehicles: Math.ceil(Math.max((cvpd * row.percent) / 100, row.minimum)) };
+}
+
 export function laneDistributionOptions() {
   return TRAFFIC.laneDistributionFactors.options;
 }

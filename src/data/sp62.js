@@ -23,6 +23,18 @@ export const SP62 = {
 
   designPeriod: { ref: sp('Cl. 3.3 / 3.4', '3, 4'), years: 20 },
 
+  /**
+   * Joints: contraction joints carry load by aggregate interlock, without
+   * dowels; expansion joints at bridges and culverts take 25 mm plain dowels
+   * 450 mm long at 250 mm; a longitudinal joint at mid-width where the slab is
+   * wider than 4.5 m.
+   */
+  joints: {
+    ref: sp('Cl. 5.2.3 / 5.2.4 / 5.3', 20),
+    longitudinalAboveM: 4.5,
+    expansionDowel: { diameterMm: 25, lengthMm: 450, spacingMm: 250 },
+  },
+
   /** Under 50 CVPD load only; 50 – 150 load and curling; over 150 fatigue. */
   cases: { ref: sp('Cl. 3.4 / 4.3', '3, 13'), loadOnlyBelow: 50, fatigueAbove: 150 },
 

@@ -1,12 +1,17 @@
 import { h, card, segmented, button, notice } from '../dom.js';
 import { hasCTB } from '../ctbProject.js';
+import { designTraffic } from '../project.js';
+import { enforceCodeChoices, staged } from '../flexibleProject.js';
+import { BITUMINOUS_RULES } from '../../data/ircConstants.js';
 import {
+  bituminousAllowed,
   BITUMINOUS_OPTIONS,
   BASE_OPTIONS,
   SUB_BASE_OPTIONS,
   CRACK_RELIEF_OPTIONS,
   SITE_CONDITIONS,
   describeCombination,
+  displaySlots,
   findOption,
   feasible,
 } from '../../data/layerCatalog.js';
@@ -16,6 +21,7 @@ const LAYER_COLOURS = {
   granular: '#c9a227',
   cemented: '#8fa3b8',
   treated: '#5b4a3a',
+  membrane: '#1f252d',
   concrete: '#d3d8de',
   subgrade: '#a9805a',
 };
@@ -58,8 +64,9 @@ export function sectionDiagram(slots) {
 }
 
 /** Every base, crack relief and sub-base combination the site can build. */
-function compositions(conditions) {
-  const can = (option) => feasible(option.id, conditions);
+function compositions(conditions, inStages) {
+  // Stage construction rules out cement treated layers (Cl. 4.3.2).
+  const can = (option) => feasible(option.id, conditions) && !(inStages && option.behaviour === 'cemented');
   const list = [];
   for (const base of BASE_OPTIONS.filter(can)) {
     const reliefs = base.requiresCrackRelief ? CRACK_RELIEF_OPTIONS.filter(can) : [null];
@@ -75,8 +82,11 @@ function compositions(conditions) {
 const KIND = { granular: 'Granular', cemented: 'Cemented', treated: 'Bitumen treated' };
 
 export default function renderLayers(app) {
+  const msa = designTraffic(app.state).result.msa;
+  if (enforceCodeChoices(app.state, msa)) app.persist();
+  const bituminousOptions = BITUMINOUS_OPTIONS.filter((o) => bituminousAllowed(o, msa, app.state.project.roadCategory));
   const { conditions } = app.state;
-  const available = compositions(conditions);
+  const available = compositions(conditions, staged(app.state));
   const isChosen = ({ base, relief, subBase }, c) =>
     c.baseId === base.id &&
     c.subBaseId === subBase.id &&
@@ -183,8 +193,9 @@ export default function renderLayers(app) {
       'Bituminous layers',
       segmented({
         label: null,
+        ref: BITUMINOUS_RULES.ref,
         value: combination.bituminousId,
-        options: BITUMINOUS_OPTIONS.map((o) => ({ value: o.id, label: o.short })),
+        options: bituminousOptions.map((o) => ({ value: o.id, label: o.short })),
         onChange: (id) =>
           choose({ bituminousId: id }, [...bituminousSlots(combination.bituminousId), ...bituminousSlots(id)]),
       })
@@ -199,6 +210,6 @@ export default function renderLayers(app) {
         : notice('warn', null, 'No composition can be built with the materials ticked')
     ),
 
-    card('Section', sectionDiagram(described.slots.map((s) => ({ ...s, thicknessMm: null }))))
+    card('Section', sectionDiagram(displaySlots(described.slots.map((s) => ({ ...s, thicknessMm: null })), combination)))
   );
 }

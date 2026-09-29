@@ -145,7 +145,34 @@ export default function renderRigidResult(app) {
             metric('Ø, mm', String(result.dowels.diameterMm)),
             metric('L, mm', String(result.dowels.lengthMm)),
             metric('c/c, mm', String(result.dowels.spacingMm))
-          )
+          ),
+          result.dowels.bearing
+            ? [
+                h(
+                  'div',
+                  { class: 'check-grid' },
+                  h(
+                    'div',
+                    { class: 'check-tile', 'data-safe': String(result.dowels.bearing.safe) },
+                    h(
+                      'div',
+                      { class: 'check-head' },
+                      h('strong', {}, 'Bearing on the concrete'),
+                      badge(result.dowels.bearing.safe ? 'pass' : 'fail', result.dowels.bearing.safe ? 'Pass' : 'Fail')
+                    ),
+                    h('span', { class: 'check-sub' }, `${result.dowels.axleKN} kN single axle`, clauseChip('Dowel bearing', RIGID.dowelBearing.ref)),
+                    h(
+                      'div',
+                      { class: 'check-figures' },
+                      h('span', { class: 'check-actual' }, `${result.dowels.bearing.stress.toFixed(2)} MPa`),
+                      h('span', { class: 'check-allowable' }, `of ${result.dowels.bearing.allowable.toFixed(2)} MPa allowable`)
+                    ),
+                    h('div', { class: 'meter', role: 'presentation' }, h('span', { style: { width: `${Math.min(100, (100 * result.dowels.bearing.stress) / result.dowels.bearing.allowable)}%` } }))
+                  )
+                ),
+                result.dowels.bearing.steps.map(stepCard),
+              ]
+            : null
         )
       : null,
 

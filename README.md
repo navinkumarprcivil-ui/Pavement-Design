@@ -15,7 +15,7 @@ Live at **https://pavementdesign.vercel.app**
 
 ```bash
 npm run serve      # then open http://localhost:8080
-npm test           # 38 tests, no dependencies
+npm test           # no dependencies
 ```
 
 There is no build step and nothing to install. `npm run serve` is a small static
@@ -30,27 +30,38 @@ and open its address on the phone over the same network.
 1. **Design traffic.** Cumulative standard axles from the commercial vehicle
    count, growth rate, design life, lane distribution factor and vehicle damage
    factor, or entered directly in msa when already known (the CVPD at
-   completion is still asked for the CBR floor of Cl. 6.4.3). Below 2 msa the step offers IRC:SP:72 beside IRC:37; choosing it
-   moves the design into the low volume road steps.
+   completion is still asked for the CBR floor of Cl. 6.4.3). The VDF is the
+   indicative value of Table 4.2, a surveyed value (the larger direction on an
+   undivided road, Cl. 4.6.2), or worked out from the axles weighed
+   (Eq. 4.1 – 4.4), with the sample checked against Table 4.1. Stage
+   construction (Cl. 4.3.2) designs the bituminous layers for 1.67 times the
+   stage-1 traffic and rules out cement treated layers. Below 2 msa the step
+   offers IRC:SP:72 beside IRC:37; choosing it moves the design into the low
+   volume road steps.
 2. **Layer combination.** Bituminous layer (BC over DBM, BC only, SDBC over
-   DBM), base (WMM, WBM, CTB, or RAP treated with foamed bitumen or emulsion,
-   Cl. 8.4), sub-base (GSB or CTSB), on a fixed subgrade. Choosing a cement
-   treated base brings up the crack relief interlayer it requires. The
-   materials and conditions ticked for the site (aggregates, cement, CTSB
-   plant, SAMI, cold recycling, existing bituminous layer) limit the
-   compositions offered.
+   DBM, BC or SDBC over BM), base (WMM, WBM, CTB, or RAP treated with foamed
+   bitumen or emulsion, Cl. 8.4), sub-base (GSB or CTSB), on a fixed subgrade.
+   Table 9.1 decides the mixes and binders offered at the design traffic and
+   road category. Choosing a cement treated base brings up the crack relief
+   interlayer it requires. The materials and conditions ticked for the site
+   (aggregates, cement, CTSB plant, SAMI, cold recycling, existing bituminous
+   layer) limit the compositions offered.
 3. **Axle loads** (cement treated base only). CTB material and 28-day UCS,
    which give the modulus of rupture (Cl. 8.2.2), and the axle load spectrum:
    the share of single, tandem and tridem axles and of each load class. The app
    works out the expected repetitions of every class from the design traffic.
-4. **Inputs.** Subgrade CBR, or a select borrow over the embankment reduced
-   to an effective modulus (Cl. 6.4, reproducing Annex-II.1). The surface
-   deflection of that two-layer system is read from IITPAVE: the app sets out
-   the entries in IITPAVE's order and takes the deflection back, with its own
-   figure beside it as a check. Reliability,
-   80% or 90%; binder grade, pavement temperature, mix modulus from the mix
-   design if known, mix volumetrics; construction traffic (dumper axle loads
-   and trips); trial thicknesses; and narrative paragraphs for the report.
+4. **Inputs.** Subgrade CBR at the percentile of Cl. 6.2.2, or a select
+   borrow (in one layer or two sub-layers) over the embankment reduced to an
+   effective modulus (Cl. 6.4, reproducing Annex-II.1), never above the
+   subgrade's own. The surface deflection of that system is read from IITPAVE:
+   the app sets out the entries in IITPAVE's order and takes the deflection
+   back, with its own figure beside it as a check. Reliability, 80% or 90%;
+   climate (plains at 35 °C, snow bound at 20 °C, with frost's 450 mm);
+   long-life from 300 msa and on expressways (Cl. 10); binder grade, pavement
+   temperature, mix modulus from the mix design if known, mix volumetrics;
+   CTSB strength and the aggregate over it; construction traffic (dumper axle
+   loads and trips); trial thicknesses; and narrative paragraphs for the
+   report.
 5. **IITPAVE.** The design rests on IITPAVE. Every analysis behind the trial
    section is laid out as IITPAVE's inputs (layers, moduli, Poisson's ratios,
    thicknesses, wheel load, tyre pressure, analysis points, wheel set), with a
@@ -103,11 +114,14 @@ design then follows it throughout.
   Reproduces the edge stresses of Appendix I.
 
 **Rigid pavement (IRC:58-2015).** The full fatigue design of a jointed plain
-concrete slab: foundation k from Tables 2 – 4, temperature differentials from
+concrete slab: foundation k from Tables 2 – 4 or measured by plate load test
+(Eq. 2) or FWD, flexural strength from the beam test or 0.7 √fck,
+temperature differentials from
 Table 1, six-hour design repetitions, the Appendix-V stress equations for
 bottom-up and top-down cracking, and cumulative fatigue damage over the axle
 load spectrum. The thinnest slab with CFD ≤ 1 is found in 10 mm steps, with
-dowel bars from Table 5. It reproduces the illustrative design of Appendix-VII
+dowel bars from Table 5 checked for bearing stress (Eq. 14 / 15, Appendix-VIII).
+It reproduces the illustrative design of Appendix-VII
 (290 mm with tied shoulders and dowels, 340 mm without).
 A PQC may be bonded to the DLC (Cl. 6.7): the slab is designed on the granular
 layer below the DLC and replaced by the thinnest PQC whose stiffness bonded to

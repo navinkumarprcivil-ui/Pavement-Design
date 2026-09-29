@@ -37,6 +37,7 @@ import renderRigidSlab from './ui/screens/rigidSlab.js';
 import renderRigidResult from './ui/screens/rigidResult.js';
 import { defaultRigidState, migrateRigid } from './ui/rigidProject.js';
 import { defaultCtbState, defaultConstructionState, hasCTB } from './ui/ctbProject.js';
+import { defaultAxleSurvey } from './ui/spectrum.js';
 import { defaultLayeredSubgrade, defaultNarratives } from './ui/flexibleProject.js';
 import { defaultRuralState, migrateRural, defaultLvRigidState, migrateLvRigid } from './ui/lowVolumeProject.js';
 import { designStepsScreen } from './ui/screens/designSteps.js';
@@ -114,6 +115,9 @@ export const defaultState = () => ({
     directionalSplitPercent: 50,
     vdfMode: 'indicative',
     vehicleDamageFactor: null,
+    axleSurvey: defaultAxleSurvey(),
+    /** Stage construction (IRC:37 Cl. 4.3.2). */
+    stage: { enabled: false, stage1Years: null, stage1Msa: null },
   },
   combination: {
     bituminousId: 'BC_DBM',
@@ -135,6 +139,14 @@ export const defaultState = () => ({
     /** From the mix design; blank takes the table value. */
     bituminousModulusMPa: null,
     layeredSubgrade: defaultLayeredSubgrade(),
+    /** Snow bound and frost affected: VG10 allowed, modulus at 20 °C, 450 mm in all (Cl. 9.1 / 13.2). */
+    snowBound: false,
+    /** CTSB of 7-day UCS 1.5 - 3 MPa ('standard', 600 MPa) or 0.75 - 1.5 MPa ('low', 400 MPa). */
+    ctsbStrength: 'standard',
+    /** Granular base on a CTSB: 'crushed' rock, 350 MPa, or natural 'gravel', 300 MPa. */
+    granularOverCtsb: 'crushed',
+    /** Long-life design where it applies; null takes it, false declines it. */
+    longLife: null,
   },
   /** 80 or 90 chosen by the designer; null takes the code's. */
   reliabilityChoice: null,
@@ -206,6 +218,8 @@ function migrate(saved) {
   state.lvRigid = migrateLvRigid(saved.lvRigid);
   delete state.routeChoice;
   if (state.traffic.vdfMode === 'manual') state.traffic.vdfMode = 'survey';
+  state.traffic.axleSurvey = { ...defaults.traffic.axleSurvey, ...(state.traffic.axleSurvey || {}) };
+  state.traffic.stage = { ...defaults.traffic.stage, ...(state.traffic.stage || {}) };
   if (state.project.roadCategory === 'other') state.project.roadCategory = 'odr';
   if (!BINDER_GRADES.includes(state.materials.binderGrade)) {
     state.materials.binderGrade = defaults.materials.binderGrade;

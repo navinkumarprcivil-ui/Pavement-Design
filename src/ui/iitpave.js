@@ -146,7 +146,8 @@ export function effectiveSubgradeCase(layered) {
     title: 'Effective subgrade',
     ref: spec.ref,
     layers: [
-      { label: 'Select borrow', h: layered.borrowMm || spec.subgradeThicknessMm, E: e.borrowMR, nu: spec.poissonRatio },
+      { label: e.twoSubLayers ? 'Subgrade, upper sub-layer' : 'Select borrow', h: layered.borrowMm || spec.subgradeThicknessMm, E: e.borrowMR, nu: spec.poissonRatio },
+      ...(e.twoSubLayers ? [{ label: 'Subgrade, lower sub-layer', h: layered.lowerMm, E: e.lowerMR, nu: spec.poissonRatio }] : []),
       { label: 'Embankment', h: null, E: e.embankmentMR, nu: spec.poissonRatio },
     ],
     wheelLoadN: spec.wheelLoadN,

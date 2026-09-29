@@ -11,14 +11,28 @@ import { h, card, button, msa } from '../dom.js';
 import { formatCitation } from '../citations.js';
 import { designTraffic } from '../project.js';
 import { currentDesign } from '../currentDesign.js';
-import { AXLES, SUB_BASES, SHOULDERS } from '../rigidProject.js';
+import { AXLES, SUB_BASES, SHOULDERS, flexuralOf } from '../rigidProject.js';
 import { checkSteps, damageRows, fromIitpave, allFromIitpave } from './results.js';
 import { iitpaveCases, iitpaveMissing, iitpaveStore } from '../iitpave.js';
 import { ctbDamageInput, ctbSevenDay } from '../ctbProject.js';
-import { reliabilityOf } from '../flexibleProject.js';
+import { reliabilityOf, longLifeOf, cbrPercentile } from '../flexibleProject.js';
 import { CONSTRUCTION_TYPES, FACILITY_TYPES, optionLabel } from '../modules.js';
-import { CODES, RIGID, TRAFFIC, STANDARD_AXLE, MODULI, CRITERIA, roadCategory } from '../../data/ircConstants.js';
-import { combinationName } from '../../data/layerCatalog.js';
+import {
+  CODES,
+  RIGID,
+  TRAFFIC,
+  STANDARD_AXLE,
+  MODULI,
+  CRITERIA,
+  BITUMINOUS_RULES,
+  FROST,
+  LONG_LIFE,
+  CBR_PERCENTILE,
+  GSB_LAYERS,
+  STAGE_CONSTRUCTION,
+  roadCategory,
+} from '../../data/ircConstants.js';
+import { combinationName, describeCombination, displaySlots } from '../../data/layerCatalog.js';
 import { ruralDesignFor, lvRigidDesignFor } from '../lowVolumeProject.js';
 import { SP72 } from '../../data/sp72.js';
 import { SP62 } from '../../data/sp62.js';
@@ -29,6 +43,7 @@ const LAYER_COLOURS = {
   granular: '#c9a227',
   cemented: '#8fa3b8',
   treated: '#5b4a3a',
+  membrane: '#1f252d',
   concrete: '#d3d8de',
   subgrade: '#a9805a',
 };
@@ -217,6 +232,30 @@ function closing() {
 function trafficGiven(app, traffic, cite) {
   const t = app.state.traffic;
   const surveyed = t.vdfMode === 'survey' && t.vehicleDamageFactor > 0;
+  const weighed = traffic.survey?.ready;
+  const vdfRow = [
+    'F',
+    'Vehicle damage factor',
+    traffic.vdf.toFixed(2),
+    surveyed ? 'Input' : weighed ? 'Derived' : 'Code',
+    surveyed ? TRAFFIC.directionalVDF.ref : weighed ? TRAFFIC.axleEquivalence.ref : TRAFFIC.indicativeVDF.ref,
+  ];
+  const stageRows = traffic.stage
+    ? [
+        traffic.stage.years
+          ? ['n1', 'Stage-1 period', `${traffic.stage.years} years`, 'Input', STAGE_CONSTRUCTION.ref]
+          : ['N1', 'Stage-1 traffic', `${traffic.stage.stage1Msa} msa`, 'Input', STAGE_CONSTRUCTION.ref],
+        ['', 'Stage-1 traffic factor, 40% life left', String(STAGE_CONSTRUCTION.factor), 'Code', STAGE_CONSTRUCTION.ref],
+      ]
+    : [];
+  const surveyRows = weighed
+    ? [
+        ['', 'Commercial vehicles weighed', inr(traffic.survey.vehicles), 'Input', TRAFFIC.axleEquivalence.sample.ref],
+        ...traffic.survey.types
+          .filter((a) => a.axles > 0)
+          .map((a) => ['', `${a.label}, ${a.classes} load classes`, `${inr(a.axles)} axles`, 'Input', TRAFFIC.axleEquivalence.ref]),
+      ]
+    : [];
   if (traffic.result.direct) {
     return givenTable(
       'Design traffic inputs',
@@ -224,7 +263,9 @@ function trafficGiven(app, traffic, cite) {
         ['N', 'Design traffic', `${traffic.result.msa} msa`, 'Input', TRAFFIC.growthEquation.ref],
         ['A', 'Commercial vehicles per day at completion, both ways', `${traffic.twoWayAtCompletion} CVPD`, 'Input', MODULI.minimumCBR.ref],
         ['n', 'Design period', `${t.designLifeYears} years`, 'Input', TRAFFIC.longLife.ref],
-        ['F', 'Vehicle damage factor', traffic.vdf.toFixed(2), surveyed ? 'Input' : 'Code', surveyed ? null : TRAFFIC.indicativeVDF.ref],
+        ...surveyRows,
+        vdfRow,
+        ...stageRows,
       ],
       cite
     );
@@ -238,7 +279,9 @@ function trafficGiven(app, traffic, cite) {
       ['n', 'Design period', `${t.designLifeYears} years`, 'Input', TRAFFIC.longLife.ref],
       ['D', `Lane distribution factor, ${traffic.lane.label.toLowerCase()}`, String(traffic.lane.value), 'Code', TRAFFIC.laneDistributionFactors.ref],
       traffic.lane.directional ? ['', 'Share in the design direction', `${t.directionalSplitPercent}%`, 'Input'] : null,
-      ['F', 'Vehicle damage factor', traffic.vdf.toFixed(2), surveyed ? 'Input' : 'Code', surveyed ? null : TRAFFIC.indicativeVDF.ref],
+      ...surveyRows,
+      vdfRow,
+      ...stageRows,
     ].filter(Boolean),
     cite
   );
@@ -369,6 +412,54 @@ function ctbDamageSection(app, damage, ctb, cite) {
   ];
 }
 
+/** The surface course binder Table 9.1 asks for at this traffic and road. */
+function surfaceBinder(msa, categoryId) {
+  const r = BITUMINOUS_RULES;
+  if (msa > r.modifiedSurfaceAboveMsa) return 'modified bitumen (or SMA / GGRB)';
+  if (msa >= r.vg40FromMsa || r.vg40Categories.includes(categoryId)) return 'modified bitumen or VG40';
+  return 'VG40 or VG30';
+}
+
+/**
+ * The layers as laid, with what the code asks of each: the binders of
+ * Table 9.1, the GSB sub-layers of Cl. 7.2.1 and a SAMI, which carries no
+ * load and is left out of the analysis (Cl. 8.3).
+ */
+function flexibleComposition(app, result, msa, cite) {
+  const { materials, combination, project } = app.state;
+  const described = describeCombination(combination);
+  const courses = described.bituminous.courses;
+  const bottomId = courses[courses.length - 1].id;
+  const sami = described.base.requiresCrackRelief && described.crackRelief?.id === 'SAMI';
+  const cited = (label, ref) => h('span', {}, label, ' ', cite(ref));
+
+  const rows = [];
+  for (const s of result.slots.filter((slot) => slot.thicknessMm > 0)) {
+    if (s.slotId === 'BASE' && sami) {
+      rows.push(['', cited('SAMI of elastomeric modified binder, 10 – 12 kg per 10 m², with 0.1 m³ of 11.2 mm aggregate; not analysed', MODULI.crackReliefAggregate.ref), '—']);
+    }
+    let label = s.label;
+    if (s.behaviour === 'bituminous') {
+      const binder = s.slotId === bottomId && courses.length > 1 ? materials.binderGrade : surfaceBinder(msa, project.roadCategory);
+      label = cited(`${s.label}, ${binder}`, BITUMINOUS_RULES.ref);
+    } else if (s.slotId === 'SUB_BASE' && s.behaviour === 'granular') {
+      label = cited(
+        s.thicknessMm > GSB_LAYERS.splitAboveMm
+          ? `${s.label}: a drainage layer, MoRTH GSB Grading III or IV, over a filter layer, Grading I, II, V or VI, each at least ${GSB_LAYERS.eachMinimumMm} mm`
+          : `${s.label}: one drainage-cum-filter layer, MoRTH GSB Grading V or VI`,
+        GSB_LAYERS.ref
+      );
+    } else if (s.slotId === 'SUB_BASE' && s.behaviour === 'cemented') {
+      const low = materials.ctsbStrength === 'low';
+      const spec = MODULI.lowStrengthCTSB;
+      label = cited(`${s.label}, 7-day UCS ${(low ? spec.ucsMPa : spec.standardUcsMPa).join(' – ')} MPa`, spec.ref);
+    }
+    rows.push([String(rows.filter((r) => r[0]).length + 1), label, `${s.thicknessMm} mm`]);
+  }
+  rows.push(['', `Subgrade, effective CBR not less than ${materials.subgradeCBR}%, ${cbrPercentile(app.state, msa)}th percentile`, '—']);
+  return rows;
+}
+
 function flexibleReport(app, cite) {
   const result = app.state.result;
   const traffic = designTraffic(app.state);
@@ -406,6 +497,8 @@ function flexibleReport(app, cite) {
         traffic.result.direct ? null : ['Carriageway', traffic.lane.label],
         ['Design period', `${t.designLifeYears} years`],
         ['Composition', combinationName(combination)],
+        materials.snowBound ? ['Climate', 'Snow bound, frost affected'] : null,
+        longLifeOf(app.state, traffic.result.msa) ? ['Design', 'Long-life, endurance strains'] : null,
       ].filter(Boolean)
     ),
 
@@ -415,17 +508,27 @@ function flexibleReport(app, cite) {
       [
         ...(layered
           ? [
-              ['CBR', 'Select borrow CBR', `${layered.borrowCBR}%`, 'Input', MODULI.effectiveSubgrade.ref],
-              ['', 'Select borrow thickness', `${layered.borrowMm} mm`, 'Input', MODULI.effectiveSubgrade.ref],
+              ['CBR', layered.lowerMm > 0 ? 'Upper subgrade sub-layer CBR' : 'Select borrow CBR', `${layered.borrowCBR}%`, 'Input', MODULI.effectiveSubgrade.ref],
+              ['', layered.lowerMm > 0 ? 'Upper subgrade sub-layer thickness' : 'Select borrow thickness', `${layered.borrowMm} mm`, 'Input', MODULI.effectiveSubgrade.ref],
+              ...(layered.lowerCBR > 0 && layered.lowerMm > 0
+                ? [
+                    ['CBR', 'Lower subgrade sub-layer CBR', `${layered.lowerCBR}%`, 'Input', MODULI.effectiveSubgrade.ref],
+                    ['', 'Lower subgrade sub-layer thickness', `${layered.lowerMm} mm`, 'Input', MODULI.effectiveSubgrade.ref],
+                  ]
+                : []),
               ['CBR', 'Embankment CBR', `${layered.embankmentCBR}%`, 'Input', MODULI.effectiveSubgrade.ref],
               ...(layered.iitpaveDeflectionMm > 0
-                ? [['δ', 'Surface deflection of the two-layer system', `${layered.iitpaveDeflectionMm} mm`, 'IITPAVE', MODULI.effectiveSubgrade.ref]]
+                ? [['δ', `Surface deflection of the ${layered.lowerCBR > 0 && layered.lowerMm > 0 ? 'three' : 'two'}-layer system`, `${layered.iitpaveDeflectionMm} mm`, 'IITPAVE', MODULI.effectiveSubgrade.ref]]
                 : []),
               ['CBR', 'Effective subgrade CBR', `${Number(materials.subgradeCBR).toFixed(1)}%`, 'Derived', MODULI.effectiveSubgrade.ref],
             ]
-          : [['CBR', 'Effective subgrade CBR', `${materials.subgradeCBR}%`, 'Input', MODULI.subgrade.ref]]),
-        ['', 'Binder of the bottom bituminous layer', materials.binderGrade, 'Input', MODULI.bituminous.ref],
-        ['T', 'Average annual pavement temperature', `${materials.pavementTemperatureC} °C`, 'Input', MODULI.bituminous.ref],
+          : [['CBR', `Effective subgrade CBR, ${cbrPercentile(app.state, traffic.result.msa)}th percentile`, `${materials.subgradeCBR}%`, 'Input', CBR_PERCENTILE.ref]]),
+        ['', 'Binder of the bottom bituminous layer', materials.binderGrade, 'Input', BITUMINOUS_RULES.ref],
+        ['T', 'Average annual pavement temperature', `${materials.pavementTemperatureC} °C`, 'Input', BITUMINOUS_RULES.temperatureRef],
+        materials.snowBound ? ['', 'Total pavement thickness, frost', `at least ${FROST.minimumTotalMm} mm`, 'Code', FROST.ref] : null,
+        longLifeOf(app.state, traffic.result.msa)
+          ? ['', 'Endurance strains, bituminous and subgrade', `${materials.snowBound ? LONG_LIFE.bituminousMicro.other : LONG_LIFE.bituminousMicro.plains} and ${LONG_LIFE.subgradeMicro} µε`, 'Code', LONG_LIFE.ref]
+          : null,
         materials.bituminousModulusMPa > 0
           ? ['MRm', 'Bituminous mix modulus, from the mix design', `${materials.bituminousModulusMPa} MPa`, 'Input', MODULI.bituminous.ref]
           : null,
@@ -473,7 +576,7 @@ function flexibleReport(app, cite) {
         `${STANDARD_AXLE.dualSpacingMm} mm apart centre to centre. `,
       cite(STANDARD_AXLE.ref)
     ),
-    sectionFigure(result.slots, marks),
+    sectionFigure(displaySlots(result.slots, combination), marks),
     table(
       'Strains by the app\'s analysis, a check on IITPAVE',
       ['Depth, mm', 'Position', 'Horizontal, µε', 'Vertical, µε'],
@@ -506,7 +609,7 @@ function flexibleReport(app, cite) {
     ),
     para(
       h('strong', {}, `${missing.length ? 'Provisionally, t' : 'T'}he section is ${result.safe ? 'safe' : 'not safe'}`),
-      ` for ${msa(result.designTrafficMsa)}: its governing life is ${msa(result.governingLifeMsa)}.`
+      ` for ${traffic.stage ? 'the stage-1 design traffic of ' : ''}${msa(result.designTrafficMsa)}: its governing life is ${msa(result.governingLifeMsa)}.`
     ),
     missing.length
       ? h('p', { class: 'r-note' }, `Provisional: the app's analysis stands in for ${missing.length} IITPAVE value${missing.length > 1 ? 's' : ''} not entered (${missing.join('; ')}).`)
@@ -516,15 +619,15 @@ function flexibleReport(app, cite) {
     ),
 
     h('h2', {}, '4. Recommended pavement composition'),
-    table(
-      null,
-      ['#', 'Layer', 'Thickness'],
-      [
-        ...result.slots.filter((s) => s.thicknessMm > 0).map((s, i) => [String(i + 1), s.label, `${s.thicknessMm} mm`]),
-        ['', `Subgrade, effective CBR not less than ${materials.subgradeCBR}%`, '—'],
-      ]
-    ),
+    table(null, ['#', 'Layer', 'Thickness'], flexibleComposition(app, result, traffic.result.msa, cite)),
     para(`Total thickness ${result.totalThicknessMm} mm, of which ${result.bituminousMm} mm bituminous.`),
+    traffic.stage
+      ? para(
+          `Built in stages: the base and sub-base for the full ${msa(traffic.stage.fullMsa)}, the bituminous layers for stage 1; ` +
+            'stage 2 from the structural evaluation of the pavement after stage 1, by FWD (IRC:115) or Benkelman Beam (IRC:81). ',
+          cite(STAGE_CONSTRUCTION.ref)
+        )
+      : null,
   ];
 }
 
@@ -577,13 +680,21 @@ function rigidReport(app, cite) {
     givenTable(
       'Concrete and foundation',
       [
-        ['fcr', 'Flexural strength at 28 days', `${slab.flexural28MPa} MPa`, 'Input', RIGID.concrete.ref],
+        ['fck', 'Characteristic compressive strength', `${slab.fck} MPa`, 'Input', RIGID.concrete.fckRef],
+        slab.flexuralFrom === 'fck'
+          ? ['fcr', 'Flexural strength at 28 days, 0.7 √fck', `${flexuralOf(slab)} MPa`, 'Derived', RIGID.concrete.fckRef]
+          : ['fcr', 'Flexural strength at 28 days', `${slab.flexural28MPa} MPa`, 'Input', RIGID.concrete.ref],
         ['', 'Design strength', slab.ninetyDay ? `90 day, × ${RIGID.concrete.ninetyDayFactor}` : '28 day', 'Code', RIGID.concrete.ref],
         ['E', 'Elastic modulus of concrete', `${slab.E} MPa`, 'Code', RIGID.concrete.ref],
         ['μ', "Poisson's ratio", String(slab.mu), 'Code', RIGID.concrete.ref],
-        f.kSource === 'measured'
-          ? ['k', 'Effective k from plate load test', `${f.measuredK} MPa/m`, 'Input']
-          : ['CBR', 'Effective subgrade CBR', `${f.subgradeCBR}%`, 'Input', RIGID.subgradeK.ref],
+        ...(f.kSource === 'measured'
+          ? [
+              ['k', `k by plate load test, ${f.plateMm || RIGID.measuredK.standardPlateMm} mm plate`, `${f.measuredK} MPa/m`, 'Input', RIGID.measuredK.ref],
+              f.soakedCBR > 0 && f.unsoakedCBR > 0 ? ['CBR', 'Soaked and unsoaked CBR', `${f.soakedCBR}% and ${f.unsoakedCBR}%`, 'Input', RIGID.measuredK.ref] : null,
+            ]
+          : f.kSource === 'fwd'
+            ? [['k', 'Dynamic k from the FWD', `${f.fwdDynamicK} MPa/m`, 'Input', RIGID.measuredK.fwdRef]]
+            : [['CBR', 'Effective subgrade CBR', `${f.subgradeCBR}%`, 'Input', RIGID.subgradeK.ref]]),
         ['', `Sub-base, ${subBase?.name}${b ? ', bonded to the PQC' : ''}`, `${f.subBaseMm} mm`, 'Input', b ? RIGID.bonded.ref : f.subBase === 'dlc' ? RIGID.dlcK.ref : RIGID.subBaseK.ref],
         b ? ['', 'DLC compressive strength, 7 and 28 days', `${f.dlc7DayMPa} and ${f.dlc28DayMPa} MPa`, 'Input', RIGID.bonded.ref] : null,
         b ? ['E2, μ2', 'DLC modulus and Poisson\'s ratio', `${Math.round(b.E2).toLocaleString('en-IN')} MPa, ${b.mu2}`, 'Code', RIGID.bonded.ref] : null,
@@ -654,7 +765,25 @@ function rigidReport(app, cite) {
     ),
     result.warnings.map((w) => h('p', { class: 'r-note' }, 'Note: ', w)),
 
-    h('h3', {}, '3.6 Tie bars'),
+    result.dowels?.bearing ? h('h3', {}, '3.6 Dowel bars') : null,
+    result.dowels?.bearing
+      ? givenTable(
+          'Dowel bar inputs',
+          [
+            ['', 'Dowels, Table 5', `${result.dowels.diameterMm} mm at ${result.dowels.spacingMm} mm, ${result.dowels.lengthMm} mm long`, 'Code', RIGID.dowels.ref],
+            ['P', 'Heaviest single axle of the spectrum', `${result.dowels.axleKN} kN`, 'Input', RIGID.dowelBearing.example],
+            ['fck', 'Characteristic compressive strength', `${slab.fck} MPa`, 'Input', RIGID.concrete.fckRef],
+            ['kmds', 'Modulus of dowel support', `${RIGID.dowelBearing.dowelSupportMPaPerM.toLocaleString('en-IN')} MPa/m`, 'Code', RIGID.dowelBearing.ref],
+            ['E', 'Modulus of the dowel steel', `${RIGID.dowelBearing.steelModulusMPa.toLocaleString('en-IN')} MPa`, 'Code', RIGID.dowelBearing.example],
+            ['z', 'Joint width, contraction and expansion', `${RIGID.dowelBearing.jointMm.contraction} and ${RIGID.dowelBearing.jointMm.expansion} mm`, 'Code', RIGID.dowelBearing.ref],
+            ['l', 'Radius of relative stiffness', `${(e.radiusOfRelativeStiffnessM * 1000).toFixed(1)} mm`, 'Derived', RIGID.dowelBearing.example],
+          ],
+          cite
+        )
+      : null,
+    result.dowels?.bearing ? result.dowels.bearing.steps.map((step) => stepBlock(step, cite)) : null,
+
+    h('h3', {}, result.dowels?.bearing ? '3.7 Tie bars' : '3.6 Tie bars'),
     givenTable(
       'Tie bar inputs',
       [
@@ -667,7 +796,7 @@ function rigidReport(app, cite) {
     ),
     result.tieBarSteps.map((step) => stepBlock(step, cite)),
 
-    dr ? h('h3', {}, '3.7 Drainage layer') : null,
+    dr ? h('h3', {}, result.dowels?.bearing ? '3.8 Drainage layer' : '3.7 Drainage layer') : null,
     dr
       ? givenTable(
           'Drainage layer inputs',
@@ -712,7 +841,7 @@ function rigidReport(app, cite) {
         ...result.slots
           .filter((s) => s.thicknessMm > 0)
           .map((s, i) => [String(i + 1), s.slotId === 'PQC' ? 'Pavement quality concrete (PQC)' : s.label, `${s.thicknessMm} mm`]),
-        ['', f.kSource === 'measured' ? 'Subgrade' : `Subgrade, effective CBR not less than ${f.subgradeCBR}%`, '—'],
+        ['', f.kSource === 'tables' ? `Subgrade, effective CBR not less than ${f.subgradeCBR}%` : 'Subgrade', '—'],
       ]
     ),
     result.retextureMm > 0 && result.mode === 'design'
@@ -720,7 +849,8 @@ function rigidReport(app, cite) {
       : null,
     result.dowels
       ? para(
-          `Dowel bars ${result.dowels.diameterMm} mm diameter, ${result.dowels.lengthMm} mm long at ${result.dowels.spacingMm} mm centres. `,
+          `Dowel bars ${result.dowels.diameterMm} mm diameter, ${result.dowels.lengthMm} mm long at ${result.dowels.spacingMm} mm centres` +
+            (result.dowels.bearing ? `, bearing ${result.dowels.bearing.stress.toFixed(2)} MPa against ${result.dowels.bearing.allowable.toFixed(2)} MPa allowed. ` : '. '),
           cite(RIGID.dowels.ref)
         )
       : null,
@@ -915,6 +1045,12 @@ function ruralRigidReport(app, cite) {
       ]
     ),
     para(`Transverse joints at ${s.jointM} m. `, cite(SP62.slab.ref)),
+    para(
+      'Contraction joints without dowels, the load carried by aggregate interlock; at expansion joints next to bridges and culverts, ' +
+        `plain dowels ${SP62.joints.expansionDowel.diameterMm} mm in diameter, ${SP62.joints.expansionDowel.lengthMm} mm long at ` +
+        `${SP62.joints.expansionDowel.spacingMm} mm; a longitudinal joint at mid-width wherever the slab is wider than ${SP62.joints.longitudinalAboveM} m. `,
+      cite(SP62.joints.ref)
+    ),
   ];
 }
 

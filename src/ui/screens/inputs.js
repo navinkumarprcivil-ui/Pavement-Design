@@ -1,13 +1,69 @@
 import { h, card, numberField, segmented, notice, button, msa, keyResult, fold, textArea } from '../dom.js';
 import { designTraffic, subgradeWarning } from '../project.js';
 import { hasCTB, ctbSevenDay } from '../ctbProject.js';
-import { flexibleInput, flexibleResult, reliabilityOf } from '../flexibleProject.js';
-import { describeCombination, BINDER_GRADES, BEHAVIOUR } from '../../data/layerCatalog.js';
+import {
+  flexibleInput,
+  flexibleResult,
+  reliabilityOf,
+  enforceCodeChoices,
+  bindersFor,
+  longLifeApplies,
+  longLifeOf,
+  lowCtsbAllowed,
+  cbrPercentile,
+  flexibleMissing,
+} from '../flexibleProject.js';
+import { describeCombination, BEHAVIOUR } from '../../data/layerCatalog.js';
 import { designSection } from '../../engine/flexibleDesign.js';
-import { bituminousModulus } from '../../engine/materials.js';
+import { bottomMixModulus } from '../../engine/materials.js';
 import { effectiveSubgradeCase } from '../iitpave.js';
 import { entryGuide, copyButton } from '../iitpaveTables.js';
-import { MODULI, CRITERIA, MINIMUM_THICKNESS } from '../../data/ircConstants.js';
+import {
+  MODULI,
+  CRITERIA,
+  MINIMUM_THICKNESS,
+  BITUMINOUS_RULES,
+  FROST,
+  LONG_LIFE,
+  CBR_PERCENTILE,
+} from '../../data/ircConstants.js';
+
+/** The base and sub-base material classes the code gives two values for. */
+function baseCard(app, described, msa) {
+  const m = app.state.materials;
+  const ctsb = described.subBase.id === 'CTSB';
+  const granularOnCtsb = ctsb && described.base.behaviour === BEHAVIOUR.GRANULAR;
+  const lowAllowed = ctsb && lowCtsbAllowed(app.state, msa);
+  if (!lowAllowed && !granularOnCtsb) return null;
+  const spec = MODULI.lowStrengthCTSB;
+  return card(
+    'Base and sub-base',
+    lowAllowed
+      ? segmented({
+          label: 'CTSB, 7-day UCS',
+          ref: spec.ref,
+          value: m.ctsbStrength,
+          options: [
+            { value: 'standard', label: `${spec.standardUcsMPa.join(' – ')} MPa · ${MODULI.cemented.ctsbModulusMPa} MPa` },
+            { value: 'low', label: `${spec.ucsMPa.join(' – ')} MPa · ${spec.modulusMPa} MPa` },
+          ],
+          onChange: (value) => app.patch('materials', { ctsbStrength: value }, { rerender: true }),
+        })
+      : null,
+    granularOnCtsb
+      ? segmented({
+          label: `${described.base.short} aggregate`,
+          ref: MODULI.granularOverCTSB.ref,
+          value: m.granularOverCtsb,
+          options: [
+            { value: 'crushed', label: `Crushed rock · ${MODULI.granularOverCTSB.crushedRockMPa} MPa` },
+            { value: 'gravel', label: `Natural gravel · ${MODULI.granularOverCTSB.naturalGravelMPa} MPa` },
+          ],
+          onChange: (value) => app.patch('materials', { granularOverCtsb: value }, { rerender: true }),
+        })
+      : null
+  );
+}
 
 /** Dumpers on the granular sub-base and on the CTB, for the construction checks. */
 function constructionCard(app, described) {
@@ -44,9 +100,10 @@ function constructionCard(app, described) {
 }
 
 export default function renderInputs(app) {
-  const { combination, materials, mix } = app.state;
   const traffic = designTraffic(app.state);
   const designTrafficMsa = traffic.result.msa;
+  if (enforceCodeChoices(app.state, designTrafficMsa)) app.persist();
+  const { combination, materials, mix } = app.state;
   const described = describeCombination(combination);
   const layerSlots = described.slots.filter((s) => s.behaviour !== BEHAVIOUR.SUBGRADE);
 
@@ -64,14 +121,24 @@ export default function renderInputs(app) {
     cbrWarning.replaceChildren(text ? notice('warn', null, text) : '');
   };
 
+  const blocked = () => {
+    const gap = flexibleMissing(app.state, designTrafficMsa);
+    if (!gap) return false;
+    status.replaceChildren(notice('danger', null, gap));
+    status.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return true;
+  };
+
   // The app finds or checks a trial section; IITPAVE's values then decide it.
   const check = () => {
+    if (blocked()) return;
     app.state.result = flexibleResult(app.state);
     app.persist();
     app.go('iitpave');
   };
 
   const design = () => {
+    if (blocked()) return;
     status.replaceChildren(h('div', { class: 'progress indeterminate' }, h('span')));
     // Yield so the progress bar paints before the search runs.
     setTimeout(() => {
@@ -136,7 +203,12 @@ export default function renderInputs(app) {
     });
   if (layered.enabled) showEffective();
 
-  const tableModulus = bituminousModulus(materials.binderGrade, materials.pavementTemperatureC);
+  const bottom = described.bituminous.courses[described.bituminous.courses.length - 1];
+  const tableModulus = bottomMixModulus(bottom.id, materials.binderGrade, materials.pavementTemperatureC);
+  const binders = bindersFor(app.state, designTrafficMsa);
+  const longLifeOpen = longLifeApplies(app.state, designTrafficMsa);
+  const longLife = longLifeOf(app.state, designTrafficMsa);
+  const percentile = cbrPercentile(app.state, designTrafficMsa);
   const narratives = app.state.narratives;
   const narrative = (label, key) =>
     textArea({
@@ -156,6 +228,7 @@ export default function renderInputs(app) {
       'div',
       { class: 'summary-chips' },
       h('span', { class: 'chip' }, msa(designTrafficMsa)),
+      traffic.stage ? h('span', { class: 'chip' }, `Stage 1 · ${msa(traffic.stage.designMsa)}`) : null,
       h('span', { class: 'chip' }, `${reliability.value}% reliability`),
       traffic.category ? h('span', { class: 'chip' }, traffic.category.label) : null
     ),
@@ -178,16 +251,41 @@ export default function renderInputs(app) {
       }),
       layered.enabled
         ? [
-            layeredField('Select borrow CBR', 'borrowCBR', '%'),
-            layeredField('Select borrow thickness', 'borrowMm', 'mm'),
+            segmented({
+              label: 'Subgrade, 500 mm',
+              ref: MODULI.effectiveSubgrade.ref,
+              value: layered.subLayers === 2 ? 'two' : 'one',
+              options: [
+                { value: 'one', label: 'One layer' },
+                { value: 'two', label: 'Two sub-layers' },
+              ],
+              onChange: (value) => {
+                layered.subLayers = value === 'two' ? 2 : 1;
+                if (value === 'two') {
+                  layered.borrowMm = MODULI.effectiveSubgrade.subgradeThicknessMm / 2;
+                  layered.lowerMm = MODULI.effectiveSubgrade.subgradeThicknessMm / 2;
+                } else {
+                  layered.borrowMm = MODULI.effectiveSubgrade.subgradeThicknessMm;
+                  layered.lowerCBR = null;
+                  layered.lowerMm = null;
+                }
+                app.persist();
+                app.render();
+              },
+            }),
+            layeredField(layered.subLayers === 2 ? 'Upper sub-layer CBR' : 'Select borrow CBR', 'borrowCBR', '%'),
+            layeredField(layered.subLayers === 2 ? 'Upper sub-layer thickness' : 'Select borrow thickness', 'borrowMm', 'mm'),
+            layered.subLayers === 2
+              ? [layeredField('Lower sub-layer CBR', 'lowerCBR', '%'), layeredField('Lower sub-layer thickness', 'lowerMm', 'mm')]
+              : null,
             layeredField('Embankment CBR', 'embankmentCBR', '%'),
             guideHost,
             layeredField('Surface deflection, IITPAVE DispZ at z 0, r 0', 'iitpaveDeflectionMm', 'mm'),
             effectiveHost,
           ]
         : numberField({
-            label: 'Effective CBR',
-            ref: MODULI.subgrade.ref,
+            label: `Effective CBR, ${percentile}th percentile`,
+            ref: CBR_PERCENTILE.ref,
             value: materials.subgradeCBR,
             suffix: '%',
             min: 1,
@@ -214,26 +312,59 @@ export default function renderInputs(app) {
       reliability.value < reliability.code
         ? notice('warn', null, `90% reliability applies to this road and traffic · ${CRITERIA.reliability.ref.clause}`)
         : null,
+      longLifeOpen
+        ? segmented({
+            label: 'Long-life pavement',
+            ref: LONG_LIFE.ref,
+            value: longLife ? 'yes' : 'no',
+            options: [
+              { value: 'yes', label: `Endurance strains, ${materials.snowBound ? LONG_LIFE.bituminousMicro.other : LONG_LIFE.bituminousMicro.plains} / ${LONG_LIFE.subgradeMicro} µε` },
+              { value: 'no', label: 'Fatigue and rutting only' },
+            ],
+            onChange: (value) => app.patch('materials', { longLife: value === 'yes' }, { rerender: true }),
+          })
+        : null,
       cbrWarning
     ),
 
     card(
       'Bituminous mix',
       segmented({
-        label: 'Binder, bottom layer',
-        ref: MODULI.bituminous.ref,
+        label: 'Climate',
+        ref: FROST.ref,
+        value: materials.snowBound ? 'snow' : 'plains',
+        options: [
+          { value: 'plains', label: 'Plains' },
+          { value: 'snow', label: 'Snow bound, frost' },
+        ],
+        onChange: (value) => {
+          const t = BITUMINOUS_RULES.designTemperatureC;
+          app.patch(
+            'materials',
+            { snowBound: value === 'snow', pavementTemperatureC: value === 'snow' ? t.snowBound : t.plains },
+            { rerender: true }
+          );
+        },
+      }),
+      segmented({
+        label: `Binder, ${bottom.id === 'BM' ? 'BM' : bottom.id === 'DBM' ? 'DBM' : 'bottom layer'}`,
+        ref: BITUMINOUS_RULES.ref,
         value: materials.binderGrade,
-        options: BINDER_GRADES.map((g) => ({ value: g, label: g })),
+        options: binders.map((g) => ({ value: g, label: g })),
         onChange: (value) => app.patch('materials', { binderGrade: value }, { rerender: true }),
       }),
-      numberField({
-        label: 'Average annual pavement temperature',
-        value: materials.pavementTemperatureC,
-        suffix: '°C',
-        min: 10,
-        max: 50,
-        onInput: (value) => app.patch('materials', { pavementTemperatureC: value }),
-      }),
+      bottom.id === 'BM'
+        ? null
+        : numberField({
+            label: 'Average annual pavement temperature',
+            ref: BITUMINOUS_RULES.temperatureRef,
+            aside: `${BITUMINOUS_RULES.designTemperatureC.plains} plains · ${BITUMINOUS_RULES.designTemperatureC.snowBound} snow bound`,
+            value: materials.pavementTemperatureC,
+            suffix: '°C',
+            min: 20,
+            max: 40,
+            onInput: (value) => app.patch('materials', { pavementTemperatureC: value }),
+          }),
       numberField({
         label: 'Bituminous modulus, MRm',
         ref: MODULI.bituminous.ref,
@@ -245,7 +376,8 @@ export default function renderInputs(app) {
       }),
       numberField({
         label: 'Air voids, Va',
-        ref: CRITERIA.bituminousFatigue.ref,
+        ref: BITUMINOUS_RULES.airVoidsRef,
+        aside: bottom.id === 'DBM' ? `${BITUMINOUS_RULES.airVoids.single} one DBM · ${BITUMINOUS_RULES.airVoids.bottomOfTwo.toFixed(1)} two` : null,
         value: mix.airVoidsPercent,
         suffix: '%',
         min: 0,
@@ -260,6 +392,8 @@ export default function renderInputs(app) {
         onInput: (value) => app.patch('mix', { effectiveBinderPercent: value }),
       })
     ),
+
+    baseCard(app, described, designTrafficMsa),
 
     constructionCard(app, described),
 

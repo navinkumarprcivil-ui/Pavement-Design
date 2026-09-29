@@ -35,17 +35,21 @@ export function cbrForModulus(mr) {
  * @param {number} [input.iitpaveDeflectionMm]  Read from IITPAVE for the same
  *        system; the app's own analysis stands in until it is entered.
  */
-export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm, iitpaveDeflectionMm }) {
+export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm, lowerCBR, lowerMm, iitpaveDeflectionMm }) {
   const spec = MODULI.effectiveSubgrade;
   const thickness = borrowMm || spec.subgradeThicknessMm;
   const raw = (cbr) => (cbr <= 5 ? 10 * cbr : 17.6 * Math.pow(cbr, 0.64));
   const upper = raw(borrowCBR);
   const lower = raw(embankmentCBR);
+  // The 500 mm subgrade may be laid as two sub-layers of different CBR (Cl. 6.4.1 (i)).
+  const twoSubLayers = lowerCBR > 0 && lowerMm > 0;
+  const middle = twoSubLayers ? raw(lowerCBR) : null;
   const nu = spec.poissonRatio;
   const a = contactRadius(spec.wheelLoadN, spec.tyrePressureMPa);
   const [surface] = analyze({
     layers: [
       { h: thickness, E: upper, nu },
+      ...(twoSubLayers ? [{ h: lowerMm, E: middle, nu }] : []),
       { h: 0, E: lower, nu },
     ],
     load: { wheelLoadN: spec.wheelLoadN, tyrePressureMPa: spec.tyrePressureMPa },
@@ -55,34 +59,40 @@ export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm, iitpaveD
   const fromIitpave = iitpaveDeflectionMm > 0;
   const deflection = fromIitpave ? iitpaveDeflectionMm : computed;
   const equivalent = (2 * (1 - nu * nu) * spec.tyrePressureMPa * a) / deflection;
-  const value = Math.min(equivalent, MODULI.subgrade.capMPa);
+  // A stronger foundation below, rock above all, lends the subgrade nothing: only its own CBR is adopted.
+  const ownMR = Math.max(upper, middle ?? 0);
+  const borrowGoverns = equivalent > ownMR;
+  const value = Math.min(borrowGoverns ? ownMR : equivalent, MODULI.subgrade.capMPa);
   const cbr = cbrForModulus(value);
 
   return {
     value,
     equivalent,
+    borrowGoverns,
     deflection,
     computed,
     fromIitpave,
     cbr,
     borrowMR: upper,
+    lowerMR: middle,
+    twoSubLayers,
     embankmentMR: lower,
     steps: [
       {
         id: 'layer-moduli',
         title: 'Moduli of the select borrow and the embankment',
         formula: 'MR = 10 x CBR (CBR <= 5), 17.6 x CBR^0.64 (CBR > 5)',
-        substitution: `Borrow: CBR ${borrowCBR}%;  embankment: CBR ${embankmentCBR}%`,
-        result: `${upper.toFixed(1)} MPa over ${lower.toFixed(1)} MPa`,
+        substitution: `Borrow: CBR ${borrowCBR}%;${twoSubLayers ? `  lower sub-layer: CBR ${lowerCBR}%;` : ''}  embankment: CBR ${embankmentCBR}%`,
+        result: `${upper.toFixed(1)}${twoSubLayers ? ` and ${middle.toFixed(1)}` : ''} MPa over ${lower.toFixed(1)} MPa`,
         ref: MODULI.subgrade.ref,
         verified: MODULI.subgrade.verified,
       },
       {
         id: 'surface-deflection',
-        title: 'Surface deflection of the two-layer system',
+        title: `Surface deflection of the ${twoSubLayers ? 'three' : 'two'}-layer system`,
         formula: `Single wheel of ${spec.wheelLoadN} N at ${spec.tyrePressureMPa} MPa, μ = ${nu}` + (fromIitpave ? '; from IITPAVE' : ''),
         substitution:
-          `${thickness} mm of ${upper.toFixed(1)} MPa on ${lower.toFixed(1)} MPa, a = ${a.toFixed(1)} mm` +
+          `${thickness} mm of ${upper.toFixed(1)} MPa${twoSubLayers ? ` and ${lowerMm} mm of ${middle.toFixed(1)} MPa` : ''} on ${lower.toFixed(1)} MPa, a = ${a.toFixed(1)} mm` +
           (fromIitpave ? `; this app ${computed.toFixed(3)} mm` : ''),
         result: `δ = ${deflection.toFixed(3)} mm`,
         ref: spec.ref,
@@ -91,8 +101,10 @@ export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm, iitpaveD
       {
         id: 'effective-modulus',
         title: 'Effective subgrade modulus',
-        formula: `MRS = 2 (1 - μ^2) p a / δ, not more than ${MODULI.subgrade.capMPa} MPa`,
-        substitution: `MRS = 2 x (1 - ${nu}^2) x ${spec.tyrePressureMPa} x ${a.toFixed(1)} / ${deflection.toFixed(3)} = ${equivalent.toFixed(1)}`,
+        formula: `MRS = 2 (1 - μ^2) p a / δ, not more than the borrow's own nor ${MODULI.subgrade.capMPa} MPa`,
+        substitution:
+          `MRS = 2 x (1 - ${nu}^2) x ${spec.tyrePressureMPa} x ${a.toFixed(1)} / ${deflection.toFixed(3)} = ${equivalent.toFixed(1)}` +
+          (borrowGoverns ? `; the subgrade's own ${ownMR.toFixed(1)} MPa governs` : ''),
         result: `MRS = ${value.toFixed(1)} MPa, effective CBR ${cbr.toFixed(1)}%`,
         value,
         ref: spec.ref,
@@ -203,22 +215,42 @@ function fixedModulusStep(layer, title, source) {
  * @param {object} [context.layeredSubgrade]  {borrowCBR, embankmentCBR,
  *        borrowMm}: a select borrow subgrade over the embankment.
  */
+/**
+ * The design subgrade modulus: entered, the effective modulus of a select
+ * borrow over the embankment, or from the CBR.
+ */
+export function subgradeFor(context) {
+  const layered = context.layeredSubgrade;
+  if (context.overrides?.SUBGRADE != null) return { value: context.overrides.SUBGRADE, steps: [] };
+  if (layered?.borrowCBR > 0 && layered?.embankmentCBR > 0) {
+    const effective = effectiveSubgrade(layered);
+    return { value: effective.value, steps: effective.steps };
+  }
+  return { value: subgradeModulus(context.subgradeCBR), steps: [subgradeModulusStep(context.subgradeCBR)] };
+}
+
+/** Design modulus of the bottom bituminous mix from Table 9.2: DBM (or BC) by temperature, BM at 35 °C. */
+export function bottomMixModulus(courseId, binderGrade, temperatureC) {
+  if (courseId === 'BM') {
+    return MODULI.bituminousMacadam.byBinder[binderGrade] ?? MODULI.bituminousMacadam.byBinder.VG30;
+  }
+  return bituminousModulus(binderGrade, temperatureC);
+}
+
 export function buildLayerStack(slots, context) {
-  const { subgradeCBR, binderGrade, pavementTemperatureC, overrides = {} } = context;
+  const { binderGrade, pavementTemperatureC, overrides = {} } = context;
   const steps = [];
 
-  let subgradeMR;
-  const layered = context.layeredSubgrade;
-  if (overrides.SUBGRADE != null) {
-    subgradeMR = overrides.SUBGRADE;
-  } else if (layered?.borrowCBR > 0 && layered?.embankmentCBR > 0) {
-    const effective = effectiveSubgrade(layered);
-    subgradeMR = effective.value;
-    steps.push(...effective.steps);
-  } else {
-    subgradeMR = subgradeModulus(subgradeCBR);
-    steps.push(subgradeModulusStep(subgradeCBR));
-  }
+  const subgrade = subgradeFor(context);
+  const subgradeMR = subgrade.value;
+  steps.push(...subgrade.steps);
+
+  // The whole bituminous layer takes the modulus of its bottom mix (Cl. 9.2).
+  const bottom = [...slots].reverse().find((s) => s.behaviour === BEHAVIOUR.BITUMINOUS);
+  const bm = bottom?.slotId === 'BM';
+  const tableModulus = bottomMixModulus(bottom?.slotId, binderGrade, pavementTemperatureC);
+  const tableSource = bm ? MODULI.bituminousMacadam : MODULI.bituminous;
+  const tableLabel = bm ? `BM with ${binderGrade} at 35 deg C` : `${binderGrade} at ${pavementTemperatureC} deg C`;
 
   const layers = slots.map((slot) => ({
     ...slot,
@@ -252,33 +284,32 @@ export function buildLayerStack(slots, context) {
 
     if (layer.behaviour === BEHAVIOUR.BITUMINOUS && context.bituminousModulusMPa > 0) {
       // The design value is the smaller of the mix design's and the table's (Cl. 9.2).
-      const table = bituminousModulus(binderGrade, pavementTemperatureC);
-      layer.E = Math.min(context.bituminousModulusMPa, table);
+      layer.E = Math.min(context.bituminousModulusMPa, tableModulus);
       steps.push({
         id: `modulus-${layer.slotId}`,
         title: `${layer.label} resilient modulus`,
         formula: 'Smaller of the mix design value and the table value',
-        substitution: `min(${context.bituminousModulusMPa}, ${table.toFixed(0)} for ${binderGrade} at ${pavementTemperatureC} deg C)`,
+        substitution: `min(${context.bituminousModulusMPa}, ${tableModulus.toFixed(0)} for ${tableLabel})`,
         result: `E = ${layer.E.toFixed(0)} MPa`,
         value: layer.E,
-        ref: MODULI.bituminous.ref,
-        verified: MODULI.bituminous.verified,
+        ref: tableSource.ref,
+        verified: tableSource.verified,
       });
       index -= 1;
       continue;
     }
 
     if (layer.behaviour === BEHAVIOUR.BITUMINOUS) {
-      layer.E = bituminousModulus(binderGrade, pavementTemperatureC);
+      layer.E = tableModulus;
       steps.push({
         id: `modulus-${layer.slotId}`,
         title: `${layer.label} resilient modulus`,
-        formula: 'Table value for the binder grade and pavement temperature',
-        substitution: `${binderGrade} at ${pavementTemperatureC} deg C`,
+        formula: bm ? 'Table value for bituminous macadam and its binder' : 'Table value for the binder grade and pavement temperature',
+        substitution: tableLabel,
         result: `E = ${layer.E.toFixed(0)} MPa`,
         value: layer.E,
-        ref: MODULI.bituminous.ref,
-        verified: MODULI.bituminous.verified,
+        ref: tableSource.ref,
+        verified: tableSource.verified,
       });
       index -= 1;
       continue;
@@ -286,10 +317,19 @@ export function buildLayerStack(slots, context) {
 
     if (layer.behaviour === BEHAVIOUR.CEMENTED) {
       const isBase = layer.slotId === 'BASE';
+      const low = !isBase && context.ctsbStrength === 'low';
       layer.E = isBase
         ? MODULI.cemented.ctbModulusMPa
-        : MODULI.cemented.ctsbModulusMPa;
-      steps.push(fixedModulusStep(layer, `${layer.label} modulus`, MODULI.cemented));
+        : low
+          ? MODULI.lowStrengthCTSB.modulusMPa
+          : MODULI.cemented.ctsbModulusMPa;
+      steps.push(
+        fixedModulusStep(
+          layer,
+          low ? `${layer.label} modulus, 7-day UCS 0.75 - 1.5 MPa` : `${layer.label} modulus`,
+          low ? MODULI.lowStrengthCTSB : MODULI.cemented
+        )
+      );
       index -= 1;
       continue;
     }
@@ -310,9 +350,14 @@ export function buildLayerStack(slots, context) {
 
     const below = layers[index + 1];
     if (below.behaviour === BEHAVIOUR.CEMENTED && below.slotId === 'SUB_BASE') {
-      layer.E = MODULI.granularOverCTSB.crushedRockMPa;
+      const gravel = context.granularOverCtsb === 'gravel';
+      layer.E = gravel ? MODULI.granularOverCTSB.naturalGravelMPa : MODULI.granularOverCTSB.crushedRockMPa;
       steps.push(
-        fixedModulusStep(layer, `${layer.label} on a cement treated sub-base`, MODULI.granularOverCTSB)
+        fixedModulusStep(
+          layer,
+          `${layer.label} on a cement treated sub-base, ${gravel ? 'natural gravel' : 'crushed rock'}`,
+          MODULI.granularOverCTSB
+        )
       );
       index -= 1;
       continue;

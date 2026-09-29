@@ -21,10 +21,14 @@ export function reliabilityFor(msa, roadCategoryId) {
   return msa >= CRITERIA.reliability.thresholdMsa ? 90 : 80;
 }
 
-/** Reliability factor of a cement treated base: 1 or 2. */
+/**
+ * Reliability factor of a cement treated base: 1 or 2. Cl. 3.6.3.1 gives 1
+ * above 10 msa and Cl. 12.3 from 10 msa; at exactly 10 msa the stricter 1 is
+ * taken, which satisfies both.
+ */
 export function ctbReliabilityFactor(msa, roadCategoryId) {
   if (roadCategory(roadCategoryId)?.important) return 1;
-  return msa > CRITERIA.cementedFatigue.reliabilityFactorThresholdMsa ? 1 : 2;
+  return msa >= CRITERIA.cementedFatigue.reliabilityFactorThresholdMsa ? 1 : 2;
 }
 
 /**

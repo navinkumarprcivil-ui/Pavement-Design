@@ -5,12 +5,13 @@ clause, table or equation and the **printed page number** to open your copy
 at. The same page number appears on every clause chip in the app (for example
 `Cl. 6.4.1, Eq. 6.3, p. 20`) and in the references of each report.
 
-Checked on 28 September 2026 against:
+Checked on 28 September 2026, and clause by clause for limits, restrictions
+and variations on 29 September 2026, against:
 
 | Code | Edition | Pages checked |
 |---|---|---|
-| IRC:37-2018 | Fourth Revision | 1 – 84 (clauses, Table 11.1, Annex II) |
-| IRC:58-2015 | Fourth Revision | 1 – 94 (clauses, Appendix V, VII) |
+| IRC:37-2018 | Fourth Revision | 1 – 84 (clauses, Tables 4.1, 9.1, 9.2, 11.1, Annex II, III) |
+| IRC:58-2015 | Fourth Revision | 1 – 94 (clauses, Appendix V – IX) |
 | IRC:SP:72-2015 | First Revision | 1 – 42 (clauses, Figs. 4 and 6, Appendix A – D) |
 | IRC:SP:62-2014 | First Revision | 1 – 41 (clauses, Appendix I, II) |
 
@@ -34,33 +35,49 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Mix factor | C = 10^M, M = 4.84 [Vbe/(Va+Vbe) − 0.69] | Cl. 3.6.2 | 6 | ✓ |
 | Design air voids | 3.5% single DBM; 3.0% bottom of two | Cl. 9.2 | 31 | ✓ |
 | CTB fatigue | N = RF [(113000/E^0.804 + 191)/εt]^12, at 0.80 MPa | Cl. 3.6.3.1, Eq. 3.5 | 7 | ✓ |
-| Reliability factor RF | 1 on important roads and above 10 msa; 2 otherwise | Cl. 3.6.3.1 | 7 | ✓ |
-| CTB damage | log10 Nfi = (0.972 − σt/MRup)/0.0825; CFD = Σ ni/Nfi < 1 | Cl. 3.6.3.2, Eq. 3.6 / 3.7 | 7, 8 | ✓ |
+| Reliability factor RF | 1 on important roads and from 10 msa; 2 otherwise | Cl. 3.6.3.1 / 12.3; Annex-III | 7, 35, 80 | Note (12) |
+| CTB damage | log10 Nfi = (0.972 − σt/MRup)/0.0825; CFD = Σ ni/Nfi ≤ 1 | Cl. 3.6.3.2 / 11.1.7, Eq. 3.6 / 3.7 | 7, 8, 33 | Note (12) |
 | Tandem and tridem | 2 singles at ½ load; 3 singles at ⅓ load; 0.80 MPa | Cl. 3.6.3.2 | 8 | ✓ |
 | Reliability | 90% on important roads, and on others from 20 msa; else 80% | Cl. 3.7 | 8 | ✓ |
 | Growth rate floor | 5% | Cl. 4.2.2 | 14 | ✓ |
 | Design period | 20 years NH, SH, urban; 15 others; 30 or long-life above 300 msa | Cl. 4.3.1 | 14 | ✓ |
+| Stage construction | Stage-1 bituminous layers for 1.67 × stage-1 traffic (not above N); base and sub-base for the full period; no CTB or CTSB; not long-life; reliability and binder on the full N | Cl. 4.3.2; Annex-II, II.7 | 14; 78, 79 | **Added**, Note (14) |
+| VDF from axle loads | (P/65)^4 single axle single wheel; (P/80)^4 single dual; (P/148)^4 tandem; (P/224)^4 tridem; single-wheeled tandems and tridems as 2 and 3 single axles; Σ over the vehicles weighed | Cl. 4.4.3, Eq. 4.1 – 4.4 | 15 | **Added** |
+| Survey sample | 20% below 3000 CVPD; 15% (at least 600) to 6000; 10% (at least 900) above | Cl. 4.4.4, Table 4.1 | 15 | **Added**, Note (13) |
+| Load classes | 10, 20, 30 kN for single, tandem, tridem | Cl. 4.4.5 | 16 | ✓ |
 | Indicative VDF | 0–150: 1.7 / 0.6; 150–1500: 3.9 / 1.7; >1500: 5.0 / 2.8 | Cl. 4.4.6, Table 4.2 | 16 | ✓ |
 | Lateral distribution | 1.0, 0.75, 0.5, 0.4; divided 0.75, 0.6, 0.45 | Cl. 4.5.1 | 16, 17 | ✓ |
 | Design traffic | N = 365 A D F [(1+r)^n − 1]/r; A = P(1+r)^x | Cl. 4.6.1, Eq. 4.5 / 4.6 | 17 | ✓ |
+| Directional VDF | Undivided: the larger of the two directions; divided: each direction's own | Cl. 4.6.2 | 17 | ✓ |
+| CBR percentile | 90th on expressways, NH, SH and urban roads, and from 20 msa; else 80th | Cl. 6.2.2 | 19 | **Added** |
 | Subgrade modulus | 10 CBR (≤ 5%); 17.6 CBR^0.64 (> 5%); μ 0.35 | Cl. 6.3, Eq. 6.1 / 6.2 | 19 | ✓ |
 | Effective subgrade | 40,000 N, 0.56 MPa, a = 150.8 mm, 500 mm layer, MRS = 2(1−μ²)pa/δ; δ from the app's analysis or read from IITPAVE (step (i)); app 1.411 mm against Annex-II.1's 1.41 mm | Cl. 6.4.1, Eq. 6.3 | 20 | ✓ |
+| Over a stronger foundation | The effective value not above the subgrade's own (the stronger of its layers) | Cl. 6.4.1 | 20 | **Corrected** (12) |
+| Subgrade in two sub-layers | Three-layer analysis of the two halves over the embankment | Cl. 6.4.1 (i) | 20 | **Added** |
+| GSB sizing | On the effective subgrade modulus, as the analysis | Cl. 7.2.2 | 21, 22 | **Corrected** (12) |
 | Subgrade modulus cap | 100 MPa | Cl. 6.4.2 | 20 | ✓ |
 | Minimum subgrade CBR | Over 5% above 450 CVPD | Cl. 6.4.3 | 20 | ✓ |
 | GSB minimum | 150 mm (single filter-cum-drainage layer) | Cl. 7.2.2 | 21 | ✓ |
+| GSB layers | Over 200 mm: drainage (Gr III / IV) over filter (Gr I / II / V / VI), each at least 100 mm; else one drainage-cum-filter layer (Gr V / VI) | Cl. 7.2.1 / 7.2.2 | 21, 22 | **Added** (report) |
 | Construction traffic | Larger of dumper traffic and 10,000 standard axles | Cl. 7.2.2 | 21, 22 | ✓ |
 | Granular modulus | MR = 0.2 h^0.45 MR(support); μ 0.35 | Cl. 7.2.3, Eq. 7.1 | 22 | ✓ |
-| CTSB | 600 MPa, μ 0.25, minimum 200 mm | Cl. 7.3.1 / 7.3.2 | 23 | ✓ |
-| Granular base on CTSB | 300 MPa gravel, 350 MPa crushed rock | Cl. 8.1 | 24 | ✓ |
+| CTSB | 600 MPa at 7-day UCS 1.5 – 3 MPa, μ 0.25, minimum 200 mm | Cl. 7.3.1 / 7.3.2 | 23 | ✓ |
+| Low strength CTSB | 400 MPa at 7-day UCS 0.75 – 1.5 MPa; below 10 msa and off expressways, NH and SH | Cl. 7.3.2 | 23, 24 | **Added** |
+| Granular base on CTSB | 300 MPa gravel, 350 MPa crushed rock | Cl. 8.1 | 24 | **Corrected** (12) |
 | Unbound base minimum | 150 mm; crack relief layer 100 mm | Cl. 8.1 | 24 | ✓ |
 | CTB | 5000 MPa, μ 0.25, minimum 100 mm | Cl. 8.2.1 | 25 | ✓ |
 | Modulus of rupture | 20% of 28-day UCS; caps 1.40, 1.05, 0.70 MPa | Cl. 8.2.2 | 26 | ✓ |
 | Crack relief aggregate | 450 MPa, μ 0.35 | Cl. 8.3 | 26 | ✓ |
 | Treated RAP base | 800 MPa, μ 0.35, minimum 100 mm | Cl. 8.4 | 27 | ✓ |
+| Mixes and binders | SDBC and BM only below 20 msa and off NH and expressways; DBM binder VG40 from 20 msa and on NH and expressways, VG30 otherwise allowed, VG10 only where snow bound; BM with VG10 or VG30 | Cl. 9.1, Table 9.1 | 27 – 29 | **Corrected** (12) |
 | Bituminous moduli | VG10, VG30, VG40 at 20 – 40 °C | Cl. 9.2, Table 9.2 | 30 | ✓ |
+| BM modulus | VG10 500 MPa, VG30 700 MPa, at 35 °C | Cl. 9.2, Table 9.2 | 30 | **Added** |
+| Design temperature | 35 °C in the plains, 20 °C snow bound; the table's 20 – 40 °C | Cl. 9.2, Table 9.2 note a | 30 | **Added** |
 | Mix-design modulus | Smaller of the tested value and Table 9.2 | Cl. 9.2 / 11.1.2, Table 11.1 | 30, 33, 34 | **Corrected** (1) |
 | Bituminous over CTB | At least 100 mm above 20 msa | Cl. 9.2 | 32 | ✓ |
 | Material properties | As Table 11.1 | Table 11.1 | 34 | ✓ |
+| Long-life | From 300 msa and on expressways; εt at most 80 µε (plains, 35 °C) or 70 µε, εv at most 200 µε | Cl. 4.3.1 / 10 | 14, 32 | **Added** |
+| Frost | Total thickness at least 450 mm; the sub-base makes it up | Cl. 13.2 | 52 | **Added** |
 | Dumper VDF | 2 (120/80)^4 + (80/65)^4 = 12.41; 200 trips | Annex II, Example II.2 | 69 | ✓ |
 | CTB under construction | 7-day flexural ≈ 70% of MRup; 70 trips | Annex II, Example II.4 | 76 | ✓ |
 
@@ -76,18 +93,24 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Commercial vehicles | C = 365 A [(1+r)^n − 1]/r | Cl. 5.5.2.7, Eq. 1 | 6 | ✓ |
 | Temperature | Zones I – VII, 150 / 200 / 250 / 300 – 400 mm | Cl. 5.6.1.1, Table 1 | 7 | ✓ |
 | Night differential | Half the day value, plus 5 °C built-in curl | Cl. 5.6.1.1 / 5.6.2.1 / 5.6.2.3 | 6 – 8 | ✓ |
+| Design period | 30 years or more | Cl. 5.4 | 4 | ✓ |
 | k from CBR | 2 … 100% → 21 … 220 MPa/m | Cl. 5.7.3.4, Table 2 | 9 | ✓ |
+| k from a plate load test | k750 = kΦ (1.21 Φ + 0.078) for a smaller plate; × soaked / unsoaked CBR | Cl. 5.7.3.1 / 5.7.3.2 / 5.7.3.4, Eq. 2 | 9 | **Added** |
+| k from FWD | Static k = 0.5 × dynamic k | Cl. 5.7.3.8 | 10 | **Added** |
 | Minimum CBR | 8% for the 500 mm subgrade | Cl. 5.7.3.6 | 10 | **Corrected** (2) |
 | DLC | 7 MPa at 7 days; minimum 150 mm | Cl. 5.7.4.1 | 11 | **Corrected** (2) |
 | k over GSB and CTSB | Table 3 | Cl. 5.7.4.4, Table 3 | 12 | ✓ |
 | k over DLC | Table 4, upper limit 300 MPa/m | Cl. 5.7.4.4, Table 4 | 11, 12 | ✓ |
-| Flexural strength | 0.7 √fck; 90-day = 1.10 × 28-day; not under 4.5 MPa | Cl. 5.8.1 / 5.8.2 | 12, 13 | ✓ |
+| Flexural strength | From the beam test, or 0.7 √fck; 90-day = 1.10 × 28-day; not under 4.5 MPa | Cl. 5.8.1 / 5.8.2 | 12, 13 | ✓ (fck route **Added**) |
 | Concrete | E 30,000 MPa, μ 0.15, α 10e-6 /°C, γ 24 kN/m³ | Cl. 5.8.4.1 / 5.8.5, App. V | 13, 74 | ✓ |
 | Fatigue | Unlimited under SR 0.45; Eq. 5 for 0.45 – 0.55; Eq. 6 above | Cl. 5.8.6.1, Eq. 5 / 6 | 13, 14 | Note (3) |
 | Bottom-up stress | Eq. V.1 – V.12 coefficients, k bands 80 and 150 | Appendix V | 73, 74 | ✓ |
 | Top-down stress | Eq. V.13: −0.219, 1.686, 168.48, 0.1089; β 0.66 / 0.90 | Appendix V | 74, 75 | ✓ |
 | Criterion | CFD(BUC) + CFD(TDC) ≤ 1; +10 mm for retexturing | Cl. 6.3.4.1, Eq. 7 / 8 | 19 | ✓ |
 | Dowels | Table 5; none under 200 mm | Cl. 7.2.6, Table 5 | 27 | ✓ |
+| Dowel bearing | Heaviest single axle; wheel less 30% to a tied shoulder, 50% across the joint, shared linearly over the dowels within l; β = [kmds d/(4EI)]^¼, kmds 415,000 MPa/m; Fbmax = kmds (2 + βz) Pt/(4β³EI), z 5 and 20 mm; Fb = (101.6 − d) fck/95.25 | Cl. 7.2.2 – 7.2.7, Eq. 14 / 15; Appendix-VIII | 26, 27; 90, 91 | **Added**, Note (15) |
+| Shoulders and lanes | Tied concrete shoulders on high volume roads; widened outer lane on two-lane two-way roads only | Cl. 6.2.5 / 6.6.1 | 17, 21 | **Added** (warnings) |
+| Panel shape | Length over 1.5 × width to be reinforced | Cl. 8.2.3 / 9.4 | 28, 30 | **Added** (warning) |
 | Bonded PQC on DLC | k on the 200 – 250 mm granular layer below the DLC (Table 3); slab h designed there; PQC h1 (5 mm steps) with D1 + D2 ≥ E h³/12(1 − µ²); DLC E = 1000 fck(28), µ 0.2, 7-day ≥ 10 MPa | Cl. 6.7.1 – 6.7.3, Eq. 10 – 13 | 22, 23 | Note (9) |
 | Bonded example | d 0.16 m; D1 46.65, D2 23.28, D 69.05 MN·m; 235 mm PQC on 150 mm DLC for a 300 mm slab | Appendix VII, Option IV | 89 | ✓ |
 | Tie bars | As = b f W / Sst, f 1.5, 24 kN/m³; Sst 125 / 200 MPa, B* 1.75 / 2.46 MPa (plain / deformed); L = 2 Sst A / (B* P) + 100 + 50 mm; spacing ≤ 750 mm, Ø ≤ 16 mm | Cl. 8.2.1 – 8.2.4, Eq. 16 / 17 | 28, 29 | Note (10) |
@@ -152,6 +175,7 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Non-linear relief | 0.0767 MPa per °C of ΔT/3 | Appendix II, Table II-1 | 41 | ✓ |
 | Temperature | Zones I – VI, 150 / 200 / 250 mm | Cl. 4.2.1.2, Table 4.1 | 12 | ✓ |
 | Minimum slab | 150 mm | Cl. 4.3 | 13 | ✓ |
+| Joints | No dowels at contraction joints; expansion joints 25 mm dowels, 450 mm long at 250 mm; longitudinal joint where wider than 4.5 m | Cl. 5.2.3 / 5.2.4 / 5.3 | 20 | **Added** (report) |
 | Worked example | 4.34, 4.37, 3.985, 3.93 MPa; 150 mm fails, 160 mm passes | Appendix I | 35, 36 | ✓ |
 
 ---
@@ -224,6 +248,52 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
    200 – 250 mm of Cl. 6.7.2 and the k of Table 3. The time-to-drain route of
    VI-VI (AASHTO 93) is not built; the code's example uses inflow against
    outflow, as the app does.
+12. **Clause-by-clause check of IRC:37 (29 September 2026).** Corrected:
+   - Table 9.1 was not enforced. SDBC and BM are now offered only below
+     20 msa off national highways and expressways; the DBM binder is VG40 from
+     20 msa and on those roads, VG10 only where snow bound. BM (Table 9.2,
+     500 / 700 MPa) was missing and is added.
+   - The effective subgrade over a stronger foundation (rock, or an embankment
+     better than the borrow) could exceed the subgrade's own modulus. Cl. 6.4.1
+     adopts the subgrade's value there; the app caps it.
+   - The granular sub-base was sized on the plain subgrade CBR while the
+     analysis used the effective modulus; both now use the effective value.
+   - A granular base over a CTSB was always 350 MPa; natural gravel is 300 MPa
+     (Cl. 8.1).
+   - RF: Cl. 3.6.3.1 gives 1 "above" 10 msa; Cl. 12.3 and Annex-III give 1 "for
+     10 msa or more". At exactly 10 msa the app takes 1, as the examples do.
+   - CFD of a CTB: Cl. 3.6.3.2 asks for less than 1, Cl. 11.1.7 that it "does
+     not exceed unity". The app passes CFD ≤ 1.
+
+   Added: the 90th / 80th CBR percentile (Cl. 6.2.2), two sub-layers of the
+   500 mm subgrade (Cl. 6.4.1 (i)), the low strength CTSB (Cl. 7.3.2), the
+   GSB drainage and filter layers (Cl. 7.2.1), the design temperature (Table
+   9.2 note a), the air voids of one or two DBM layers (Cl. 9.2), long-life
+   (Cl. 10), frost (Cl. 13.2), the VDF from axle loads (Eq. 4.1 – 4.4) and
+   stage construction (Cl. 4.3.2). An empty input now stops the design instead
+   of standing in as zero or as the end of a table.
+13. **IRC:37 Table 4.1.** The table gives the share of the commercial traffic
+   to weigh. The app compares the vehicles weighed with the share of the
+   traffic in the direction surveyed (the design direction on a divided road,
+   half the two-way count otherwise) at the time of the count, and warns
+   below it.
+14. **IRC:37 stage construction.** Cl. 4.3.2 gives 1.67 times the stage-1
+   traffic; Annex-II, II.7 divides by 0.60 (46.9 msa to 78 msa). The app uses
+   the clause's 1.67 (78.3 msa), never more than the full design traffic.
+   Reliability, the binder of Table 9.1 and the route to IRC:SP:72 stay with
+   the full design traffic; the base and sub-base thicknesses do not depend on
+   the design traffic in the analysis, so they carry to stage 2 unchanged.
+   Stage 2 is left to the structural evaluation after stage 1 (IRC:115 or
+   IRC:81), as the clause says.
+15. **IRC:58 dowel bearing.** Appendix VIII prints Fbmax 20.19 MPa at the
+   20 mm expansion joint; carried through from its own inputs (33.25 kN, four
+   dowels, Σ 2.26, Pt 14.70 kN) the equations give 19.6 MPa against Fb
+   26.71 MPa, which the app shows. The verdict is the same.
+
+**Not built.** DCP route to CBR (IRC:58 Cl. 5.7.3.7, Eq. 3, optional);
+jointed reinforced concrete pavements (IRC:58 Cl. 9) — joints are held to
+4.5 m with a warning; the time-to-drain route of IRC:58 VI-VI; the IRC:37
+catalogues (Cl. 12), which the code gives for guidance only.
 
 ## How it is kept checked
 
@@ -233,6 +303,11 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
   Appendix IX and Table 6 (tie bars).
 - `tests/drainage.test.js` — IRC:58 Eq. 9 and the Appendix VI drainage layer
   example.
+- `tests/irc37Rules.test.js`, `tests/vdfSurvey.test.js`,
+  `tests/stageConstruction.test.js` — IRC:37 Table 9.1, BM, low strength CTSB,
+  Cl. 6.4.1, long-life, frost, Eq. 4.1 – 4.4, Table 4.1, Cl. 4.3.2 and
+  Annex-II, II.7.
+- `tests/irc58Rules.test.js` — IRC:58 plate and FWD k, fck, Appendix VIII.
 - `tests/sp72.test.js` — SP:72 Appendix A and D, Table 4, categories.
 - `tests/sp62.test.js` — SP:62 Appendix I.
 

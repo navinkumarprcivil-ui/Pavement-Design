@@ -4,7 +4,8 @@ import { designTraffic } from '../project.js';
 import { sectionDiagram } from './layers.js';
 import { hasCTB, ctbDamageInput } from '../ctbProject.js';
 import { AXLES } from '../spectrum.js';
-import { TRAFFIC } from '../../data/ircConstants.js';
+import { STAGE_CONSTRUCTION, TRAFFIC } from '../../data/ircConstants.js';
+import { displaySlots } from '../../data/layerCatalog.js';
 import { iitpaveMissing } from '../iitpave.js';
 import { verdictBanner } from './iitpave.js';
 
@@ -258,7 +259,9 @@ export default function renderResults(app) {
     h(
       'div',
       { class: 'key-results' },
-      keyResult('Design traffic', result.designTrafficMsa.toFixed(2), 'msa', TRAFFIC.growthEquation.ref),
+      traffic.stage
+        ? keyResult('Stage-1 design traffic', result.designTrafficMsa.toFixed(2), 'msa', STAGE_CONSTRUCTION.ref)
+        : keyResult('Design traffic', result.designTrafficMsa.toFixed(2), 'msa', TRAFFIC.growthEquation.ref),
       result.checks
         .filter((c) => c.allowableMicro != null)
         .map((c) => keyResult(ALLOWABLE_LABEL[c.id] || c.title, c.allowableMicro.toFixed(1), 'µε', c.ref)),
@@ -280,7 +283,7 @@ export default function renderResults(app) {
       notice('warn', 'Not checked here', `${item.title} · ${formatCitation(item.ref)}`)
     ),
 
-    card('Section', sectionDiagram(result.slots), layerTable(result.layers)),
+    card('Section', sectionDiagram(displaySlots(result.slots, app.state.combination)), layerTable(result.layers)),
 
     card('Strains, app analysis', strainTable(result.responses)),
 

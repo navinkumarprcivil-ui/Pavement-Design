@@ -4,7 +4,7 @@
  */
 
 import { h, card, numberField, fold, button } from './dom.js';
-import { RIGID } from '../data/ircConstants.js';
+import { RIGID, TRAFFIC } from '../data/ircConstants.js';
 
 export const AXLES = [
   { id: 'single', label: 'Rear single' },
@@ -36,18 +36,18 @@ export function spectrumTotal(rows) {
 
 /**
  * Rows from text pasted out of a spreadsheet. A line with two numbers is a
- * load and a share; with three, a class range and a share, taken at the
- * range's mid-point.
+ * load and a share (or a count, under `key`); with three, a class range and a
+ * share, taken at the range's mid-point.
  */
-export function parseSpectrum(text) {
+export function parseSpectrum(text, key = 'percent') {
   return text
     .split(/\r?\n/)
     .map((line) => (line.match(/\d+(?:\.\d+)?/g) || []).map(Number))
     .filter((nums) => nums.length >= 2)
     .map((nums) =>
       nums.length >= 3
-        ? { loadKN: (nums[0] + nums[1]) / 2, percent: nums[2] }
-        : { loadKN: nums[0], percent: nums[1] }
+        ? { loadKN: (nums[0] + nums[1]) / 2, [key]: nums[2] }
+        : { loadKN: nums[0], [key]: nums[1] }
     );
 }
 
@@ -193,6 +193,110 @@ export function spectrumCard(app, spectrum, axle, foldKey, onChange = () => {}) 
             const parsed = parseSpectrum(paste.value);
             if (!parsed.length) return;
             spectrum[axle.id] = parsed;
+            app.persist();
+            app.render();
+          },
+          { kind: 'secondary' }
+        ),
+      ],
+    })
+  );
+}
+
+/** An IRC:37 axle load survey: vehicles weighed and the axles of each type by load. */
+export const defaultAxleSurvey = () => ({
+  vehicles: null,
+  ...Object.fromEntries(TRAFFIC.axleEquivalence.axles.map((axle) => [axle.id, []])),
+});
+
+/**
+ * One axle type's loads and the number of axles weighed at each.
+ *
+ * @param {object} survey  From defaultAxleSurvey(); edited in place.
+ * @param {object} axle    An entry of TRAFFIC.axleEquivalence.axles.
+ */
+export function surveyCard(app, survey, axle, onChange = () => {}) {
+  const rows = survey[axle.id];
+  const total = h('strong', {});
+  const showTotal = () => {
+    total.textContent = rows.reduce((sum, r) => sum + (Number(r.count) || 0), 0).toLocaleString('en-IN');
+  };
+
+  const paste = h('textarea', { rows: 5, class: 'paste-area', 'aria-label': `${axle.label} axles` });
+
+  const row = (entry, index) =>
+    h(
+      'div',
+      { class: 'spectrum-row' },
+      numberField({
+        label: index === 0 ? 'Load, kN' : null,
+        value: entry.loadKN,
+        min: 0,
+        onInput: (value) => {
+          entry.loadKN = value;
+          app.persist();
+          onChange();
+        },
+      }),
+      numberField({
+        label: index === 0 ? 'Axles' : null,
+        value: entry.count,
+        min: 0,
+        onInput: (value) => {
+          entry.count = value;
+          app.persist();
+          showTotal();
+          onChange();
+        },
+      }),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'row-remove',
+          'aria-label': 'Remove class',
+          onclick: () => {
+            rows.splice(index, 1);
+            app.persist();
+            app.render();
+          },
+        },
+        '×'
+      )
+    );
+
+  showTotal();
+
+  return card(
+    `${axle.label} · Ps ${axle.standardKN} kN`,
+    rows.length ? h('div', { class: 'spectrum-rows' }, rows.map(row)) : null,
+    h('div', { class: 'spectrum-total' }, h('span', {}, 'Axles'), total),
+    h(
+      'div',
+      { class: 'spectrum-actions' },
+      button(
+        'Add class',
+        () => {
+          const loads = rows.map((r) => r.loadKN).filter((load) => load > 0);
+          rows.push({ loadKN: loads.length ? Math.max(...loads) + axle.classWidthKN : null, count: null });
+          app.persist();
+          app.render();
+        },
+        { kind: 'ghost' }
+      )
+    ),
+    fold({
+      title: 'Paste from a spreadsheet',
+      memory: app.folds,
+      key: `survey-paste-${axle.id}`,
+      children: [
+        paste,
+        button(
+          'Replace with pasted',
+          () => {
+            const parsed = parseSpectrum(paste.value, 'count');
+            if (!parsed.length) return;
+            survey[axle.id] = parsed;
             app.persist();
             app.render();
           },

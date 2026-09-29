@@ -145,6 +145,39 @@ export const TRAFFIC = {
     ],
   },
 
+  /** Undivided roads take the larger directional VDF; divided ones each direction's own (Cl. 4.6.2). */
+  directionalVDF: {
+    ref: ref('IRC37', 'Cl. 4.6.2', { page: 17 }),
+    verified: true,
+  },
+
+  /**
+   * VDF from an axle load survey: each axle as equivalent 80 kN standard
+   * axles, (P / Ps)^4, over the vehicles weighed. Single wheeled tandems and
+   * tridems count as two and three single axles with single wheels.
+   */
+  axleEquivalence: {
+    ref: ref('IRC37', 'Cl. 4.4.3', { equation: 'Eq. 4.1 – 4.4', page: 15 }),
+    verified: true,
+    exponent: 4,
+    axles: [
+      { id: 'singleSingle', label: 'Single axle, single wheel', standardKN: 65, classWidthKN: 10 },
+      { id: 'singleDual', label: 'Single axle, dual wheel', standardKN: 80, classWidthKN: 10 },
+      { id: 'tandem', label: 'Tandem axle, dual wheel', standardKN: 148, classWidthKN: 20 },
+      { id: 'tridem', label: 'Tridem axle, dual wheel', standardKN: 224, classWidthKN: 30 },
+    ],
+    classRef: ref('IRC37', 'Cl. 4.4.5', { page: 16 }),
+    /** Minimum share of the commercial traffic to weigh, by its volume. */
+    sample: {
+      ref: ref('IRC37', 'Cl. 4.4.4', { table: 'Table 4.1', page: 15 }),
+      rows: [
+        { belowCVPD: 3000, percent: 20, minimum: 0 },
+        { uptoCVPD: 6000, percent: 15, minimum: 600 },
+        { uptoCVPD: Infinity, percent: 10, minimum: 900 },
+      ],
+    },
+  },
+
   /** IRC:37 covers 2 msa and above; below that IRC:SP:72 applies. */
   lowVolumeThresholdMsa: {
     value: 2,
@@ -261,6 +294,27 @@ export const MODULI = {
     ctsbModulusMPa: 600,
   },
 
+  /**
+   * A CTSB of 7-day UCS 0.75 - 1.5 MPa takes 400 MPa in place of 600, and is
+   * not for major highways: only below 10 msa (Cl. 7.3.2).
+   */
+  lowStrengthCTSB: {
+    ref: ref('IRC37', 'Cl. 7.3.2', { page: '23, 24' }),
+    verified: true,
+    modulusMPa: 400,
+    belowMsa: 10,
+    ucsMPa: [0.75, 1.5],
+    standardUcsMPa: [1.5, 3],
+    majorHighways: ['expressway', 'nh', 'sh'],
+  },
+
+  /** Bituminous macadam base course, by binder, at 35 °C (Table 9.2). */
+  bituminousMacadam: {
+    ref: ref('IRC37', 'Cl. 9.1 / 9.2', { table: 'Table 9.2', page: '28 – 30' }),
+    verified: true,
+    byBinder: { VG10: 500, VG30: 700 },
+  },
+
   /** Reclaimed asphalt base treated with foamed bitumen or bitumen emulsion. */
   rapBase: {
     ref: ref('IRC37', 'Cl. 8.4', { page: 27 }),
@@ -277,6 +331,83 @@ export const MODULI = {
     bituminous: 0.35,
     cemented: 0.25,
   },
+};
+
+/**
+ * Bituminous mixes and binders by traffic (Cl. 9.1, Table 9.1): DBM with VG40
+ * from 20 msa and on expressways and national highways at any traffic, VG30
+ * or VG40 below; BM and SDBC only below 20 msa and off national highways and
+ * expressways; VG10 in snow bound locations. The design modulus is read at
+ * 35 °C in the plains and 20 °C where snow bound (Table 9.2, note a).
+ */
+export const BITUMINOUS_RULES = {
+  ref: ref('IRC37', 'Cl. 9.1', { table: 'Table 9.1', page: '27 – 29' }),
+  verified: true,
+  vg40FromMsa: 20,
+  vg40Categories: ['expressway', 'nh'],
+  modifiedSurfaceAboveMsa: 50,
+  designTemperatureC: { plains: 35, snowBound: 20 },
+  temperatureRef: ref('IRC37', 'Cl. 9.2', { table: 'Table 9.2, note a', page: 30 }),
+  /** DBM laid in two layers above this thickness; the bottom one at 3.0% air voids (Cl. 9.2). */
+  singleDbmMaxMm: 100,
+  airVoids: { single: 3.5, bottomOfTwo: 3 },
+  airVoidsRef: ref('IRC37', 'Cl. 9.2', { page: 31 }),
+};
+
+/** Total pavement at least 450 mm where frost acts (Cl. 13.2). */
+export const FROST = {
+  ref: ref('IRC37', 'Cl. 13.2', { page: 52 }),
+  verified: true,
+  minimumTotalMm: 450,
+};
+
+/**
+ * Long-life pavements from 300 msa: the bituminous tensile strain held under
+ * the endurance limit, 80 µε at 35 °C in the plains (70 µε otherwise), and
+ * the subgrade strain under 200 µε (Cl. 10).
+ */
+export const LONG_LIFE = {
+  ref: ref('IRC37', 'Cl. 4.3.1 / 10', { page: '14, 32' }),
+  verified: true,
+  fromMsa: 300,
+  bituminousMicro: { plains: 80, other: 70 },
+  subgradeMicro: 200,
+};
+
+/**
+ * Stage construction (Cl. 4.3.2): the base and sub-base for the full design
+ * period, the stage-1 bituminous layers for 1.67 times the stage-1 traffic
+ * so that 40% of their life remains; not with cement treated layers.
+ */
+export const STAGE_CONSTRUCTION = {
+  ref: ref('IRC37', 'Cl. 4.3.2', { page: 14 }),
+  example: ref('IRC37', 'Annex-II, II.7', { page: '78, 79' }),
+  verified: true,
+  factor: 1.67,
+  lifeRemaining: 0.4,
+};
+
+/**
+ * Subgrade CBR percentile to design on (Cl. 6.2.2): the 90th on expressways,
+ * national and state highways and urban roads; on others the 80th below
+ * 20 msa and the 90th from it.
+ */
+export const CBR_PERCENTILE = {
+  ref: ref('IRC37', 'Cl. 6.2.2', { page: 19 }),
+  verified: true,
+  fromMsa: 20,
+};
+
+/**
+ * Granular sub-base sub-layers (Cl. 7.2.1 / 7.2.2): above 200 mm a drainage
+ * layer (MoRTH GSB Grading III or IV) over a filter layer (I, II, V or VI),
+ * each at least 100 mm; up to 200 mm one drainage-cum-filter layer (V or VI).
+ */
+export const GSB_LAYERS = {
+  ref: ref('IRC37', 'Cl. 7.2.1 / 7.2.2', { page: '21, 22' }),
+  verified: true,
+  splitAboveMm: 200,
+  eachMinimumMm: 100,
 };
 
 /* ------------------------------------------------------------------ *
@@ -437,6 +568,25 @@ export const RIGID = {
     /** Design flexural strength may be the 90-day value, 1.1 x the 28-day one. */
     ninetyDayFactor: 1.1,
     minimumFlexural28MPa: 4.5,
+    /** Fcr = 0.7 √fck, from the characteristic cube strength (Cl. 5.8.1). */
+    fromFck: 0.7,
+    fckMPa: 40,
+    fckRef: ref('IRC58', 'Cl. 5.8.1', { page: 12 }),
+  },
+
+  /**
+   * k measured on the foundation (Cl. 5.7.3.2 / 5.7.3.4 / 5.7.3.8): a plate
+   * other than 750 mm converted by k750 = kΦ (1.21 Φ + 0.078); a plate value
+   * scaled by the ratio of soaked to unsoaked CBR; an FWD value halved.
+   */
+  measuredK: {
+    ref: ref('IRC58', 'Cl. 5.7.3.1 / 5.7.3.2 / 5.7.3.4', { equation: 'Eq. 2', page: 9 }),
+    fwdRef: ref('IRC58', 'Cl. 5.7.3.8', { page: 10 }),
+    verified: true,
+    standardPlateMm: 750,
+    plateSlope: 1.21,
+    plateIntercept: 0.078,
+    fwdStaticShare: 0.5,
   },
 
   traffic: {
@@ -653,6 +803,40 @@ export const RIGID = {
     abrasion: ref('IRC58', 'Cl. 6.5.3', { page: 21 }),
     stabilisation: ref('IRC58', 'Cl. 5.7.3.9 / 6.5.2', { page: '10, 20' }),
     example: ref('IRC58', 'Appendix-VI, VI-VIII', { page: '79 – 81' }),
+  },
+
+  /**
+   * Bearing stress of the dowel under the heaviest wheel (Cl. 7.2.2 - 7.2.7,
+   * Appendix-VIII): Fbmax = kmds (2 + βz) Pt / (4 β³ E I) against
+   * Fb = (101.6 − d) fck / 95.25, with the dowels within l of the load sharing
+   * it linearly.
+   */
+  dowelBearing: {
+    ref: ref('IRC58', 'Cl. 7.2.2 – 7.2.7', { equation: 'Eq. 14 / 15', page: '26, 27' }),
+    example: ref('IRC58', 'Appendix-VIII', { page: '90, 91' }),
+    verified: true,
+    dowelSupportMPaPerM: 415000,
+    steelModulusMPa: 200000,
+    jointMm: { contraction: 5, expansion: 20 },
+    /** Load passed to a tied concrete shoulder at the terminal stage. */
+    shoulderShare: 0.3,
+    /** Share of the wheel the dowels carry across the joint. */
+    dowelShare: 0.5,
+  },
+
+  /**
+   * Tied concrete shoulders for high volume roads (Cl. 6.2.5); a widened outer
+   * lane for two-lane two-way roads (Cl. 6.6.1); reinforcement in panels
+   * longer than 1.5 times their width (Cl. 8.2.3 / 9.4); a design period of 30
+   * years or more (Cl. 5.4).
+   */
+  layout: {
+    shoulderRef: ref('IRC58', 'Cl. 6.2.5 / 6.6.1', { page: '17, 21' }),
+    panelRef: ref('IRC58', 'Cl. 8.2.3 / 9.4', { page: '28, 30' }),
+    periodRef: ref('IRC58', 'Cl. 5.4', { page: 4 }),
+    verified: true,
+    maximumAspect: 1.5,
+    designPeriodYears: 30,
   },
 
   /** Dowel bars by slab thickness: [slab, diameter, length, spacing] mm (Table 5). */

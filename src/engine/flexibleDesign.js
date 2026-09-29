@@ -12,7 +12,7 @@
 import { analyze } from './elastic.js';
 import { cumulativeDamage, ctbFatigueLife } from './ctbDamage.js';
 import { subBaseConstructionTraffic, allowableCtbStress } from './construction.js';
-import { buildLayerStack, granularModulus, subgradeModulus } from './materials.js';
+import { buildLayerStack, granularModulus, subgradeFor } from './materials.js';
 import {
   bituminousFatigueLife,
   cementedFatigueLife,
@@ -22,6 +22,8 @@ import {
 } from './criteria.js';
 import {
   CRITERIA,
+  FROST,
+  LONG_LIFE,
   MINIMUM_THICKNESS,
   STANDARD_AXLE,
   THICKNESS_INCREMENTS,
@@ -196,6 +198,59 @@ export function evaluateTrial(input) {
     })
   );
 
+  // A long-life pavement keeps both strains under their endurance limits (Cl. 10).
+  if (input.longLife) {
+    const endurance = (fields) => {
+      const micro = fields.strain * 1e6;
+      const safe = micro <= fields.limitMicro;
+      return {
+        ...fields,
+        kind: 'endurance',
+        strain: Math.max(fields.strain, 0),
+        strainMicro: Math.max(micro, 0),
+        allowableStrain: fields.limitMicro * 1e-6,
+        allowableMicro: fields.limitMicro,
+        demandMsa: designTrafficMsa,
+        allowableMsa: Infinity,
+        utilisation: micro / fields.limitMicro,
+        safe,
+        inService: true,
+        formula: `${fields.symbol} not more than ${fields.limitMicro} µε`,
+        substitution: `${fields.symbol} = ${micro.toFixed(1)} µε`,
+        stepResult: `${micro.toFixed(1)} µε ${safe ? '≤' : '>'} ${fields.limitMicro} µε`,
+        ref: LONG_LIFE.ref,
+        verified: LONG_LIFE.verified,
+      };
+    };
+    if (lastBituminous >= 0) {
+      const computed = worst(responses, 'bituminous-tension', (r) => r.maxHorizontalStrain);
+      checks.push(
+        endurance({
+          id: 'long-life-bituminous',
+          title: 'Long life, bituminous layer',
+          strainLabel: 'Tensile strain, bottom of bituminous layer, endurance limit',
+          symbol: 'εt',
+          strain: measured('bituminous') ?? computed,
+          computed,
+          source: sourceOf('bituminous'),
+          limitMicro: materials.snowBound ? LONG_LIFE.bituminousMicro.other : LONG_LIFE.bituminousMicro.plains,
+        })
+      );
+    }
+    checks.push(
+      endurance({
+        id: 'long-life-subgrade',
+        title: 'Long life, subgrade',
+        strainLabel: 'Vertical strain, top of subgrade, endurance limit',
+        symbol: 'εv',
+        strain: verticalStrain,
+        computed: computedVertical,
+        source: sourceOf('subgrade'),
+        limitMicro: LONG_LIFE.subgradeMicro,
+      })
+    );
+  }
+
   if (ctbIndex >= 0) {
     const computed = worst(responses, 'cemented-tension', (r) => r.maxHorizontalStrain);
     const strain = measured('ctb') ?? computed;
@@ -252,6 +307,10 @@ export function evaluateTrial(input) {
   const thicknessWarnings = slots
     .filter((s) => s.minMm != null && s.thicknessMm < s.minMm)
     .map((s) => `${s.label}: ${s.thicknessMm} mm, below the ${s.minMm} mm minimum`);
+
+  if (materials.snowBound && totalThicknessMm < FROST.minimumTotalMm) {
+    thicknessWarnings.push(`Frost: total ${totalThicknessMm} mm, below the ${FROST.minimumTotalMm} mm minimum · ${FROST.ref.clause}`);
+  }
 
   const overCTB = MINIMUM_THICKNESS.bituminousOverCTB;
   if (ctbIndex >= 0 && designTrafficMsa > overCTB.aboveMsa && bituminousMm < overCTB.mm) {
@@ -571,7 +630,7 @@ export function designSection(input) {
   // 1. Sub-base.
   const subBase = described.slots.find((s) => s.slotId === 'SUB_BASE');
   if (subBase.behaviour === BEHAVIOUR.GRANULAR) {
-    const subgradeMPa = materials.overrides?.SUBGRADE ?? subgradeModulus(materials.subgradeCBR);
+    const subgradeMPa = subgradeFor(materials).value;
     const step = THICKNESS_INCREMENTS.granularMm;
     let sized = null;
     for (let t = subBase.minMm; t <= 600; t += step) {
@@ -630,5 +689,17 @@ export function designSection(input) {
   }
 
   // 3. Bituminous layers.
-  return findMinimumBituminous({ ...input, reliability, thicknesses });
+  const found = findMinimumBituminous({ ...input, reliability, thicknesses });
+
+  // 4. Where frost acts, the sub-base makes the section up to 450 mm (Cl. 13.2).
+  if (found.found && materials.snowBound) {
+    const total = Object.values(found.thicknesses).reduce((sum, mm) => sum + (mm || 0), 0);
+    if (total < FROST.minimumTotalMm) {
+      const step = THICKNESS_INCREMENTS.granularMm;
+      const add = Math.ceil((FROST.minimumTotalMm - total) / step) * step;
+      found.thicknesses = { ...found.thicknesses, SUB_BASE: found.thicknesses.SUB_BASE + add };
+      found.trial = evaluateTrial({ ...input, reliability, thicknesses: found.thicknesses });
+    }
+  }
+  return found;
 }

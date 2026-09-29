@@ -1,5 +1,5 @@
 import { h, card, numberField, segmented, selectField, metric, notice, button, fold } from '../dom.js';
-import { SUB_BASES, SHOULDERS, rigidFoundation, runRigid, isBonded, hasDrainage, granularBelowMm } from '../rigidProject.js';
+import { SUB_BASES, SHOULDERS, rigidFoundation, runRigid, isBonded, hasDrainage, granularBelowMm, flexuralOf } from '../rigidProject.js';
 import { RIGID } from '../../data/ircConstants.js';
 
 export default function renderRigidSlab(app) {
@@ -11,6 +11,11 @@ export default function renderRigidSlab(app) {
 
   const kHost = h('div', {});
   const status = h('div', {});
+  const flexuralHost = h('div', { class: 'metric-grid' });
+  const showFlexural = () => {
+    const value = flexuralOf(slab);
+    flexuralHost.replaceChildren(metric('Flexural strength, 28 day', value > 0 ? `${value.toFixed(2)} MPa` : '—'));
+  };
 
   const showK = () => {
     const result = rigidFoundation(rigid);
@@ -167,6 +172,7 @@ export default function renderRigidSlab(app) {
 
   showK();
   showRain();
+  showFlexural();
 
   return h(
     'div',
@@ -272,12 +278,28 @@ export default function renderRigidSlab(app) {
         options: [
           { value: 'tables', label: 'CBR' },
           { value: 'measured', label: 'Plate load test' },
+          { value: 'fwd', label: 'FWD' },
         ],
         onChange: set(f, 'kSource', { rerender: true }),
       }),
       f.kSource === 'measured'
-        ? numberField({ label: 'Effective k of the foundation', value: f.measuredK, suffix: 'MPa/m', min: 0, onInput: set(f, 'measuredK', { after: showK }) })
-        : numberField({
+        ? [
+            h(
+              'div',
+              { class: 'field-row' },
+              numberField({ label: 'k measured', ref: RIGID.measuredK.ref, value: f.measuredK, suffix: 'MPa/m', min: 0, onInput: set(f, 'measuredK', { after: showK }) }),
+              numberField({ label: 'Plate diameter', ref: RIGID.measuredK.ref, aside: `standard ${RIGID.measuredK.standardPlateMm}`, value: f.plateMm, suffix: 'mm', min: 0, onInput: set(f, 'plateMm', { after: showK }) })
+            ),
+            h(
+              'div',
+              { class: 'field-row' },
+              numberField({ label: 'CBR soaked', ref: RIGID.measuredK.ref, value: f.soakedCBR, suffix: '%', min: 0, onInput: set(f, 'soakedCBR', { after: showK }) }),
+              numberField({ label: 'CBR unsoaked', ref: RIGID.measuredK.ref, value: f.unsoakedCBR, suffix: '%', min: 0, onInput: set(f, 'unsoakedCBR', { after: showK }) })
+            ),
+          ]
+        : f.kSource === 'fwd'
+          ? numberField({ label: 'Dynamic k from the FWD', ref: RIGID.measuredK.fwdRef, value: f.fwdDynamicK, suffix: 'MPa/m', min: 0, onInput: set(f, 'fwdDynamicK', { after: showK }) })
+          : numberField({
             label: 'Effective subgrade CBR',
             ref: RIGID.subgradeK.ref,
             aside: `min ${RIGID.subgradeK.minimumCBR}`,
@@ -293,14 +315,35 @@ export default function renderRigidSlab(app) {
     card(
       'Concrete',
       numberField({
-        label: 'Flexural strength, 28 day',
-        ref: RIGID.concrete.ref,
-        aside: `min ${RIGID.concrete.minimumFlexural28MPa}`,
-        value: slab.flexural28MPa,
+        label: 'Characteristic compressive strength, fck',
+        ref: RIGID.concrete.fckRef,
+        aside: 'M40: 40',
+        value: slab.fck,
         suffix: 'MPa',
         min: 0,
-        onInput: set(slab, 'flexural28MPa'),
+        onInput: set(slab, 'fck', { after: showFlexural }),
       }),
+      segmented({
+        label: 'Flexural strength from',
+        ref: RIGID.concrete.fckRef,
+        value: slab.flexuralFrom === 'fck' ? 'fck' : 'beam',
+        options: [
+          { value: 'beam', label: 'Beam test' },
+          { value: 'fck', label: '0.7 √fck' },
+        ],
+        onChange: set(slab, 'flexuralFrom', { rerender: true }),
+      }),
+      slab.flexuralFrom === 'fck'
+        ? flexuralHost
+        : numberField({
+            label: 'Flexural strength, 28 day',
+            ref: RIGID.concrete.ref,
+            aside: `min ${RIGID.concrete.minimumFlexural28MPa}`,
+            value: slab.flexural28MPa,
+            suffix: 'MPa',
+            min: 0,
+            onInput: set(slab, 'flexural28MPa'),
+          }),
       segmented({
         label: 'Design strength',
         ref: RIGID.concrete.ref,
