@@ -3,7 +3,7 @@
  * a screen never depends on another having been visited first.
  */
 
-import { RIGID, ref } from '../data/ircConstants.js';
+import { RIGID, CROSS_SECTION, ref } from '../data/ircConstants.js';
 import { rigidTraffic, foundationK, evaluateSlab, designSlab, dowelBars } from '../engine/rigidDesign.js';
 import { bondedSlab, equivalentSlab, bondedSteps, tieBars, dowelBearing } from '../engine/rigidDetails.js';
 import { drainageLayer, drainageMaterial } from '../engine/drainage.js';
@@ -56,6 +56,8 @@ export const defaultRigidState = () => ({
   },
   slab: {
     shoulder: 'tied',
+    /** Widening of the outer lane, 0.5 - 0.6 m (Cl. 6.6.1). */
+    widenedM: CROSS_SECTION.widenedLaneM[1],
     doweled: true,
     /** Flexural strength from a 'beam' test, or 'fck' as 0.7 √fck (Cl. 5.8.1). */
     flexuralFrom: 'beam',
@@ -238,6 +240,10 @@ function inputWarnings(rigid, traffic) {
   }
   if (slab.shoulder === 'widened' && t.carriageway === 'divided') {
     warnings.push(`A widened outer lane is for two-lane two-way roads; tied shoulders on divided highways · ${layout.shoulderRef.clause}`);
+  }
+  const [wMin, wMax] = CROSS_SECTION.widenedLaneM;
+  if (slab.shoulder === 'widened' && !(slab.widenedM >= wMin && slab.widenedM <= wMax)) {
+    warnings.push(`Outer lane widened by ${wMin} – ${wMax} m · ${CROSS_SECTION.widenedLane.clause}`);
   }
   if (slab.jointSpacingM > 0 && slab.laneWidthM > 0 && slab.jointSpacingM / slab.laneWidthM > layout.maximumAspect) {
     warnings.push(`Panel longer than ${layout.maximumAspect} times its width: reinforce it · ${layout.panelRef.clause}`);

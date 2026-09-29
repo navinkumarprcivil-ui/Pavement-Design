@@ -179,6 +179,9 @@ export const SP72 = {
   /** Top of subgrade at least 300 mm above ground and 600 mm above the highest water table. */
   drainage: { ref: sp('Cl. 9.1', 34), aboveGroundMm: 300, aboveWaterTableMm: 600, extendedSubBaseMm: 100 },
 
+  /** Shoulders of sub-base quality material, 100 mm thick; gravelled over 1 m from the edge where carts are many. */
+  shoulders: { ref: sp('Cl. 9.2', 34), thicknessMm: 100, gravelledWidthM: 1 },
+
   catalogueGranular: { ref: sp('Cl. 8', '22, 31', { note: 'Fig. 4' }) },
   catalogueCemented: { ref: sp('Cl. 8 (vi)', '31, 33', { note: 'Fig. 6' }) },
 };

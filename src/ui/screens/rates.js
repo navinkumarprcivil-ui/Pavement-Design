@@ -1,7 +1,11 @@
 import { h, card, numberField, metric, notice, button } from '../dom.js';
 import { currentDesign } from '../currentDesign.js';
-import { costSection, formatCurrency, formatNumber } from '../../engine/costing.js';
+import { sectionFor } from '../crossSection.js';
+import { formatCurrency, formatNumber } from '../../engine/costing.js';
+import { billOfQuantities, EXTRA_ITEMS } from '../../engine/quantities.js';
 import { saveTrial } from '../../store/trials.js';
+
+const UNITS = Object.fromEntries(EXTRA_ITEMS.map((item) => [item.id, item.unit]));
 
 export default function renderRates(app) {
   const design = currentDesign(app);
@@ -14,11 +18,17 @@ export default function renderRates(app) {
     );
   }
 
-  const slots = design.slots.filter((s) => s.thicknessMm > 0);
+  const g = app.state.geometry;
   const summary = h('div', {});
 
   const recompute = () => {
-    const cost = costSection(slots, app.state.rates, app.state.geometry);
+    const model = sectionFor(app);
+    const bill = model ? billOfQuantities(model, app.state.rates, g.lengthKm) : null;
+    if (!bill) {
+      summary.replaceChildren();
+      return null;
+    }
+    const digits = (unit) => (unit === 't' ? 2 : 0);
     summary.replaceChildren(
       h(
         'section',
@@ -27,20 +37,20 @@ export default function renderRates(app) {
           'div',
           { class: 'headline' },
           h('span', { class: 'headline-label' }, 'Cost per km'),
-          h('span', { class: 'headline-value' }, formatCurrency(cost.costPerKm))
+          h('span', { class: 'headline-value' }, formatCurrency(bill.costPerKm))
         ),
-        cost.lines.map((line) =>
+        bill.items.map((line) =>
           h(
             'div',
             { class: 'line-item' },
             h(
               'div',
               {},
-              h('span', { class: 'line-label' }, `${line.materialId} · ${line.thicknessMm} mm`),
+              h('span', { class: 'line-label' }, line.item),
               h(
                 'span',
                 { class: 'line-detail' },
-                `${formatNumber(line.volumeCum, 1)} m³ × ` +
+                `${formatNumber(line.quantity, digits(line.unit))} ${line.unit} × ` +
                   `${line.rateMissing ? 'no rate' : formatCurrency(line.rate)}`
               )
             ),
@@ -50,18 +60,19 @@ export default function renderRates(app) {
         h(
           'div',
           { class: 'line-total' },
-          h('span', {}, `Total, ${formatNumber(app.state.geometry.lengthKm, 2)} km`),
-          h('span', { class: 'line-amount' }, formatCurrency(cost.total))
+          h('span', {}, `Total, ${formatNumber(g.lengthKm, 2)} km`),
+          h('span', { class: 'line-amount' }, formatCurrency(bill.total))
         ),
-        h('div', { class: 'metric-grid' }, metric('Per m²', formatCurrency(cost.costPerSqm)), metric('Volume', `${formatNumber(cost.totalVolume, 0)} m³`)),
-        cost.anyRateMissing ? notice('warn', null, 'Rates missing: those layers are costed at zero') : null
+        h('div', { class: 'metric-grid' }, metric('Per m²', formatCurrency(bill.costPerSqm)), metric('Paved width', `${formatNumber(model.pavedM, 2)} m`)),
+        bill.anyRateMissing ? notice('warn', null, 'Rates missing: those items are costed at zero') : null
       )
     );
-    return cost;
+    return { bill, model };
   };
 
   const save = () => {
-    const cost = recompute();
+    const priced = recompute();
+    const bill = priced?.bill;
     saveTrial({
       ...design.record(),
       name: design.name,
@@ -75,21 +86,74 @@ export default function renderRates(app) {
         behaviour: s.behaviour,
       })),
       rates: { ...app.state.rates },
-      geometry: { ...app.state.geometry },
-      cost: {
-        total: cost.total,
-        costPerKm: cost.costPerKm,
-        costPerSqm: cost.costPerSqm,
-        totalVolume: cost.totalVolume,
-        complete: !cost.anyRateMissing,
-      },
+      geometry: { ...g },
+      cost: bill
+        ? {
+            total: bill.total,
+            costPerKm: bill.costPerKm,
+            costPerSqm: bill.costPerSqm,
+            complete: !bill.anyRateMissing,
+          }
+        : null,
     });
     app.go('trials');
   };
 
   app.setActions(button('Save trial', save));
 
-  const body = h(
+  const geometryField = (label, key) =>
+    numberField({
+      label,
+      value: g[key],
+      suffix: key === 'lengthKm' ? 'km' : 'm',
+      min: 0,
+      onInput: (value) => {
+        app.patch('geometry', { [key]: value ?? (key === 'lengthKm' || key === 'carriagewayWidthM' ? 0 : null) });
+        recompute();
+      },
+    });
+
+  // Shoulders a design has: paved on a flexible road, tied concrete on a rigid one, earthen beside either.
+  const type = design.type;
+  const rigid = app.state.rigid;
+  const pavedLabel = type === 'flexible' ? 'Paved shoulder, each side' : type === 'rigid' && rigid.slab.shoulder === 'tied' ? 'Concrete shoulder, each side' : null;
+  const shoulderField = (label, key, fallback) =>
+    numberField({
+      label,
+      value: g[key] ?? fallback ?? null,
+      suffix: 'm',
+      min: 0,
+      onInput: (value) => {
+        app.patch('geometry', { [key]: value });
+        recompute();
+      },
+    });
+
+  // One rate for each item measured, in the item's unit.
+  const initial = recompute();
+  const keys = [];
+  for (const item of initial?.bill.items || []) {
+    if (keys.some((k) => k.key === item.key)) continue;
+    const layer = initial.model.layers.find((l) => l.materialId === item.key);
+    keys.push({ key: item.key, label: layer ? layer.label : item.key, unit: item.unit });
+  }
+  const rateField = ({ key, label, unit }) =>
+    numberField({
+      label,
+      value: app.state.rates[key] ?? '',
+      suffix: `₹/${UNITS[key] || unit}`,
+      min: 0,
+      onInput: (value) => {
+        const rates = { ...app.state.rates };
+        if (value == null) delete rates[key];
+        else rates[key] = value;
+        app.state.rates = rates;
+        app.persist();
+        recompute();
+      },
+    });
+
+  return h(
     'div',
     { class: 'card-stack' },
 
@@ -103,55 +167,17 @@ export default function renderRates(app) {
 
     card(
       'Road',
+      h('div', { class: 'field-row keep' }, geometryField('Carriageway width', 'carriagewayWidthM'), geometryField('Length', 'lengthKm')),
       h(
         'div',
         { class: 'field-row keep' },
-        numberField({
-          label: 'Carriageway width',
-          value: app.state.geometry.carriagewayWidthM,
-          suffix: 'm',
-          min: 0,
-          onInput: (value) => {
-            app.patch('geometry', { carriagewayWidthM: value ?? 0 });
-            recompute();
-          },
-        }),
-        numberField({
-          label: 'Length',
-          value: app.state.geometry.lengthKm,
-          suffix: 'km',
-          min: 0,
-          onInput: (value) => {
-            app.patch('geometry', { lengthKm: value ?? 0 });
-            recompute();
-          },
-        })
+        pavedLabel ? shoulderField(pavedLabel, 'pavedShoulderM', type === 'rigid' ? rigid.drainage.concreteShoulderM : null) : null,
+        shoulderField('Earthen shoulder, each side', 'earthenShoulderM', type === 'rigid' ? rigid.drainage.unpavedShoulderM : null)
       )
     ),
 
-    card(
-      'Rates per m³',
-      slots.map((slot) =>
-        numberField({
-          label: slot.label,
-          value: app.state.rates[slot.materialId] ?? '',
-          suffix: '₹/m³',
-          min: 0,
-          onInput: (value) => {
-            const rates = { ...app.state.rates };
-            if (value == null) delete rates[slot.materialId];
-            else rates[slot.materialId] = value;
-            app.state.rates = rates;
-            app.persist();
-            recompute();
-          },
-        })
-      )
-    ),
+    card('Rates', keys.map(rateField)),
 
     summary
   );
-
-  recompute();
-  return body;
 }

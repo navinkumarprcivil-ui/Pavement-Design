@@ -41,6 +41,7 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Reliability | 90% on important roads, and on others from 20 msa; else 80% | Cl. 3.7 | 8 | ✓ |
 | Growth rate floor | 5% | Cl. 4.2.2 | 14 | ✓ |
 | Design period | 20 years NH, SH, urban; 15 others; 30 or long-life above 300 msa | Cl. 4.3.1 | 14 | ✓ |
+| Layer widths | Granular sub-base, drainage and filter layers to the full width, up to the embankment slopes; other layers under the carriageway and paved shoulders (cross-section, bill of quantities) | Cl. 7.2.1 | 21 | **Added** (report) |
 | Stage construction | Stage-1 bituminous layers for 1.67 × stage-1 traffic (not above N); base and sub-base for the full period; no CTB or CTSB; not long-life; reliability and binder on the full N | Cl. 4.3.2; Annex-II, II.7 | 14; 78, 79 | **Added**, Note (14) |
 | VDF from axle loads | (P/65)^4 single axle single wheel; (P/80)^4 single dual; (P/148)^4 tandem; (P/224)^4 tridem; single-wheeled tandems and tridems as 2 and 3 single axles; Σ over the vehicles weighed | Cl. 4.4.3, Eq. 4.1 – 4.4 | 15 | **Added** |
 | Survey sample | 20% below 3000 CVPD; 15% (at least 600) to 6000; 10% (at least 900) above | Cl. 4.4.4, Table 4.1 | 15 | **Added**, Note (13) |
@@ -119,6 +120,9 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Drainage layer | qi = Ic [Nc/Wp + Wc/(Wp Cs)] + Kp, Ic 0.223 m³/day/m, Kp 0; Q = AD qi; K = Q/(I t); K ≥ 300 m/day; designed where rainfall > 1000 mm; below the DLC with a separation layer | Cl. 6.5.1 – 6.5.3, Eq. 9 | 20, 21 | Note (11) |
 | Drainage material | t ≥ 100 mm; Cu = D60/D10 in 2 – 8, stabilised under 4; D10 > 2 mm; LA abrasion < 40%; stabiliser cement 2 – 2.5%, bitumen 1.5 – 2.5%, emulsion 2.5 – 3% | Cl. 5.7.3.9 / 6.5.2 / 6.5.3; Appendix VI, VI-II / VI-III | 10, 20, 21, 77, 78 | Note (11) |
 | Drainage example | B 10.4 m, AC 12.48 m, AD 16.24 m, I 0.039, qi 0.115, Q 1.868 m³/day/m; K 319 m/day in 150 mm, 160 m/day in 300 mm | Appendix VI, VI-VIII | 79 – 81 | ✓ (11) |
+| Layer widths | Drainage and separation layers throughout the road width, when a drainage layer is designed; PQC and sub-base under the carriageway and tied shoulders | Cl. 6.5.2 | 20 | **Added** (report) |
+| Separation layer | Polythene sheet of at least 125 micron between the slab and an unbonded DLC | Cl. 5.7.5 | 12 | **Added** (report) |
+| Widened lane | Outer lane widened 0.5 – 0.6 m, warned outside it | Cl. 6.6.1 | 21 | **Added** |
 | Worked example | Appendix VII stresses, repetitions and damage reproduced | Appendix VII | 82 – 88 | ✓ |
 
 ## IRC:SP:72-2015 — low volume roads, flexible
@@ -153,6 +157,7 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Frost, gravel roads | S1 – S5 × T1 – T3 gravel base | Cl. 8 (xi) | 32 | ✓ |
 | Overlay | Added WBM ≤ 150 mm (2 layers) to T5; ≤ 225 mm (3 layers) to T7 | Cl. 2.2.3 | 7 | ✓ |
 | Drainage | Subgrade top ≥ 300 mm above ground, ≥ 600 mm above water table | Cl. 9.1 | 34 | ✓ |
+| Shoulders | Sub-base quality material, 100 mm thick, over the shoulders (cross-section, bill of quantities) | Cl. 9.2 | 34 | **Added** (report) |
 | Worked example | 474 AADT, 16.35 ESAL/day, 78,660 ESAL, T3 × S3: 275 mm gravel or 100 + 100 cement treated | Appendix D | 41, 42 | ✓ |
 
 ## IRC:SP:62-2014 — low volume roads, rigid
@@ -289,6 +294,14 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
    20 mm expansion joint; carried through from its own inputs (33.25 kN, four
    dowels, Σ 2.26, Pt 14.70 kN) the equations give 19.6 MPa against Fb
    26.71 MPa, which the app shows. The verdict is the same.
+16. **Bill of quantities.** Quantities are measured off the cross-section
+   over the length entered: layers at their widths, a prime coat on a granular
+   layer under the bituminous layers and a tack coat on each surface a
+   bituminous course is laid on, dowel bars at every transverse joint across
+   the slab (Table 5), tie bars along each tied longitudinal joint (Cl. 8.2),
+   steel at 7850 kg/m³. Prime and tack coats, and joint sealing, follow
+   construction practice, not a clause of these codes. The drawing is
+   schematic: depths are not to the scale of the widths.
 
 **Not built.** DCP route to CBR (IRC:58 Cl. 5.7.3.7, Eq. 3, optional);
 jointed reinforced concrete pavements (IRC:58 Cl. 9) — joints are held to
@@ -310,6 +323,8 @@ catalogues (Cl. 12), which the code gives for guidance only.
 - `tests/irc58Rules.test.js` — IRC:58 plate and FWD k, fck, Appendix VIII.
 - `tests/sp72.test.js` — SP:72 Appendix A and D, Table 4, categories.
 - `tests/sp62.test.js` — SP:62 Appendix I.
+- `tests/crossSection.test.js` — layer widths, the separation sheet, the widened
+  lane, SP:72 shoulders, SP:62 joints and the bill of quantities.
 
 Run `npm test`. Each value above is held once, in `src/data/ircConstants.js`,
 `src/data/sp72.js` or `src/data/sp62.js`, with its citation and page.

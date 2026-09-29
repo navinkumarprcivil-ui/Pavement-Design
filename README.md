@@ -89,8 +89,17 @@ You can either check a trial section you have entered, or let the app find the
 thinnest bituminous thickness its own analysis passes for the foundation you
 have set; either way the section then goes to IITPAVE for its verdict.
 
-**Rates and trials.** Enter a rate per cubic metre for each layer to cost the
-section. Save as many trials as you like; they are listed safe-first then
+**Cross-section and bill of quantities.** The report draws the road across
+its width: the layers to their widths, paved, tied concrete and earthen
+shoulders, a widened outer lane, the debonding sheet under a slab, and the
+longitudinal joints with their tie bars. Drainage and filter layers run to the
+embankment slopes (IRC:37 Cl. 7.2.1, IRC:58 Cl. 6.5.2); SP:72 shoulders take
+100 mm of sub-base material (Cl. 9.2). The bill of quantities is measured off
+the same section: layer volumes, prime and tack coats, the separation sheet,
+dowel and tie bars in tonnes, and joint sealing.
+
+**Rates and trials.** Enter a rate for each item to cost the section, per km
+and per m². Save as many trials as you like; they are listed safe-first then
 cheapest, and you mark the one you intend to build.
 
 **Low volume roads.** The home page offers flexible and rigid only; the traffic
@@ -146,6 +155,11 @@ as a Word file. On a wide screen the side panel is docked beside the page.
 The side panel (☰ at the top left on a phone) holds the saved designs, saved projects —
 named copies of a design's inputs, flexible or rigid — the material rates used
 for costing, the design steps, and About.
+
+**Projects.** Save the open project over itself, or **Save as copy** to keep
+the original and carry on with a variant. Any saved project can be duplicated,
+or exported as a `.pavement.json` file to share or keep; importing a file adds
+it as a new saved project, leaving the open one as it is.
 
 When a network is available, trials and projects are mirrored to
 a Firebase Realtime Database so they survive a lost phone and follow you between
@@ -244,7 +258,9 @@ src/engine/             Calculation core — no browser APIs
   rigidDesign.js          IRC:58 foundation, temperature and slab search
   rigidDetails.js         IRC:58 bonded PQC on DLC and tie bars
   drainage.js             IRC:58 drainage layer
-  costing.js              Quantities and cost
+  crossSection.js         The road across its width: layer widths, shoulders, joints
+  quantities.js           Bill of quantities off the cross-section
+  costing.js              Money and number formats
 src/data/               IRC constants with citations and pages; layer catalogue;
                         sp72.js and sp62.js for the low volume codes
 src/config/firebase.js  Firebase project config (public, not a secret)

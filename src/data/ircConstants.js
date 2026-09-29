@@ -410,6 +410,24 @@ export const GSB_LAYERS = {
   eachMinimumMm: 100,
 };
 
+/**
+ * How far each layer runs across the road: the drainage and filter layers of
+ * the granular sub-base to the full width, up to the embankment slope
+ * (IRC:37 Cl. 7.2.1); under a concrete slab the drainage and separation
+ * layers throughout the road width (IRC:58 Cl. 6.5.2), a debonding polythene
+ * sheet of at least 125 micron between the slab and the DLC (Cl. 5.7.5), and
+ * an outer lane widened by 0.5 - 0.6 m on two-lane two-way roads (Cl. 6.6.1).
+ */
+export const CROSS_SECTION = {
+  flexibleDrainage: ref('IRC37', 'Cl. 7.2.1', { page: 21 }),
+  rigidDrainage: ref('IRC58', 'Cl. 6.5.2', { page: 20 }),
+  separation: ref('IRC58', 'Cl. 5.7.5', { page: 12 }),
+  widenedLane: ref('IRC58', 'Cl. 6.6.1', { page: 21 }),
+  verified: true,
+  separationMicron: 125,
+  widenedLaneM: [0.5, 0.6],
+};
+
 /* ------------------------------------------------------------------ *
  * Performance criteria
  * ------------------------------------------------------------------ */

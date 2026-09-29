@@ -6,6 +6,7 @@ import {
   SUB_BASE_OPTIONS,
 } from '../../data/layerCatalog.js';
 import { SUB_BASES, DRAINAGE_MATERIAL } from '../rigidProject.js';
+import { EXTRA_ITEMS } from '../../engine/quantities.js';
 
 /** Every material a design can lay, keyed as the costing keys its rate. */
 function materialGroups() {
@@ -36,15 +37,16 @@ function materialGroups() {
         { id: 'Base', label: 'Granular base' },
       ],
     },
+    { title: 'Other items', items: EXTRA_ITEMS.map((item) => ({ id: item.id, label: item.id, unit: item.unit })) },
   ];
 }
 
 export default function renderMaterialRates(app) {
-  const field = ({ id, label }) =>
+  const field = ({ id, label, unit = 'm³' }) =>
     numberField({
       label,
       value: app.state.rates[id] ?? '',
-      suffix: '₹/m³',
+      suffix: `₹/${unit}`,
       min: 0,
       onInput: (value) => {
         const rates = { ...app.state.rates };

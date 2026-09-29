@@ -27,3 +27,25 @@ export function saveProjectRecord({ id, ...record }) {
 export function deleteProject(id) {
   remove('projects', id);
 }
+
+/** A name no saved project has: the name itself, else "name (copy)", "name (copy 2)" and so on. */
+export function freeName(name) {
+  const taken = new Set(listProjects().map((p) => p.name));
+  if (!taken.has(name)) return name;
+  const base = name.replace(/ \(copy(?: \d+)?\)$/, '');
+  for (let n = 1; ; n++) {
+    const candidate = `${base} (copy${n > 1 ? ` ${n}` : ''})`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
+/** A saved project copied under a free name. Returns the new record. */
+export function duplicateProject(record) {
+  const name = freeName(record.name);
+  const state = structuredClone(record.state);
+  state.project = { ...(state.project || {}), name };
+  return saveProjectRecord({ name, pavementType: record.pavementType, state });
+}
+
+/** What an exported project file holds. */
+export const PROJECT_FILE = { app: 'irc-pavement-design', kind: 'project', version: 1 };

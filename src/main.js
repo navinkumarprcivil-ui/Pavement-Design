@@ -13,7 +13,7 @@ import { openDrawer, closeDrawer, renderDrawer, ICONS, FLOW_SCREENS } from './ui
 import { stepper } from './ui/stepper.js';
 import { MODULES } from './ui/modules.js';
 import { loadProject, saveProject } from './store/trials.js';
-import { getProject, saveProjectRecord } from './store/projects.js';
+import { getProject, saveProjectRecord, freeName, PROJECT_FILE } from './store/projects.js';
 import { connectCloud, onCloudChange } from './store/cloud.js';
 import { subscribe as onStoreChange } from './store/sync.js';
 import { BINDER_GRADES, defaultConditions } from './data/layerCatalog.js';
@@ -163,6 +163,9 @@ export const defaultState = () => ({
   geometry: {
     carriagewayWidthM: 7,
     lengthKm: 1,
+    /** Each side; blank on a rigid design takes the drainage inputs. */
+    pavedShoulderM: null,
+    earthenShoulderM: null,
   },
   pavementType: 'flexible',
   rigid: defaultRigidState(),
@@ -261,8 +264,10 @@ const app = {
     return !sameInputs(this.state, saved ? migrate(saved.state) : defaultState());
   },
 
-  storeProject() {
-    const saved = getProject(this.state.projectId);
+  /** Save the inputs over the project they came from, or with `copy` as a new project. */
+  storeProject({ copy = false } = {}) {
+    const saved = copy ? null : getProject(this.state.projectId);
+    if (copy) this.state.project.name = freeName(this.state.project.name.trim());
     const record = saveProjectRecord({
       id: saved?.id,
       name: this.state.project.name.trim(),
@@ -271,6 +276,43 @@ const app = {
     });
     this.state.projectId = record.id;
     this.persist();
+  },
+
+  /** The current inputs, or a saved project's, as the contents of a project file. */
+  projectFile(record = null) {
+    const state = record ? record.state : projectInputs(this.state);
+    return {
+      ...PROJECT_FILE,
+      exportedAt: new Date().toISOString(),
+      name: record ? record.name : this.state.project.name.trim(),
+      pavementType: record ? record.pavementType : this.state.pavementType,
+      state,
+    };
+  },
+
+  /**
+   * Keep a project read from a file as a new saved project. Only the inputs
+   * the app knows are taken; opening it fills in anything missing.
+   * Returns the record, or throws with what is wrong with the file.
+   */
+  importProjectFile(data) {
+    if (!data || data.app !== PROJECT_FILE.app || data.kind !== PROJECT_FILE.kind || !data.state || typeof data.state !== 'object') {
+      throw new Error('Not a project file from this app');
+    }
+    if (!MODULES[data.pavementType]) throw new Error('The file names a design this app does not have');
+    const known = projectInputs(defaultState());
+    const state = {};
+    const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
+    for (const [key, value] of Object.entries(known)) {
+      if (!(key in data.state)) continue;
+      const given = data.state[key];
+      // Only values of the shape the app keeps there; the rest take their defaults.
+      if (kind(value) === kind(given) || value === null || given === null) state[key] = given;
+    }
+    state.pavementType = data.pavementType;
+    const name = freeName(String(data.name || state.project?.name || 'Imported project').trim() || 'Imported project');
+    state.project = { ...known.project, ...(state.project || {}), name };
+    return saveProjectRecord({ name, pavementType: data.pavementType, state });
   },
 
   openProject(record) {

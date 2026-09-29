@@ -1,6 +1,6 @@
 import { h, card, numberField, segmented, selectField, metric, notice, button, fold } from '../dom.js';
 import { SUB_BASES, SHOULDERS, rigidFoundation, runRigid, isBonded, hasDrainage, granularBelowMm, flexuralOf } from '../rigidProject.js';
-import { RIGID } from '../../data/ircConstants.js';
+import { RIGID, CROSS_SECTION } from '../../data/ircConstants.js';
 
 export default function renderRigidSlab(app) {
   const rigid = app.state.rigid;
@@ -365,6 +365,18 @@ export default function renderRigidSlab(app) {
     card(
       'Joints and shoulders',
       segmented({ label: 'Shoulder', value: slab.shoulder, options: SHOULDERS, onChange: set(slab, 'shoulder', { rerender: true }) }),
+      slab.shoulder === 'widened'
+        ? numberField({
+            label: 'Outer lane widened by',
+            ref: CROSS_SECTION.widenedLane,
+            aside: CROSS_SECTION.widenedLaneM.join(' – '),
+            value: slab.widenedM,
+            suffix: 'm',
+            min: 0,
+            step: 0.05,
+            onInput: set(slab, 'widenedM'),
+          })
+        : null,
       segmented({
         label: 'Dowel bars at transverse joints',
         ref: RIGID.dowels.ref,

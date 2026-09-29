@@ -36,19 +36,9 @@ import { combinationName, describeCombination, displaySlots } from '../../data/l
 import { ruralDesignFor, lvRigidDesignFor } from '../lowVolumeProject.js';
 import { SP72 } from '../../data/sp72.js';
 import { SP62 } from '../../data/sp62.js';
-import { costSection, formatCurrency, formatNumber } from '../../engine/costing.js';
-
-const LAYER_COLOURS = {
-  bituminous: '#3c4552',
-  granular: '#c9a227',
-  cemented: '#8fa3b8',
-  treated: '#5b4a3a',
-  membrane: '#1f252d',
-  concrete: '#d3d8de',
-  subgrade: '#a9805a',
-};
-
-const DARK_TEXT = new Set(['granular', 'concrete', 'cemented']);
+import { formatCurrency, formatNumber } from '../../engine/costing.js';
+import { billOfQuantities } from '../../engine/quantities.js';
+import { sectionFor, crossSectionFigure, LAYER_COLOURS, DARK_TEXT } from '../crossSection.js';
 
 /** Disclaimer acceptance lasts for the session, not across reloads. */
 let accepted = false;
@@ -148,28 +138,52 @@ function referencesSection(number, refs) {
   ];
 }
 
-function costSectionBlock(number, slots, app) {
-  const layers = slots.filter((s) => s.thicknessMm > 0);
-  const cost = costSection(layers, app.state.rates, app.state.geometry);
-  if (!(cost.total > 0)) return null;
+/** The road across its width, drawn and tabled, with the clauses that set each width. */
+function crossSectionBlock(app, cite) {
+  const model = sectionFor(app);
+  const figure = crossSectionFigure(model);
+  if (!figure) return null;
+  const refs = [
+    ...model.notes.map((n) => [n.text, n.ref]),
+    model.membrane ? [`Debonding polythene sheet of at least ${model.membrane.micron} micron between the slab and the DLC`, model.membrane.ref] : null,
+    model.widenedM > 0 ? [`Outer lanes widened by ${model.widenedM} m`, model.widenedRef] : null,
+    model.shoulderLayer ? [`Shoulders of sub-base quality material, ${model.shoulderLayer.thicknessMm} mm thick`, model.shoulderLayer.ref] : null,
+    model.joints.some((j) => j.tied) ? ['Tie bars across the longitudinal joints', RIGID.tieBars.ref] : null,
+  ].filter(Boolean);
   return [
-    h('h2', {}, `${number}. Cost estimate`),
+    h('h3', {}, 'Cross-section'),
+    h('div', { class: 'r-xsec-wrap' }, figure.drawing),
+    table(null, ['#', 'Layer', 'Thickness', 'Width'], figure.rows),
+    refs.map(([text, ref]) => para(`${text}. `, cite(ref))),
+    h('p', { class: 'r-note' }, 'Schematic: depths are not to the scale of the widths.'),
+  ];
+}
+
+function quantitiesBlock(number, app) {
+  const model = sectionFor(app);
+  if (!model || !(model.pavedM > 0)) return null;
+  const { lengthKm } = app.state.geometry;
+  const bill = billOfQuantities(model, app.state.rates, lengthKm);
+  if (!bill.items.length) return null;
+  const priced = bill.total > 0;
+  const digits = (unit) => (unit === 't' ? 2 : 0);
+  return [
+    h('h2', {}, `${number}. Bill of quantities`),
     table(
-      null,
-      ['Layer', 'Thickness, mm', 'Volume, m³', 'Rate, ₹/m³', 'Amount'],
-      cost.lines.map((line) => [
-        line.materialId,
-        String(line.thicknessMm),
-        formatNumber(line.volumeCum, 1),
-        line.rateMissing ? 'no rate' : formatCurrency(line.rate),
-        formatCurrency(line.amount),
-      ])
+      `For ${formatNumber(lengthKm, 2)} km`,
+      priced ? ['#', 'Item', 'Unit', 'Quantity', 'Rate', 'Amount'] : ['#', 'Item', 'Unit', 'Quantity'],
+      bill.items.map((i) => {
+        const row = [String(i.no), i.detail ? `${i.item} (${i.detail})` : i.item, i.unit, formatNumber(i.quantity, digits(i.unit))];
+        return priced ? [...row, i.rateMissing ? 'no rate' : formatCurrency(i.rate), formatCurrency(i.amount)] : row;
+      })
     ),
-    para(
-      `Carriageway ${formatNumber(app.state.geometry.carriagewayWidthM, 2)} m wide over ${formatNumber(app.state.geometry.lengthKm, 2)} km: `,
-      h('strong', {}, formatCurrency(cost.total)),
-      ` in all, ${formatCurrency(cost.costPerKm)} per km.`
-    ),
+    priced
+      ? para(
+          h('strong', {}, formatCurrency(bill.total)),
+          ` in all: ${formatCurrency(bill.costPerKm)} per km, ${formatCurrency(bill.costPerSqm)} per m² of paved width.`,
+          bill.anyRateMissing ? ' Items without a rate are costed at zero.' : ''
+        )
+      : null,
   ];
 }
 
@@ -1062,9 +1076,10 @@ export function buildReport(app) {
   if (!design) return null;
   const refs = citations();
   const body = BUILDERS[design.type](app, refs.cite);
-  const cost = costSectionBlock(5, design.slots, app);
+  const section = crossSectionBlock(app, refs.cite);
+  const bill = quantitiesBlock(5, app);
   const appendix = design.type === 'flexible' ? iitpaveAppendix(app) : null;
-  return h('article', { class: 'report' }, body, cost, referencesSection(cost ? 6 : 5, refs), appendix, closing());
+  return h('article', { class: 'report' }, body, section, bill, referencesSection(bill ? 6 : 5, refs), appendix, closing());
 }
 
 /* ---------- Export ---------- */
@@ -1087,11 +1102,38 @@ caption { text-align: left; font-weight: bold; font-size: 10pt; padding: 4pt 0; 
 .r-note { color: #9a6207; }
 .r-pass { color: #1c7a4a; } .r-fail { color: #b3261e; }
 .r-figure td { border: none; padding: 3pt 8pt; }
+.r-swatch { display: inline-block; width: 10pt; height: 8pt; border: 1px solid #1b232c; }
 .r-mark { color: #1d5fa8; font-size: 9pt; }
 .r-disclaimer, .r-credit { font-size: 9pt; color: #5a6775; }
 `;
 
-function downloadWord(report, name) {
+/** A drawing as a PNG, which Word shows where it would not show the SVG. */
+function drawingAsImage(drawing) {
+  return new Promise((resolve) => {
+    const width = Number(drawing.getAttribute('width'));
+    const height = Number(drawing.getAttribute('height'));
+    const source = new XMLSerializer().serializeToString(drawing);
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2;
+      canvas.height = height * 2;
+      const context = canvas.getContext('2d');
+      context.scale(2, 2);
+      context.drawImage(image, 0, 0, width, height);
+      resolve(h('img', { src: canvas.toDataURL('image/png'), width, height, alt: drawing.getAttribute('aria-label') }));
+    };
+    image.onerror = () => resolve(null);
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`;
+  });
+}
+
+async function downloadWord(original, name) {
+  const report = original.cloneNode(true);
+  for (const drawing of report.querySelectorAll('svg.r-xsec')) {
+    const image = await drawingAsImage(drawing);
+    if (image) drawing.replaceWith(image);
+  }
   const html =
     '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">' +
     `<head><meta charset="utf-8"><title>${name}</title><style>${WORD_STYLES}</style></head>` +

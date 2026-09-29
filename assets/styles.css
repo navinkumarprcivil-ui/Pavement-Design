@@ -2601,6 +2601,30 @@ body.drawer-open .drawer {
   font-weight: 600;
 }
 
+.r-xsec-wrap {
+  margin: 10px 0 6px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.r-xsec {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+}
+
+.r-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  margin-right: 2px;
+  vertical-align: -1px;
+  border: 1px solid #1b232c;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 .r-refs {
   margin: 6px 0;
   padding-left: 22px;
@@ -2780,7 +2804,8 @@ body.drawer-open .drawer {
   }
 
   .r-table,
-  .r-figure {
+  .r-figure,
+  .r-xsec-wrap {
     break-inside: avoid;
   }
 }
@@ -2965,4 +2990,13 @@ body.drawer-open .drawer {
 
 .check-figures {
   flex-wrap: wrap;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
