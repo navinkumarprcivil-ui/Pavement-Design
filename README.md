@@ -131,8 +131,9 @@ design then follows it throughout.
   Reproduces the edge stresses of Appendix I.
 
 **Rigid pavement (IRC:58-2015).** The full fatigue design of a jointed plain
-concrete slab: foundation k from Tables 2 – 4 or measured by plate load test
-(Eq. 2) or FWD, flexural strength from the beam test or 0.7 √fck,
+concrete slab: foundation k from Tables 2 – 4 (at a tested CBR, or one from the
+DCP penetration rate by Eq. 3) or measured by plate load test (Eq. 2) or FWD,
+flexural strength from the beam test or 0.7 √fck,
 temperature differentials from
 Table 1, six-hour design repetitions, the Appendix-V stress equations for
 bottom-up and top-down cracking, and cumulative fatigue damage over the axle

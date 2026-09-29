@@ -4,7 +4,7 @@
  */
 
 import { RIGID, CROSS_SECTION, ref } from '../data/ircConstants.js';
-import { rigidTraffic, foundationK, evaluateSlab, designSlab, dowelBars } from '../engine/rigidDesign.js';
+import { rigidTraffic, foundationK, evaluateSlab, designSlab, dowelBars, cbrFromDcp } from '../engine/rigidDesign.js';
 import { bondedSlab, equivalentSlab, bondedSteps, tieBars, dowelBearing, slabReinforcement } from '../engine/rigidDetails.js';
 import { drainageLayer, drainageMaterial } from '../engine/drainage.js';
 import { AXLES, defaultSpectrum, frontAxlePercent, spectrumTotal } from './spectrum.js';
@@ -39,6 +39,9 @@ export const defaultRigidState = () => ({
   spectrum: defaultSpectrum(),
   foundation: {
     subgradeCBR: 8,
+    /** The CBR from a 'test', or from the DCP penetration rate (Cl. 5.7.3.7). */
+    cbrFrom: 'test',
+    dcpMmPerBlow: null,
     subBase: 'dlc',
     subBaseMm: 150,
     gsbMm: 150,
@@ -192,8 +195,14 @@ export function measuredFoundationK(f) {
   return { k, warnings, steps };
 }
 
+/** The subgrade CBR the k tables are read at: as tested, or from the DCP (Eq. 3). */
+export function subgradeCbrOf(f) {
+  if (f.cbrFrom !== 'dcp') return f.subgradeCBR;
+  return f.dcpMmPerBlow > 0 ? cbrFromDcp(f.dcpMmPerBlow) : null;
+}
+
 export function rigidFoundation(rigid) {
-  const f = rigid.foundation;
+  const f = { ...rigid.foundation, subgradeCBR: subgradeCbrOf(rigid.foundation) };
   const bonded = isBonded(rigid);
   const warnings = [];
   if (bonded) {
@@ -210,6 +219,8 @@ export function rigidFoundation(rigid) {
     const m = measuredFoundationK(f);
     return { subgradeK: null, k: m.k, warnings: [...warnings, ...m.warnings], steps: m.steps };
   }
+  // No CBR yet: no k, rather than the foot of Table 2.
+  if (!(f.subgradeCBR > 0)) return { subgradeK: null, k: null, warnings, steps: [] };
   // A bonded slab is designed on the granular layer below the DLC (Cl. 6.7.2, Table 3).
   const result = bonded ? foundationK({ ...f, subBase: 'granular', subBaseMm: granularBelowMm(rigid) }) : foundationK(f);
   result.warnings.push(...warnings);
@@ -345,11 +356,20 @@ function workingSteps(rigid, traffic, foundation, evaluation) {
   ];
 
   if (foundation.subgradeK != null) {
-    const f = rigid.foundation;
+    const f = { ...rigid.foundation, subgradeCBR: subgradeCbrOf(rigid.foundation) };
+    if (rigid.foundation.cbrFrom === 'dcp') {
+      steps.push({
+        title: 'Subgrade CBR from the DCP',
+        formula: `log10 CBR = ${RIGID.dcp.intercept} − ${RIGID.dcp.slope} log10 N`,
+        substitution: `N = ${f.dcpMmPerBlow} mm a blow;  ${RIGID.dcp.intercept} − ${RIGID.dcp.slope} × ${fmt(Math.log10(f.dcpMmPerBlow), 3)}`,
+        result: `CBR = ${fmt(f.subgradeCBR, 1)}%`,
+        ref: RIGID.dcp.ref,
+      });
+    }
     steps.push({
       title: 'Foundation k',
       formula: 'Subgrade k from CBR, then effective k over the sub-base',
-      substitution: `CBR ${f.subgradeCBR}% → ${fmt(foundation.subgradeK, 1)} MPa/m; ${f.subBaseMm} mm ${subBaseOption(f.subBase).label}`,
+      substitution: `CBR ${+f.subgradeCBR.toFixed(1)}% → ${fmt(foundation.subgradeK, 1)} MPa/m; ${f.subBaseMm} mm ${subBaseOption(f.subBase).label}`,
       result: `k = ${fmt(foundation.k, 1)} MPa/m`,
       ref: ref('IRC58', 'Cl. 5.7.3.4 / 5.7.4.4', {
         table: f.subBase === 'dlc' ? 'Table 2 / Table 4' : 'Table 2 / Table 3',
@@ -413,6 +433,9 @@ function dowelsFor(rigid, slabMm, evaluation) {
 export function missingRigid(rigid, mode) {
   const { traffic: t, slab, temperature } = rigid;
   const positive = (v) => Number.isFinite(v) && v > 0;
+  const f = rigid.foundation;
+  if (f.kSource === 'tables' && f.cbrFrom === 'dcp' && !positive(f.dcpMmPerBlow)) return 'DCP penetration rate';
+  if (f.kSource === 'tables' && f.cbrFrom !== 'dcp' && !positive(f.subgradeCBR)) return 'effective subgrade CBR';
   if (!positive(t.twoWayCVPD)) return 'commercial vehicles per day';
   if (!positive(t.designPeriodYears)) return 'design period';
   if (!positive(t.axlesPerVehicle)) return 'axles per commercial vehicle';

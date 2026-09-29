@@ -1,5 +1,5 @@
 import { h, card, numberField, segmented, selectField, metric, notice, button, fold } from '../dom.js';
-import { SUB_BASES, SHOULDERS, rigidFoundation, runRigid, isBonded, hasDrainage, granularBelowMm, flexuralOf } from '../rigidProject.js';
+import { SUB_BASES, SHOULDERS, rigidFoundation, runRigid, isBonded, hasDrainage, granularBelowMm, flexuralOf, subgradeCbrOf } from '../rigidProject.js';
 import { RIGID, CROSS_SECTION } from '../../data/ircConstants.js';
 
 export default function renderRigidSlab(app) {
@@ -23,7 +23,10 @@ export default function renderRigidSlab(app) {
       h(
         'div',
         { class: 'metric-grid' },
-        result.subgradeK != null ? metric('Subgrade k', `${result.subgradeK.toFixed(1)} MPa/m`) : null,
+        rigid.foundation.kSource === 'tables' && rigid.foundation.cbrFrom === 'dcp'
+          ? metric('CBR from the DCP', Number.isFinite(subgradeCbrOf(rigid.foundation)) ? `${subgradeCbrOf(rigid.foundation).toFixed(1)}%` : '—')
+          : null,
+        Number.isFinite(result.subgradeK) ? metric('Subgrade k', `${result.subgradeK.toFixed(1)} MPa/m`) : null,
         metric(bonded ? 'k on the GSB' : 'Effective k', result.k > 0 ? `${result.k.toFixed(1)} MPa/m` : '—')
       ),
       result.warnings.map((w) => notice('warn', null, w))
@@ -299,16 +302,37 @@ export default function renderRigidSlab(app) {
           ]
         : f.kSource === 'fwd'
           ? numberField({ label: 'Dynamic k from the FWD', ref: RIGID.measuredK.fwdRef, value: f.fwdDynamicK, suffix: 'MPa/m', min: 0, onInput: set(f, 'fwdDynamicK', { after: showK }) })
-          : numberField({
-            label: 'Effective subgrade CBR',
-            ref: RIGID.subgradeK.ref,
-            aside: `min ${RIGID.subgradeK.minimumCBR}`,
-            value: f.subgradeCBR,
-            suffix: '%',
-            min: 1,
-            max: 100,
-            onInput: set(f, 'subgradeCBR', { after: showK }),
-          }),
+          : [
+              segmented({
+                label: 'Subgrade CBR from',
+                ref: RIGID.dcp.ref,
+                value: f.cbrFrom === 'dcp' ? 'dcp' : 'test',
+                options: [
+                  { value: 'test', label: 'CBR test' },
+                  { value: 'dcp', label: 'DCP' },
+                ],
+                onChange: set(f, 'cbrFrom', { rerender: true }),
+              }),
+              f.cbrFrom === 'dcp'
+                ? numberField({
+                    label: 'DCP penetration rate, N',
+                    ref: RIGID.dcp.ref,
+                    value: f.dcpMmPerBlow,
+                    suffix: 'mm/blow',
+                    min: 0,
+                    onInput: set(f, 'dcpMmPerBlow', { after: showK }),
+                  })
+                : numberField({
+                    label: 'Effective subgrade CBR',
+                    ref: RIGID.subgradeK.ref,
+                    aside: `min ${RIGID.subgradeK.minimumCBR}`,
+                    value: f.subgradeCBR,
+                    suffix: '%',
+                    min: 1,
+                    max: 100,
+                    onInput: set(f, 'subgradeCBR', { after: showK }),
+                  }),
+            ],
       kHost
     ),
 

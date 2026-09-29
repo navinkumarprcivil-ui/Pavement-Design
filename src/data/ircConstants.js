@@ -657,6 +657,14 @@ export const RIGID = {
     minimumCBR: 8,
   },
 
+  /** In-situ CBR from a DCP (60° cone): log10 CBR = 2.465 - 1.12 log10 N, N in mm a blow (Eq. 3). */
+  dcp: {
+    ref: ref('IRC58', 'Cl. 5.7.3.7', { equation: 'Eq. 3', page: 10 }),
+    verified: true,
+    intercept: 2.465,
+    slope: 1.12,
+  },
+
   /** Effective k over untreated granular and cement treated sub-bases (Table 3). */
   subBaseK: {
     ref: ref('IRC58', 'Cl. 5.7.4.4', { table: 'Table 3', page: '11, 12' }),

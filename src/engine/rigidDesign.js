@@ -52,6 +52,12 @@ export function subgradeKFromCBR(cbr) {
  * @param {number} f.subBaseMm   DLC, cement treated or granular sub-base thickness.
  * @param {number} [f.measuredK] Plate load or FWD value, used as it stands.
  */
+/** In-situ CBR from the DCP penetration rate, mm a blow (Cl. 5.7.3.7, Eq. 3). */
+export function cbrFromDcp(mmPerBlow) {
+  const d = RIGID.dcp;
+  return 10 ** (d.intercept - d.slope * Math.log10(mmPerBlow));
+}
+
 export function foundationK(f) {
   const warnings = [];
   if (f.subBase === 'measured') {

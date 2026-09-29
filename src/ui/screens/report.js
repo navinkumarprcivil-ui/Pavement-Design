@@ -11,7 +11,7 @@ import { h, card, button, msa } from '../dom.js';
 import { formatCitation } from '../citations.js';
 import { designTraffic } from '../project.js';
 import { currentDesign } from '../currentDesign.js';
-import { AXLES, SUB_BASES, SHOULDERS, flexuralOf } from '../rigidProject.js';
+import { AXLES, SUB_BASES, SHOULDERS, flexuralOf, subgradeCbrOf } from '../rigidProject.js';
 import { checkSteps, damageRows, fromIitpave, allFromIitpave } from './results.js';
 import { iitpaveCases, iitpaveMissing, iitpaveStore } from '../iitpave.js';
 import { ctbDamageInput, ctbSevenDay } from '../ctbProject.js';
@@ -735,7 +735,12 @@ function rigidReport(app, cite) {
             ]
           : f.kSource === 'fwd'
             ? [['k', 'Dynamic k from the FWD', `${f.fwdDynamicK} MPa/m`, 'Input', RIGID.measuredK.fwdRef]]
-            : [['CBR', 'Effective subgrade CBR', `${f.subgradeCBR}%`, 'Input', RIGID.subgradeK.ref]]),
+            : f.cbrFrom === 'dcp'
+              ? [
+                  ['N', 'DCP penetration rate', `${f.dcpMmPerBlow} mm a blow`, 'Input', RIGID.dcp.ref],
+                  ['CBR', 'Subgrade CBR from the DCP', `${subgradeCbrOf(f).toFixed(1)}%`, 'Derived', RIGID.dcp.ref],
+                ]
+              : [['CBR', 'Effective subgrade CBR', `${f.subgradeCBR}%`, 'Input', RIGID.subgradeK.ref]]),
         ['', `Sub-base, ${subBase?.name}${b ? ', bonded to the PQC' : ''}`, `${f.subBaseMm} mm`, 'Input', b ? RIGID.bonded.ref : f.subBase === 'dlc' ? RIGID.dlcK.ref : RIGID.subBaseK.ref],
         b ? ['', 'DLC compressive strength, 7 and 28 days', `${f.dlc7DayMPa} and ${f.dlc28DayMPa} MPa`, 'Input', RIGID.bonded.ref] : null,
         b ? ['E2, μ2', 'DLC modulus and Poisson\'s ratio', `${Math.round(b.E2).toLocaleString('en-IN')} MPa, ${b.mu2}`, 'Code', RIGID.bonded.ref] : null,
@@ -898,7 +903,7 @@ function rigidReport(app, cite) {
         ...result.slots
           .filter((s) => s.thicknessMm > 0)
           .map((s, i) => [String(i + 1), s.slotId === 'PQC' ? 'Pavement quality concrete (PQC)' : s.label, `${s.thicknessMm} mm`]),
-        ['', f.kSource === 'tables' ? `Subgrade, effective CBR not less than ${f.subgradeCBR}%` : 'Subgrade', '—'],
+        ['', f.kSource === 'tables' ? `Subgrade, effective CBR not less than ${+subgradeCbrOf(f).toFixed(1)}%` : 'Subgrade', '—'],
       ]
     ),
     result.retextureMm > 0 && result.mode === 'design'

@@ -68,3 +68,21 @@ test('layout warnings: no shoulders, a widened lane on a divided road, a long pa
   rigid.slab.laneWidthM = 2.5;
   assert.ok(runRigid(rigid, 'check').warnings.some((w) => w.includes('Cl. 8.2.3')));
 });
+
+test('Cl. 5.7.3.7, Eq. 3: subgrade CBR from the DCP', async () => {
+  const { cbrFromDcp } = await import('../src/engine/rigidDesign.js');
+  const { rigidFoundation, subgradeCbrOf } = await import('../src/ui/rigidProject.js');
+  near(cbrFromDcp(10), 10 ** 1.345, 1e-9, 'N 10');
+  near(cbrFromDcp(25), 7.93, 0.01, 'N 25');
+  const rigid = withSpectrum();
+  rigid.foundation.cbrFrom = 'dcp';
+  assert.equal(runRigid(rigid, 'design').message, 'Enter the DCP penetration rate');
+  rigid.foundation.dcpMmPerBlow = 25;
+  near(subgradeCbrOf(rigid.foundation), cbrFromDcp(25), 1e-12, 'CBR used');
+  const byTest = withSpectrum();
+  byTest.foundation.subgradeCBR = cbrFromDcp(25);
+  near(rigidFoundation(rigid).k, rigidFoundation(byTest).k, 1e-9, 'same k as the same CBR by test');
+  const r = runRigid(rigid, 'design');
+  assert.ok(r.ok);
+  assert.ok(r.steps.some((s) => s.title === 'Subgrade CBR from the DCP'));
+});

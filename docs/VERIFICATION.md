@@ -121,6 +121,7 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Drainage layer | qi = Ic [Nc/Wp + Wc/(Wp Cs)] + Kp, Ic 0.223 m³/day/m, Kp 0; Q = AD qi; K = Q/(I t); K ≥ 300 m/day; designed where rainfall > 1000 mm; below the DLC with a separation layer | Cl. 6.5.1 – 6.5.3, Eq. 9 | 20, 21 | Note (11) |
 | Drainage material | t ≥ 100 mm; Cu = D60/D10 in 2 – 8, stabilised under 4; D10 > 2 mm; LA abrasion < 40%; stabiliser cement 2 – 2.5%, bitumen 1.5 – 2.5%, emulsion 2.5 – 3% | Cl. 5.7.3.9 / 6.5.2 / 6.5.3; Appendix VI, VI-II / VI-III | 10, 20, 21, 77, 78 | Note (11) |
 | Drainage example | B 10.4 m, AC 12.48 m, AD 16.24 m, I 0.039, qi 0.115, Q 1.868 m³/day/m; K 319 m/day in 150 mm, 160 m/day in 300 mm | Appendix VI, VI-VIII | 79 – 81 | ✓ (11) |
+| DCP route to CBR | log10 CBR = 2.465 − 1.12 log10 N, N in mm a blow, 60° cone; the CBR then reads Table 2 as a tested one | Cl. 5.7.3.7, Eq. 3 | 10 | **Added** |
 | Reinforced slab | Joints over 5.0 m apart; As = Ld f W / (2 Sst) each way, f 1.5, Sst 50 – 60% of yield (warned outside), mesh 50 – 60 mm below the surface and 50 mm clear of joints; stresses still from the 3.5 × 4.5 m panel relations, noted | Cl. 6.2.6, 9.1 – 9.4, Eq. 18 | 17, 29, 30 | **Added** |
 | Layer widths | Drainage and separation layers throughout the road width, when a drainage layer is designed; PQC and sub-base under the carriageway and tied shoulders | Cl. 6.5.2 | 20 | **Added** (report) |
 | Separation layer | Polythene sheet of at least 125 micron between the slab and an unbonded DLC | Cl. 5.7.5 | 12 | **Added** (report) |
@@ -314,8 +315,9 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
    as a starting trial on the inputs step and set beside the design in the
    report; the analysis still decides it (Cl. 12.1).
 
-**Not built.** DCP route to CBR (IRC:58 Cl. 5.7.3.7, Eq. 3, optional);
-the time-to-drain route of IRC:58 VI-VI.
+**Not built.** The time-to-drain route of IRC:58 VI-VI; the DCP–CBR
+relation of IRC:SP:72 Appendix C, which the code gives as a chart only (the
+IRC:58 Eq. 3 route is built for rigid pavements).
 
 ## How it is kept checked
 
@@ -329,7 +331,7 @@ the time-to-drain route of IRC:58 VI-VI.
   `tests/stageConstruction.test.js` — IRC:37 Table 9.1, BM, low strength CTSB,
   Cl. 6.4.1, long-life, frost, Eq. 4.1 – 4.4, Table 4.1, Cl. 4.3.2 and
   Annex-II, II.7.
-- `tests/irc58Rules.test.js` — IRC:58 plate and FWD k, fck, Appendix VIII.
+- `tests/irc58Rules.test.js` — IRC:58 plate and FWD k, the DCP (Eq. 3), fck, Appendix VIII.
 - `tests/sp72.test.js` — SP:72 Appendix A and D, Table 4, categories.
 - `tests/sp62.test.js` — SP:62 Appendix I.
 - `tests/catalogue.test.js` — IRC:37 catalogues against Annex-III.
