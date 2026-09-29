@@ -28,7 +28,7 @@ function drainsToFormation(slot, type, rigid) {
 
 /**
  * @param {object} input
- * @param {'flexible'|'rigid'|'rural'|'ruralRigid'} input.type
+ * @param {'flexible'|'rigid'|'rural'|'ruralRigid'|'overlay'} input.type
  * @param {Array} input.slots       The design's layers, top down.
  * @param {object} input.geometry   carriagewayWidthM, pavedShoulderM and earthenShoulderM (each side).
  * @param {object} [input.rigid]    For IRC:58: shoulder, widenedM, laneWidthM, jointSpacingM,
@@ -40,7 +40,13 @@ function drainsToFormation(slot, type, rigid) {
 export function crossSection({ type, slots, geometry, rigid = null, lvRigid = null }) {
   const carriagewayM = width(geometry.carriagewayWidthM);
   const shoulderKind =
-    type === 'rigid' ? (rigid.shoulder === 'tied' ? 'tied' : 'none') : type === 'flexible' && positive(geometry.pavedShoulderM) ? 'paved' : 'none';
+    type === 'rigid'
+      ? rigid.shoulder === 'tied'
+        ? 'tied'
+        : 'none'
+      : (type === 'flexible' || type === 'overlay') && positive(geometry.pavedShoulderM)
+        ? 'paved'
+        : 'none';
   const shoulderM = shoulderKind === 'none' ? 0 : width(geometry.pavedShoulderM);
   const widenedM = type === 'rigid' && rigid.shoulder === 'widened' ? width(rigid.widenedM) : 0;
   const earthenM = width(geometry.earthenShoulderM);
@@ -57,6 +63,8 @@ export function crossSection({ type, slots, geometry, rigid = null, lvRigid = nu
         label: s.label,
         behaviour: s.behaviour,
         thicknessMm: s.thicknessMm,
+        /** A layer of the road as it stands, under an overlay: drawn, not measured. */
+        existing: Boolean(s.existing),
         extent: toFormation ? 'formation' : 'paved',
         widthM: toFormation ? formationM : pavedM,
         ref: toFormation ? (type === 'rigid' ? CROSS_SECTION.rigidDrainage : CROSS_SECTION.flexibleDrainage) : null,

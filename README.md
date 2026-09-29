@@ -153,6 +153,36 @@ entering by the joints (Eq. 9) and the flow down the resultant slope,
 reproducing the Appendix-VI example (319 m/day in 150 mm), with the 300 m/day
 floor, the 100 mm minimum and the material checks of Appendix-VI.
 
+**Overlays on flexible pavements.** A third module on the home page, by either
+survey:
+
+- *Falling weight deflectometer, IRC:115-2014.* Bowls normalised to 40 kN (typed
+  or pasted from a spreadsheet), checked as the code asks; the moduli of the
+  three layers back-calculated by the app within the ranges of Appendix III, or
+  entered from KGPBACK, which then govern; corrected to 35 °C (Eqs. 4, 5) and to
+  the monsoon (Eqs. 6 – 9) and taken at the 15th percentile; the remaining life
+  from Eqs. 16 and 17, and the least overlay of the chosen mix that carries the
+  design traffic. Strains read from IITPAVE may be entered and govern.
+  Reproduces the moduli of Appendix IV point by point.
+- *Benkelman beam, IRC:81-1997.* Rebound deflections corrected to 35 °C and to the
+  season from the soil, rainfall and field moisture (Figs. 2 – 7), the
+  characteristic deflection by Eq. 4 or 5, and the overlay from Fig. 9 in BM,
+  with its equivalents in DBM or BC and in WMM (Cl. 7.4) and the least overlay of
+  Cl. 7.5.
+
+Both carry their own traffic (IRC:81 Eq. 1, IRC:115 Eq. 10) and lane factors,
+and go on to the report, the cross-section, the bill of quantities and compare.
+
+**Worked examples.** The side panel's *Worked examples* opens a sample problem
+for each kind of pavement with its data entered and the design carried through:
+IRC:37 Annex-II II.3 (with the IITPAVE strains the code prints), IRC:58
+Appendix-VII option (i) with the axle load spectrum of Table VII.1, IRC:SP:72
+Appendix D, IRC:SP:62 Appendix I, IRC:115 Appendix IV (with the KGPBACK moduli it
+prints), and a Benkelman beam survey to IRC:81. Each opens as a new, unsaved
+project, to step through, change or save.
+
+The side panel folds to a rail of icons on a wide screen.
+
 ## Saved work and cloud sync
 
 The app is offline-first. Everything is written to device storage the moment
@@ -241,11 +271,12 @@ clause, table or equation to open.
 ### Verified against the codes
 
 Every value the app designs with has been checked against IRC:37-2018,
-IRC:58-2015, IRC:SP:72-2015 and IRC:SP:62-2014, and every citation carries the
+IRC:58-2015, IRC:SP:72-2015, IRC:SP:62-2014, IRC:81-1997 and IRC:115-2014, and every citation carries the
 printed page it was read on. [docs/VERIFICATION.md](docs/VERIFICATION.md) lists
 each value with its clause, table or equation and page, what was corrected, and
-where the app and a code's worked example differ. The worked examples of all
-four codes are reproduced by the tests.
+where the app and a code's worked example differ. The worked examples of the
+codes are reproduced by the tests. The IRC:81 design charts were read off the
+code as numbers, as set out there.
 
 Keep your own copies of the codes in `codebooks/`, which git ignores.
 
@@ -273,8 +304,10 @@ src/engine/             Calculation core — no browser APIs
   quantities.js           Bill of quantities off the cross-section
   costing.js              Money and number formats
   catalogue.js            IRC:37 catalogue section for a composition
+  overlay.js              Overlays: IRC:81 and IRC:115, back-calculation
 src/data/               IRC constants with citations and pages; layer catalogue;
-                        sp72.js and sp62.js for the low volume codes
+                        sp72.js and sp62.js for the low volume codes;
+                        overlay.js for IRC:81 and IRC:115
 src/config/firebase.js  Firebase project config (public, not a secret)
 src/store/
   sync.js                 Offline-first storage with merge and tombstones
@@ -290,6 +323,9 @@ src/ui/                 Screens and DOM helpers
   flexibleProject.js      The flexible design's engine input from the state
   lowVolumeProject.js     The low volume designs from the state
   lowVolume.js            The low volume code offered at the traffic step
+  overlayProject.js       The overlay design from the state
+  dataGrid.js             Test points entered as a grid, or pasted
+  examples.js             The worked examples
   iitpave.js              Analyses laid out as IITPAVE inputs
   iitpaveTables.js        Those inputs drawn as tables and in order of entry
   screens/report.js       The design report, for print, PDF and Word
@@ -310,8 +346,9 @@ Engineering, IIT Madras.
 
 ## Where this is going
 
-The goal is one app covering flexible pavements, rigid pavements and low volume
-rural roads across several IRC design methods. Next up:
+The goal is one app covering flexible pavements, rigid pavements, low volume
+rural roads and overlays across the IRC design methods. Next up:
 
-- The IRC:37 design catalogue as a second route alongside the
-  mechanistic-empirical one already built.
+- The time-to-drain route of IRC:58 Appendix VI.
+- Homogeneous sections from a long deflection survey by cumulative
+  differences (IRC:115 Cl. 6.2.3).

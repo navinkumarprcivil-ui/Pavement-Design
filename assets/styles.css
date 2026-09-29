@@ -394,6 +394,23 @@ h2.section-title {
   height: 4px;
 }
 
+/* An overlay: a new course over a worn one. */
+.choice-glyph.overlay span:nth-child(1) {
+  background: var(--accent);
+  height: 5px;
+}
+
+.choice-glyph.overlay span:nth-child(2) {
+  background: var(--layer-bituminous);
+  height: 6px;
+  opacity: 0.6;
+}
+
+.choice-glyph.overlay span:nth-child(3) {
+  background: var(--layer-granular);
+  height: 9px;
+}
+
 .choice-label {
   flex: 1;
   font-size: 1.06rem;
@@ -1658,6 +1675,23 @@ body.drawer-open .drawer {
   text-overflow: ellipsis;
 }
 
+.drawer-fold {
+  display: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.drawer-fold:hover {
+  background: var(--surface-2);
+}
+
 .drawer-close {
   display: grid;
   place-items: center;
@@ -1756,16 +1790,6 @@ body.drawer-open .drawer {
 
 .drawer-about[aria-current='page'] {
   background: var(--accent-soft);
-}
-
-.drawer-logo {
-  flex: none;
-  width: 40px;
-  height: 40px;
-  padding: 2px;
-  border-radius: 50%;
-  background: #fff;
-  object-fit: contain;
 }
 
 .drawer-about-text {
@@ -2697,6 +2721,53 @@ body.drawer-open .drawer {
     display: none;
   }
 
+  .drawer-fold {
+    display: grid;
+  }
+
+  /* Folded: a rail of icons, each named by its tooltip. */
+  body.drawer-collapsed {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  body.drawer-collapsed .drawer-head {
+    justify-content: center;
+    padding: 0;
+  }
+
+  body.drawer-collapsed .drawer-head strong,
+  body.drawer-collapsed .drawer-head .header-mark,
+  body.drawer-collapsed .drawer-heading,
+  body.drawer-collapsed .drawer-label,
+  body.drawer-collapsed .drawer-count,
+  body.drawer-collapsed .drawer-about-text {
+    display: none;
+  }
+
+  body.drawer-collapsed .drawer-body {
+    padding: 8px 6px;
+  }
+
+  body.drawer-collapsed .drawer-item,
+  body.drawer-collapsed .drawer-about {
+    justify-content: center;
+    padding: 0;
+  }
+
+  body.drawer-collapsed .drawer-body > .drawer-item + h2 {
+    display: block;
+    height: 1px;
+    margin: 8px 6px;
+    overflow: hidden;
+    background: var(--border);
+    color: transparent;
+  }
+
+  body.drawer-collapsed .drawer-about {
+    margin: 0 6px 8px;
+    min-height: var(--tap);
+  }
+
   .app-header {
     grid-column: 2;
     grid-row: 1;
@@ -3055,4 +3126,163 @@ body.drawer-open .drawer {
 
 .compare-table td.fail {
   color: var(--danger);
+}
+
+/* ---------- Overlay: survey grids ---------- */
+
+.notice.ok {
+  background: var(--safe-soft);
+  border-color: color-mix(in srgb, var(--safe) 45%, transparent);
+  color: var(--safe);
+}
+
+.field-note {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.sub-title {
+  margin: 8px 0 6px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.data-grid-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.data-grid {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-grid th,
+.data-grid td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.data-grid thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: normal;
+  min-width: 64px;
+}
+
+.data-grid tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-weight: 650;
+  text-align: center;
+}
+
+.data-grid tbody tr:last-child th,
+.data-grid tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-grid input {
+  width: 100%;
+  min-width: 64px;
+  min-height: 36px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: right;
+}
+
+.data-grid.read td {
+  padding: 8px 10px;
+}
+
+.grid-actions {
+  gap: 8px;
+}
+
+.field-row.sensors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+}
+
+/* ---------- Worked examples ---------- */
+
+.example-list {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 1024px) {
+  .example-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+.example-card .card-body {
+  display: block;
+}
+
+.example-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.example-head .choice-glyph {
+  height: 44px;
+  justify-content: center;
+}
+
+.example-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.example-titles .section-title {
+  margin: 0;
+}
+
+.example-source {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--accent);
+}
+
+.example-data {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.example-actions {
+  display: flex;
+  justify-content: flex-end;
 }

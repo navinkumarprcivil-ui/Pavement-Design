@@ -35,6 +35,11 @@ import renderCtbAxles from './ui/screens/ctbAxles.js';
 import renderIitpave from './ui/screens/iitpave.js';
 import renderRigidSlab from './ui/screens/rigidSlab.js';
 import renderRigidResult from './ui/screens/rigidResult.js';
+import renderOverlayTraffic from './ui/screens/overlayTraffic.js';
+import renderOverlaySurvey from './ui/screens/overlaySurvey.js';
+import renderOverlayModuli from './ui/screens/overlayModuli.js';
+import renderOverlayResult from './ui/screens/overlayResult.js';
+import { defaultOverlayState, migrateOverlay } from './ui/overlayProject.js';
 import { defaultRigidState, migrateRigid } from './ui/rigidProject.js';
 import { defaultCtbState, defaultConstructionState, hasCTB } from './ui/ctbProject.js';
 import { defaultAxleSurvey } from './ui/spectrum.js';
@@ -44,10 +49,11 @@ import { designStepsScreen } from './ui/screens/designSteps.js';
 import renderProjects from './ui/screens/projects.js';
 import renderMaterialRates from './ui/screens/materialRates.js';
 import renderAbout from './ui/screens/about.js';
+import renderExamples from './ui/screens/examples.js';
 import renderReport from './ui/screens/report.js';
 
 /** The step a design's result is shown on, for each kind of design. */
-const RESULT_SCREEN = { flexible: 'results', rigid: 'rigidResult', rural: 'rural', ruralRigid: 'lvRigidSlab' };
+const RESULT_SCREEN = { flexible: 'results', rigid: 'rigidResult', rural: 'rural', ruralRigid: 'lvRigidSlab', overlay: 'overlayResult' };
 
 /**
  * `title` heads the page. Screens of a design module carry the module's name in
@@ -72,6 +78,14 @@ const SCREENS = {
   rigidAxles: { render: renderRigidAxles, title: 'Axle load spectrum', back: 'rigidTraffic' },
   rigidSlab: { render: renderRigidSlab, title: 'Slab design', back: 'rigidAxles' },
   rigidResult: { render: renderRigidResult, title: 'Design result', back: 'rigidSlab' },
+  overlayTraffic: { render: renderOverlayTraffic, title: 'Design traffic', back: 'home' },
+  overlaySurvey: { render: renderOverlaySurvey, title: 'Deflection survey', back: 'overlayTraffic' },
+  overlayModuli: { render: renderOverlayModuli, title: 'Layer moduli', back: 'overlaySurvey' },
+  overlayResult: {
+    render: renderOverlayResult,
+    title: 'Overlay design',
+    back: () => (app.state.overlay.method === 'fwd' ? 'overlayModuli' : 'overlaySurvey'),
+  },
   // Reached from the header or the side panel, so they return to wherever
   // they were opened from.
   designSteps: { render: designStepsScreen('flexible'), title: 'Flexible design steps', back: () => app.returnTo },
@@ -79,10 +93,17 @@ const SCREENS = {
   projects: { render: renderProjects, title: 'Saved projects', back: () => app.returnTo },
   materialRates: { render: renderMaterialRates, title: 'Material rates', back: () => app.returnTo },
   about: { render: renderAbout, title: 'About', back: () => app.returnTo },
+  examples: { render: renderExamples, title: 'Worked examples', back: () => app.returnTo },
 };
 
+/** The code a design is to: an overlay names the one its survey is designed by. */
+function moduleCode(state) {
+  if (state.pavementType === 'overlay') return state.overlay.method === 'bbd' ? 'IRC:81-1997' : 'IRC:115-2014';
+  return MODULES[state.pavementType].code;
+}
+
 /** Screens opened alongside a design rather than as a step of one. */
-const ASIDE_SCREENS = new Set(['designSteps', 'rigidDesignSteps', 'projects', 'materialRates', 'about']);
+const ASIDE_SCREENS = new Set(['designSteps', 'rigidDesignSteps', 'projects', 'materialRates', 'about', 'examples']);
 
 /** The design procedure offered in the header: IRC:37 and IRC:58 have one. */
 function designStepsFor(state) {
@@ -175,13 +196,16 @@ export const defaultState = () => ({
   ruralResult: null,
   lvRigid: defaultLvRigidState(),
   lvRigidResult: null,
+  /** Overlays: IRC:115 (falling weight deflectometer) and IRC:81 (Benkelman beam). */
+  overlay: defaultOverlayState(),
+  overlayResult: null,
   /** The saved project these inputs were opened from or last saved as. */
   projectId: null,
 });
 
 /** The inputs a saved project keeps. Material rates are app-wide, not per project. */
 function projectInputs(state) {
-  const { screen, result, rigidResult, ruralResult, lvRigidResult, rates, projectId, ...inputs } = state;
+  const { screen, result, rigidResult, ruralResult, lvRigidResult, overlayResult, rates, projectId, ...inputs } = state;
   return structuredClone(inputs);
 }
 
@@ -212,13 +236,14 @@ function migrate(saved) {
   const defaults = defaultState();
   const state = { ...defaults, ...saved, screen: 'home' };
   for (const [key, value] of Object.entries(defaults)) {
-    if (value && typeof value === 'object' && !Array.isArray(value) && !['thicknesses', 'rates', 'rigid', 'rural', 'lvRigid'].includes(key)) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && !['thicknesses', 'rates', 'rigid', 'rural', 'lvRigid', 'overlay'].includes(key)) {
       state[key] = { ...value, ...(saved[key] || {}) };
     }
   }
   state.rigid = migrateRigid(saved.rigid);
   state.rural = migrateRural(saved.rural);
   state.lvRigid = migrateLvRigid(saved.lvRigid);
+  state.overlay = migrateOverlay(saved.overlay);
   delete state.routeChoice;
   if (state.traffic.vdfMode === 'manual') state.traffic.vdfMode = 'survey';
   state.traffic.axleSurvey = { ...defaults.traffic.axleSurvey, ...(state.traffic.axleSurvey || {}) };
@@ -321,6 +346,21 @@ const app = {
     this.go(MODULES[this.state.pavementType]?.start || 'traffic');
   },
 
+  /**
+   * Open a worked example as a new, unsaved project and show its design.
+   * Asks first when the design on the go has changes not saved.
+   */
+  openExample(example) {
+    if (this.isUnsaved() && !window.confirm('Open the example in place of the design on the go? Its unsaved changes will be lost.')) return;
+    const state = { ...defaultState(), rates: this.state.rates };
+    example.apply(state);
+    this.state = migrate(state);
+    this.state.projectId = null;
+    example.finish?.(this.state);
+    this.persist();
+    this.go(example.screen);
+  },
+
   /** Start a design module from its first step. */
   startModule(type) {
     this.state.pavementType = type;
@@ -374,7 +414,7 @@ const app = {
   },
 
   persist() {
-    const { screen, result, rigidResult, ruralResult, lvRigidResult, ...rest } = this.state;
+    const { screen, result, rigidResult, ruralResult, lvRigidResult, overlayResult, ...rest } = this.state;
     saveProject(rest);
   },
 
@@ -434,7 +474,7 @@ const app = {
       h(
         'div',
         { class: 'page-heading' },
-        flow ? h('span', { class: 'page-eyebrow' }, MODULES[this.state.pavementType].code) : null,
+        flow ? h('span', { class: 'page-eyebrow' }, moduleCode(this.state)) : null,
         h('h2', { class: 'page-title' }, screen.title)
       )
     );

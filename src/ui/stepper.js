@@ -46,10 +46,20 @@ const RURAL_RIGID_STEPS = [
   { screen: 'trials', label: 'Compare' },
 ];
 
-export const STEPS = { flexible: FLEXIBLE_STEPS, rigid: RIGID_STEPS, rural: RURAL_STEPS, ruralRigid: RURAL_RIGID_STEPS };
+const OVERLAY_STEPS = [
+  { screen: 'overlayTraffic', label: 'Traffic' },
+  { screen: 'overlaySurvey', label: 'Deflections' },
+  { screen: 'overlayModuli', label: 'Moduli', when: (s) => s.overlay.method === 'fwd' },
+  { screen: 'overlayResult', label: 'Overlay' },
+  { screen: 'report', label: 'Report' },
+  { screen: 'rates', label: 'Cost' },
+  { screen: 'trials', label: 'Compare' },
+];
+
+export const STEPS = { flexible: FLEXIBLE_STEPS, rigid: RIGID_STEPS, rural: RURAL_STEPS, ruralRigid: RURAL_RIGID_STEPS, overlay: OVERLAY_STEPS };
 
 /** The design result the cost step needs, for each kind of design. */
-export const RESULT_KEY = { flexible: 'result', rigid: 'rigidResult', rural: 'ruralResult', ruralRigid: 'lvRigidResult' };
+export const RESULT_KEY = { flexible: 'result', rigid: 'rigidResult', rural: 'ruralResult', ruralRigid: 'lvRigidResult', overlay: 'overlayResult' };
 
 function reachable(app, screen) {
   switch (screen) {

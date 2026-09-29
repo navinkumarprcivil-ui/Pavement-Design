@@ -5,6 +5,7 @@ import { listTrials, deleteTrial, setChosenTrial } from '../../store/trials.js';
 import { migrateRigid } from '../rigidProject.js';
 import { defaultCtbState, defaultConstructionState } from '../ctbProject.js';
 import { migrateRural, migrateLvRigid } from '../lowVolumeProject.js';
+import { migrateOverlay } from '../overlayProject.js';
 
 /** Safe before unsafe, then cheapest, then thinnest. */
 function rank(a, b) {
@@ -26,7 +27,7 @@ export function comparisonRows(trials) {
   // Layers in the order they are first met, top down.
   const layers = [];
   for (const t of trials) {
-    for (const s of t.slots.filter((x) => x.thicknessMm > 0)) {
+    for (const s of t.slots.filter((x) => x.thicknessMm > 0 && !x.existing)) {
       if (!layers.some((l) => l.key === layerKey(s))) layers.push({ key: layerKey(s), label: layerKey(s) });
     }
   }
@@ -35,7 +36,9 @@ export function comparisonRows(trials) {
       ? Number.isFinite(t.cfd) ? `CFD ${t.cfd.toFixed(2)}` : '—'
       : t.pavementType === 'rural'
         ? '—'
-        : msa(t.governingLifeMsa);
+        : t.pavementType === 'overlay' && t.governingLifeMsa == null
+          ? Number.isFinite(t.characteristicDeflectionMm) ? `Dc ${t.characteristicDeflectionMm.toFixed(2)} mm` : '—'
+          : msa(t.governingLifeMsa);
   const traffic = (t) =>
     t.pavementType === 'rural' && t.esal != null
       ? `${Math.round(t.esal).toLocaleString('en-IN')} ESAL`
@@ -48,7 +51,7 @@ export function comparisonRows(trials) {
     ...layers.map((l) => [
       l.label,
       (t) => {
-        const s = t.slots.find((x) => x.thicknessMm > 0 && layerKey(x) === l.key);
+        const s = t.slots.find((x) => x.thicknessMm > 0 && !x.existing && layerKey(x) === l.key);
         return s ? `${s.thicknessMm} mm` : '—';
       },
     ]),
@@ -98,7 +101,7 @@ function comparison(trials) {
 export default function renderTrials(app) {
   const trials = listTrials();
 
-  const trialStart = { rigid: 'rigidSlab', rural: 'rural', ruralRigid: 'lvRigidSlab' }[app.state.pavementType] || 'layers';
+  const trialStart = { rigid: 'rigidSlab', rural: 'rural', ruralRigid: 'lvRigidSlab', overlay: 'overlayResult' }[app.state.pavementType] || 'layers';
   app.setActions(button('New trial', () => app.go(trialStart)));
 
   if (!trials.length) {
@@ -132,6 +135,13 @@ export default function renderTrials(app) {
       if (trial.lvRigid) app.state.lvRigid = migrateLvRigid(structuredClone(trial.lvRigid));
       app.persist();
       app.go('lvRigidSlab');
+      return;
+    }
+    if (trial.pavementType === 'overlay') {
+      app.state.pavementType = 'overlay';
+      if (trial.overlay) app.state.overlay = migrateOverlay(structuredClone(trial.overlay));
+      app.persist();
+      app.go('overlayResult');
       return;
     }
     if (trial.pavementType === 'rigid') {
@@ -179,7 +189,7 @@ export default function renderTrials(app) {
         'div',
         { class: 'layer-strip' },
         trial.slots
-          .filter((s) => s.thicknessMm > 0)
+          .filter((s) => s.thicknessMm > 0 && !s.existing)
           .map((s) =>
             h(
               'span',
@@ -197,7 +207,9 @@ export default function renderTrials(app) {
           ? metric('CFD', Number.isFinite(trial.cfd) ? trial.cfd.toFixed(2) : '—')
           : trial.pavementType === 'rural'
             ? metric('Traffic', trial.esal != null ? `${Math.round(trial.esal).toLocaleString('en-IN')} ESAL` : msa(trial.designTrafficMsa))
-            : metric('Life', msa(trial.governingLifeMsa)),
+            : trial.pavementType === 'overlay' && trial.governingLifeMsa == null
+              ? metric('Dc', Number.isFinite(trial.characteristicDeflectionMm) ? `${trial.characteristicDeflectionMm.toFixed(2)} mm` : '—')
+              : metric('Life', msa(trial.governingLifeMsa)),
         metric('Per km', trial.cost?.costPerKm > 0 ? formatCompactCurrency(trial.cost.costPerKm) : '—')
       ),
       h(

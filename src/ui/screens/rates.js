@@ -10,7 +10,7 @@ const UNITS = Object.fromEntries(EXTRA_ITEMS.map((item) => [item.id, item.unit])
 export default function renderRates(app) {
   const design = currentDesign(app);
   if (!design) {
-    const inputs = { rigid: 'rigidSlab', rural: 'rural', ruralRigid: 'lvRigidSlab' }[app.state.pavementType] || 'inputs';
+    const inputs = { rigid: 'rigidSlab', rural: 'rural', ruralRigid: 'lvRigidSlab', overlay: 'overlayResult' }[app.state.pavementType] || 'inputs';
     return h(
       'div',
       { class: 'card-stack' },
@@ -84,6 +84,7 @@ export default function renderRates(app) {
         label: s.label,
         thicknessMm: s.thicknessMm,
         behaviour: s.behaviour,
+        existing: s.existing || undefined,
       })),
       rates: { ...app.state.rates },
       geometry: { ...g },

@@ -48,6 +48,20 @@ export const CODES = {
     edition: 'First Revision, 2014',
     publisher: 'Indian Roads Congress',
   },
+  IRC81: {
+    id: 'IRC81',
+    title: 'Guidelines for Strengthening of Flexible Road Pavements Using Benkelman Beam Deflection Technique',
+    designation: 'IRC:81-1997',
+    edition: 'First Revision, 1997',
+    publisher: 'Indian Roads Congress',
+  },
+  IRC115: {
+    id: 'IRC115',
+    title: 'Guidelines for Structural Evaluation and Strengthening of Flexible Road Pavements Using Falling Weight Deflectometer (FWD) Technique',
+    designation: 'IRC:115-2014',
+    edition: '2014',
+    publisher: 'Indian Roads Congress',
+  },
 };
 
 /** Build a citation object for display next to a computed step. */

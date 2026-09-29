@@ -325,3 +325,91 @@ export function analyze({ layers, load, points, options = {} }) {
     };
   });
 }
+
+/**
+ * Complete elliptic integrals K(k) and E(k), modulus k, by the arithmetic-
+ * geometric mean.
+ */
+function ellipticKE(k) {
+  let a = 1;
+  let b = Math.sqrt(1 - k * k);
+  let c = k;
+  let sum = (c * c) / 2;
+  let power = 0.5;
+  for (let i = 0; i < 40 && Math.abs(c) > 1e-15; i++) {
+    const an = (a + b) / 2;
+    c = (a - b) / 2;
+    b = Math.sqrt(a * b);
+    a = an;
+    power *= 2;
+    sum += power * c * c;
+  }
+  const K = Math.PI / (2 * a);
+  return { K, E: K * (1 - sum) };
+}
+
+/**
+ * The integral of J1(ma) J0(mr) / m over m from 0 to infinity: the surface
+ * deflection of a half-space under a unit circular load, up to a constant.
+ */
+function halfSpaceShape(r, a) {
+  if (r < 1e-9) return 1;
+  if (Math.abs(r - a) < 1e-9) return 2 / Math.PI;
+  if (r < a) return (2 / Math.PI) * ellipticKE(r / a).E;
+  const k = a / r;
+  const { K, E } = ellipticKE(k);
+  return (2 / Math.PI) * (1 / k) * (E - (1 - k * k) * K);
+}
+
+/** The surface displacement kernel of the layered system at one m. */
+function surfaceKernel(layers, m) {
+  const coefficients = solveCoefficients(layers, m);
+  if (!coefficients) return null;
+  const [alpha, beta, gamma, delta] = coefficients[0];
+  const nu = layers[0].nu;
+  const Ep = layers.length === 1 ? 0 : Math.exp(-m * layers[0].h);
+  return alpha + beta * (2 - 4 * nu) + (gamma + delta * (4 * nu - 2)) * Ep;
+}
+
+/**
+ * Surface deflections, mm, at radial distances from the centre of one
+ * circular load: what a falling weight deflectometer measures.
+ *
+ * The same layered solution as analyze(), integrated faster: the part of the
+ * kernel that a half-space of the top layer would give is taken in closed
+ * form, and only the remainder, which dies away as e^(-2 m h1), is integrated.
+ *
+ * @param {object} input
+ * @param {Array<{h:number,E:number,nu:number}>} input.layers  Top down; the last is the subgrade.
+ * @param {{loadN:number, radiusMm:number}} input.plate  Total load and plate radius.
+ * @param {number[]} input.radii  Radial distances, mm.
+ */
+export function surfaceDeflections({ layers, plate, radii }) {
+  const a = plate.radiusMm;
+  const q = plate.loadN / (Math.PI * a * a);
+  const top = layers[0];
+  const shear = top.E / (2 * (1 + top.nu));
+  const far = surfaceKernel(layers, 60 / Math.max(a, 1e-6) + 200 / Math.max(top.h || 1, 1));
+  const kInf = far ?? -2 * (1 - top.nu);
+
+  const out = radii.map((r) => kInf * halfSpaceShape(r, a));
+  if (layers.length > 1) {
+    const mMax = 24 / (2 * top.h);
+    const rMax = Math.max(a, ...radii);
+    const width = Math.PI / (2 * rMax);
+    const segments = Math.max(8, Math.ceil(mMax / width));
+    const step = mMax / segments;
+    for (let s = 0; s < segments; s++) {
+      const mid = (s + 0.5) * step;
+      const half = step / 2;
+      for (let g = 0; g < GAUSS_8.nodes.length; g++) {
+        const m = mid + half * GAUSS_8.nodes[g];
+        const kernel = surfaceKernel(layers, m);
+        if (kernel == null) continue;
+        const f = ((kernel - kInf) * besselJ1(m * a) * GAUSS_8.weights[g] * half) / m;
+        for (let i = 0; i < radii.length; i++) out[i] += f * besselJ0(m * radii[i]);
+      }
+    }
+  }
+  return out.map((v) => (-q * a * v) / (2 * shear));
+}

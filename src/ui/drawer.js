@@ -10,11 +10,13 @@ import { h } from './dom.js';
 import { listTrials } from '../store/trials.js';
 import { listProjects } from '../store/projects.js';
 import { MODULES, MODULE_ORDER, PARENT_MODULE } from './modules.js';
+import { EXAMPLES } from './examples.js';
 
 /** Screens that belong to a design module rather than standing aside from one. */
 export const FLOW_SCREENS = new Set([
   'traffic', 'layers', 'ctbAxles', 'inputs', 'results', 'iitpave', 'ruralTraffic', 'rural', 'report', 'rates', 'trials',
   'rigidTraffic', 'rigidAxles', 'rigidSlab', 'rigidResult', 'lvRigidTraffic', 'lvRigidSlab',
+  'overlayTraffic', 'overlaySurvey', 'overlayModuli', 'overlayResult',
 ]);
 
 const icon = (paths) =>
@@ -32,7 +34,32 @@ export const ICONS = {
   flexible: icon('<rect x="3" y="5" width="18" height="3" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><path d="M3 18h18"/>'),
   rigid: icon('<rect x="3" y="5" width="18" height="7" rx="1"/><path d="M9 5v7M15 5v7M3 17h18"/>'),
   rural: icon('<path d="M4 20 9 4M20 20 15 4M12 6v2M12 11v2M12 16v2"/>'),
+  overlay: icon('<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M3 12h18M3 16h18M3 20h18"/>'),
+  examples: icon('<path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4M8 12h8M8 16h5"/>'),
+  about: icon('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>'),
+  collapse: icon('<path d="M15 6l-6 6 6 6"/>'),
+  expand: icon('<path d="M9 6l6 6-6 6"/>'),
 };
+
+/** A docked panel can be folded to a rail of icons; the choice is kept on this device. */
+const COLLAPSED_KEY = 'irc-pavement-drawer-collapsed';
+
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function setCollapsed(collapsed) {
+  document.body.classList.toggle('drawer-collapsed', collapsed);
+  try {
+    localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch {
+    // Storage unavailable: the fold lasts for this visit only.
+  }
+}
 
 const SHELL = ['app-header', 'app-main', 'app-actions'];
 const DOCKED = window.matchMedia('(min-width: 1024px)');
@@ -59,6 +86,7 @@ DOCKED.addEventListener('change', closeDrawer);
 
 function ensureElements() {
   if (panel) return;
+  document.body.classList.toggle('drawer-collapsed', readCollapsed());
   scrim = h('div', { class: 'drawer-scrim', onclick: closeDrawer });
   panel = h('nav', { class: 'drawer', id: 'app-drawer', 'aria-label': 'Menu' });
   document.body.append(scrim, panel);
@@ -75,6 +103,7 @@ function content(app) {
         type: 'button',
         class: 'drawer-item',
         'aria-current': active ? 'page' : null,
+        title: sub ? `${label} · ${sub}` : label,
         onclick: () => {
           closeDrawer();
           if (!active) onclick();
@@ -94,6 +123,17 @@ function content(app) {
       { class: 'drawer-head' },
       h('span', { class: 'header-mark', 'aria-hidden': 'true' }),
       h('strong', {}, 'IRC Pavement Design'),
+      h('button', {
+        type: 'button',
+        class: 'drawer-fold',
+        'aria-label': document.body.classList.contains('drawer-collapsed') ? 'Expand menu' : 'Collapse menu',
+        title: document.body.classList.contains('drawer-collapsed') ? 'Expand menu' : 'Collapse menu',
+        html: document.body.classList.contains('drawer-collapsed') ? ICONS.expand : ICONS.collapse,
+        onclick: () => {
+          setCollapsed(!document.body.classList.contains('drawer-collapsed'));
+          renderDrawer(app);
+        },
+      }),
       h('button', { type: 'button', class: 'drawer-close', 'aria-label': 'Close menu', html: ICONS.close, onclick: closeDrawer })
     ),
     h(
@@ -110,6 +150,8 @@ function content(app) {
           onclick: () => app.startModule(type),
         })
       ),
+      h('h2', { class: 'drawer-heading' }, 'Examples'),
+      item('Worked examples', 'examples', ICONS.examples, EXAMPLES.length),
       h('h2', { class: 'drawer-heading' }, 'Saved'),
       item('Saved designs', 'trials', ICONS.designs, listTrials().length),
       item('Saved projects', 'projects', ICONS.projects, listProjects().length),
@@ -124,12 +166,13 @@ function content(app) {
         type: 'button',
         class: 'drawer-about',
         'aria-current': current === 'about' ? 'page' : null,
+        title: 'About',
         onclick: () => {
           closeDrawer();
           if (current !== 'about') app.open('about');
         },
       },
-      h('img', { class: 'drawer-logo', src: 'assets/iitm-logo.png', alt: '', width: 40, height: 40 }),
+      h('span', { class: 'drawer-icon', html: ICONS.about }),
       h('span', { class: 'drawer-about-text' }, h('strong', {}, 'About'), h('span', {}, 'Navin Kumar P R'))
     ),
   ];

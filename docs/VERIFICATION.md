@@ -1,6 +1,6 @@
 # Verification register
 
-Every design value the app uses, checked against the four codes, with the
+Every design value the app uses, checked against the six codes, with the
 clause, table or equation and the **printed page number** to open your copy
 at. The same page number appears on every clause chip in the app (for example
 `Cl. 6.4.1, Eq. 6.3, p. 20`) and in the references of each report.
@@ -14,6 +14,8 @@ and variations on 29 September 2026, against:
 | IRC:58-2015 | Fourth Revision | 1 – 94 (clauses, Appendix V – IX) |
 | IRC:SP:72-2015 | First Revision | 1 – 42 (clauses, Figs. 4 and 6, Appendix A – D) |
 | IRC:SP:62-2014 | First Revision | 1 – 41 (clauses, Appendix I, II) |
+| IRC:81-1997 | First Revision | 1 – 23 (clauses, Figs. 2 – 9, Annexure-I); read 29 September 2026 |
+| IRC:115-2014 | 2014 | 1 – 34 (clauses, Appendix III, IV); read 29 September 2026 |
 
 The register holds numbers and citations only. The codes are copyrighted
 publications of the Indian Roads Congress; their text, tables and figures are
@@ -186,6 +188,48 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Joints | No dowels at contraction joints; expansion joints 25 mm dowels, 450 mm long at 250 mm; longitudinal joint where wider than 4.5 m | Cl. 5.2.3 / 5.2.4 / 5.3 | 20 | **Added** (report) |
 | Worked example | 4.34, 4.37, 3.985, 3.93 MPa; 150 mm fails, 160 mm passes | Appendix I | 35, 36 | ✓ |
 
+## IRC:81-1997 — overlays by Benkelman beam
+
+| Item | App value | Reference | Page | Status |
+|---|---|---|---|---|
+| Survey | ≥ 10 points a lane, ≤ 50 m apart | Cl. 4.3.1 | 5 | ✓ |
+| Variability | A point more than ⅓ of the mean off the mean: readings 25 m either side | Cl. 4.3.2 | 5 | ✓ |
+| Temperature | To 35 °C, 0.01 mm per °C, added below and taken off above; only on ≥ 40 mm of bituminous layer, not on severely cracked or stripped surfacing | Cl. 4.4.1 / 4.4.3 | 7, 8 | ✓ |
+| Cold areas | No temperature correction; measure above 20 °C ambient | Cl. 4.4.4 | 8 | ✓ |
+| Season | Factor by soil (sandy; clay PI < 15; clay PI > 15), rainfall (≤ / > 1300 mm) and field moisture, Figs. 2 – 7; applied after the temperature correction | Cl. 4.5.2 / 4.5.4 | 9 – 13 | Note (18) |
+| Traffic | Ns = 365 A [(1+r)^x − 1] / r × F; 7.5% growth without data; ≥ 10 years major, ≥ 5 other | Cl. 5.2 – 5.4.1, Eq. 1 | 14 | ✓ |
+| Lane distribution | Single lane × 2; two lane 75%; four lane 40%; dual two lane 75% a direction, 20% less a lane added | Cl. 5.4.2 | 15, 16 | ✓ |
+| VDF | 1.5 / 3.5 / 4.5 plain and rolling, 0.5 / 1.5 / 2.5 hilly, by 0 – 150 / 150 – 1500 / > 1500 CVPD | Cl. 5.4.3, Table 4 | 16 | ✓ |
+| Characteristic deflection | x̄ + 2σ on NH and SH, x̄ + σ on other roads | Cl. 6.1, Eqs. 2 – 5 | 17 | Note (19) |
+| Overlay | BM against Dc for 0.1 – 100 msa, between curves on log traffic | Cl. 7.1 – 7.3, Fig. 9 | 17, 19, 20 | Note (18) |
+| Other materials | 1 cm BM = 1.5 cm WBM / WMM / BUSG = 0.7 cm DBM / AC / SDC | Cl. 7.4 | 20 | ✓ |
+| Least overlay | 50 mm BM with 50 mm DBM or 40 mm BC | Cl. 7.5 | 20 | Note (20) |
+| No deficiency | Thin surfacing for riding quality | Cl. 7.6 | 20 | ✓ |
+| Profile | Corrected first, no part of the overlay | Cl. 7.8 | 20 | ✓ |
+
+## IRC:115-2014 — overlays by falling weight deflectometer
+
+| Item | App value | Reference | Page | Status |
+|---|---|---|---|---|
+| Load | 300 mm plate, 40 kN target ± 4 kN; deflections scaled linearly to 40 kN | Cl. 4.3 / 4.4 / 6.1.2 | 5, 15 | ✓ |
+| Checks | Deflections fall away from the plate; no test above 45 °C | Cl. 6.1.1 / 5.4.7 (xiv) | 14, 13 | ✓ |
+| SCI | D0 − D300 | Cl. 6.2.2 | 15 | ✓ |
+| Homogeneous section | ≥ 1 km, ≥ 12 test points | Cl. 6.2.4 | 16 | ✓ |
+| Back-calculation | Three layers; least sum of squared relative differences from the measured bowl | Cl. 6.3.1 / 8.4 (iv), App. III.7, Eq. III.1 | 16, 23, 29 | Note (21) |
+| Ranges | Bituminous 750 – 3000 (good) or 400 – 1500 MPa (fair, poor); granular 100 – 500; subgrade 1.2 × Eq. III.2 × (0.8 – 1.2), or 20 – 100 MPa | App. III.8.4, Eq. III.2 | 30 | Note (21) |
+| Poisson ratio | 0.5, 0.4, 0.4 | App. IV | 32 | ✓ |
+| Temperature | E35 = λ E_T, λ = (1 − 0.238 ln 35) / (1 − 0.238 ln T); 20 – 45 °C; not below 40 mm, on poor sections or in cold areas | Cl. 6.4.2 / 6.4.3, Eqs. 4, 5 | 16, 17 | ✓ |
+| Season | Eqs. 6 – 9, with their limits of 20 / 30 MPa (subgrade) and 60 / 80 / 100 MPa (granular) | Cl. 6.5.2 | 17, 18 | ✓ |
+| Design moduli | 15th percentile: 15% of the points below | Cl. 8.4 (vii) | 23 | ✓ (App. IV: 1112, 173, 44.3 MPa) |
+| Traffic | N = 365 [(1+r)^n − 1] / r × A × D × F, A = P (1+r)^x; growth ≥ 5%; 10 years, ≥ 5 | Cl. 7.2 – 7.4.1, Eqs. 10, 11 | 18, 19 | ✓ |
+| Lane distribution | 1.0 single, 0.5 two lane, 0.4 four lane; 0.75, 0.60, 0.45 a direction on dual two, three, four lane | Cl. 7.4.2 | 19, 20 | ✓ |
+| VDF | As IRC:81 Table 4 | Cl. 7.4.3.3, Table 4 | 21 | ✓ |
+| Fatigue | N = 0.711 × 10⁻⁴ (1/εt)^3.89 (1/MR)^0.854, 90% | Cl. 8.3.1, Eq. 16 | 22 | ✓ |
+| Rutting | N = 1.41 × 10⁻⁸ (1/εv)^4.5337, 90% | Cl. 8.3.2, Eq. 17 | 22 | ✓ |
+| Strains | Standard dual wheel of IRC:37; under a wheel and between the wheels, the larger | Cl. 8.4 (viii) | 23 | Note (22) |
+| Overlay | Least thickness, in 5 mm steps, whose lives both reach the design traffic; mix modulus from IRC:37 Table 9.2 at 35 °C | Cl. 8.4 (x) | 23 | ✓ |
+| Worked example | Moduli to 35 °C and the monsoon and their 15th percentile reproduced point by point; strains under the wheel 284.3 and 159.7 µε against 284.5 and 159.8 | App. IV | 31 – 33 | Note (22) |
+
 ---
 
 ## Corrections and notes
@@ -315,6 +359,48 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
    as a starting trial on the inputs step and set beside the design in the
    report; the analysis still decides it (Cl. 12.1).
 
+18. **IRC:81 charts.** Fig. 9 and Figs. 2 – 7 were read off the scanned code:
+   each page was straightened, the grid lines found, and the curves traced
+   pixel by pixel and fitted. The fitted curves lie on the printed ones
+   throughout (checked by drawing them over the scans). Fig. 9 is held every
+   5 mm of overlay from where each curve leaves the axis to 6 mm of deflection
+   (100 msa: 0.54 mm to 325 mm; 0.1 msa: 3.00 mm to 146 mm); Figs. 2 – 7 every
+   0.5% of moisture from 4%. Reading is to about ±2 mm of overlay and ±0.01 of
+   the factor. Fig. 3's axis labels 1.20 and 1.28 sit on the 1.16 and 1.24
+   lines; the other labels and the grid give 0.04 a line, which is taken.
+   Outside a chart the app says so and stops rather than extrapolating.
+
+19. **IRC:81 Eq. 3.** The printed equation puts n − 1 outside the square root.
+   It is the sample standard deviation, √[Σ(x − x̄)² / (n − 1)], and the app
+   uses that.
+
+20. **IRC:81 least overlay.** Laid as BM, the app lays at least 50 mm of BM
+   (rounded up to 5 mm) with 40 mm of BC over it. Laid as DBM and BC, it lays
+   0.7 × the BM thickness (Cl. 7.4) and not less than 0.7 × 50 + 40 = 75 mm, the
+   same minimum in those materials.
+
+21. **Back-calculation.** IRC:115 recommends KGPBACK, a genetic algorithm;
+   moduli read from it are entered point by point and govern. Without them the
+   app finds the moduli that minimise the same objective (App. III.7) within
+   the same ranges, by a damped Gauss–Newton search on the logarithms of the
+   moduli, with a fast surface-deflection form of the layered solution checked
+   against the full one to 0.05%. On the ten bowls of App. IV its fit is as
+   close as or closer than the KGPBACK moduli's, and it recovers known moduli
+   of a synthetic bowl to 1% (`tests/overlay.test.js`). App. IV computes the
+   subgrade estimate of Eq. III.2 with μ = 0.5 and ranges of 0.96 – 1.40 × the
+   estimate; the app follows the clause (the subgrade Poisson ratio, and
+   1.2 × 0.8 to 1.2 × 1.2).
+
+22. **IRC:115 worked example.** Its strains are those under the centre of a
+   wheel (284.3 and 159.7 µε by the app, against 284.5 and 159.8 printed).
+   Cl. 8.4 (viii) takes the locations of IRC:37, where the larger of the
+   strain under a wheel and between the wheels governs; between the wheels
+   they are 288.3 and 170.5 µε. With those the example's 95 mm overlay gives a
+   fatigue life of 81 msa, and the app finds 110 mm for 100 msa. Its printed
+   existing subgrade strain, 439.6 µε, does not give its printed rutting life of
+   233.7 msa by Eq. 17 (that needs 265 µε); the app computes 315 µε. Strains
+   read from IITPAVE may be entered and govern.
+
 **Not built.** The time-to-drain route of IRC:58 VI-VI; the DCP–CBR
 relation of IRC:SP:72 Appendix C, which the code gives as a chart only (the
 IRC:58 Eq. 3 route is built for rigid pavements).
@@ -338,6 +424,9 @@ IRC:58 Eq. 3 route is built for rigid pavements).
 - `tests/jrcp.test.js` — IRC:58 Eq. 18 and the Cl. 9 limits.
 - `tests/crossSection.test.js` — layer widths, the separation sheet, the widened
   lane, SP:72 shoulders, SP:62 joints and the bill of quantities.
+- `tests/overlay.test.js` — IRC:81 Fig. 9 and Figs. 2 – 7 as read, Eqs. 1 – 5;
+  IRC:115 Eqs. 4 – 11, 16, 17, the 15th percentile and back-calculation, on
+  the Appendix IV example.
 
 Run `npm test`. Each value above is held once, in `src/data/ircConstants.js`,
-`src/data/sp72.js` or `src/data/sp62.js`, with its citation and page.
+`src/data/sp72.js`, `src/data/sp62.js` or `src/data/overlay.js`, with its citation and page.

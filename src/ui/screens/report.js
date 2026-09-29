@@ -35,6 +35,9 @@ import {
 } from '../../data/ircConstants.js';
 import { combinationName, describeCombination, displaySlots } from '../../data/layerCatalog.js';
 import { ruralDesignFor, lvRigidDesignFor } from '../lowVolumeProject.js';
+import { overlayDesignFor, overlayModulusOf } from '../overlayProject.js';
+import { laneOptions, seasonalChart } from '../../engine/overlay.js';
+import { IRC81, IRC115 } from '../../data/overlay.js';
 import { SP72 } from '../../data/sp72.js';
 import { IRC37_CATALOGUE } from '../../data/irc37Catalogue.js';
 import { SP62 } from '../../data/sp62.js';
@@ -1123,7 +1126,193 @@ function ruralRigidReport(app, cite) {
   ];
 }
 
-const BUILDERS = { flexible: flexibleReport, rigid: rigidReport, rural: ruralReport, ruralRigid: ruralRigidReport };
+
+/* ---------- Overlay, IRC:81 and IRC:115 ---------- */
+
+const yes = (v) => (v ? 'Yes' : 'No');
+
+function overlayTrafficGiven(app, r, cite) {
+  const o = app.state.overlay;
+  const t = o.traffic;
+  const spec = (o.method === 'bbd' ? IRC81 : IRC115).traffic;
+  if (t.mode === 'direct') return givenTable('Traffic', [['N', 'Design traffic', `${t.designMsa} msa`, 'Input', spec.ref]], cite);
+  const lane = laneOptions(o.method).find((l) => l.id === t.laneId);
+  return givenTable(
+    'Traffic',
+    [
+      ['P', 'Commercial vehicles per day, both directions', inr(t.presentCVPD), 'Input', spec.ref],
+      ['r', 'Growth rate', `${r.traffic.growth}%`, 'Input', spec.growth.ref],
+      ['x', 'Years from count to completion', String(t.yearsToCompletion || 0), 'Input', null],
+      ['n', 'Design life', `${t.designLifeYears} years`, 'Input', spec.designLife.ref],
+      ['D', 'Lane distribution', `${lane?.label}, ${r.traffic.D.toFixed(3)}`, 'Code', spec.lanes.ref],
+      ['F', 'Vehicle damage factor', String(r.traffic.F), t.vdfMode === 'value' ? 'Input' : 'Code', spec.vdf.ref],
+    ],
+    cite
+  );
+}
+
+function overlayReport(app, cite) {
+  const r = overlayDesignFor(app.state);
+  const o = app.state.overlay;
+  const category = roadCategory(app.state.project.roadCategory);
+  const bbd = r.method === 'bbd';
+  const codeId = bbd ? 'IRC81' : 'IRC115';
+  const notes = (list) => list.map((w) => h('p', { class: 'r-note' }, 'Note: ', w));
+  const layersLaid = r.slots.filter((x) => !x.existing && x.behaviour !== 'subgrade' && x.thicknessMm > 0);
+
+  const intro = introduction(
+    codeId,
+    'Overlay on a flexible pavement',
+    bbd
+      ? 'Rebound deflections measured with the Benkelman beam are corrected to the standard temperature and to the ' +
+          'season when the subgrade is weakest; their characteristic value and the design traffic give the overlay ' +
+          'from the design curves.'
+      : 'Deflection bowls measured with the falling weight deflectometer give the moduli of the pavement layers by ' +
+          'back-calculation; corrected to the standard temperature and to the monsoon, their 15th percentile values give ' +
+          'the strains of the pavement as it stands and its remaining life, and the overlay that carries the design traffic is found by trial.',
+    [
+      ['Road category', category?.label],
+      ['Survey', bbd ? 'Benkelman beam, static rebound' : `Falling weight deflectometer, ${IRC115.load.plateDiameterMm} mm plate`],
+      ['Design traffic', `${r.traffic.msa.toFixed(2)} msa`],
+    ]
+  );
+
+  if (bbd) {
+    const b = o.bbd;
+    const d = r.design;
+    const chart = seasonalChart(b.soil, b.rainfall);
+    return [
+      header(app, codeId, 'Overlay on a flexible pavement'),
+      intro,
+      h('h2', {}, '2. Deflection survey'),
+      givenTable(
+        'Pavement and survey',
+        [
+          ['', 'Bituminous layers', b.bituminousMm > 0 ? `${b.bituminousMm} mm` : '—', 'Input', IRC81.temperature.ref],
+          ['', 'Severely cracked or stripped', yes(b.severelyCracked), 'Input', IRC81.temperature.ref],
+          ['', 'Cold or high area', yes(b.coldArea), 'Input', IRC81.temperature.cold.ref],
+          ['', 'Measured', b.season === 'dry' ? 'In the dry months' : 'After the monsoon', 'Input', IRC81.seasonal.ref],
+          b.season === 'dry' ? ['', 'Subgrade soil and rainfall', `${{ sandy: 'Sandy or gravelly', clayLow: 'Clay, PI < 15', clayHigh: 'Clay, PI > 15' }[b.soil]}; ${b.rainfall === 'low' ? 'up to' : 'over'} 1300 mm`, 'Input', { ...IRC81.seasonal.ref, note: chart.figure }] : null,
+          ['n', 'Deflection points', String(d.n), 'Input', IRC81.survey.ref],
+        ].filter(Boolean),
+        cite
+      ),
+      table(
+        'Rebound deflections, mm',
+        ['#', 'Measured', 'T, °C', 'Temperature', 'Moisture, %', 'Seasonal', 'Corrected'],
+        d.rows.map((x, i) => [
+          String(i + 1),
+          x.deflectionMm.toFixed(3),
+          Number.isFinite(x.temperatureC) ? String(x.temperatureC) : '—',
+          d.tempApplies ? (x.temperatureCorrection >= 0 ? '+' : '') + x.temperatureCorrection.toFixed(3) : '—',
+          Number.isFinite(x.moisturePercent) ? String(x.moisturePercent) : '—',
+          d.seasonalApplies ? x.factor.toFixed(3) : '—',
+          x.corrected.toFixed(3),
+        ])
+      ),
+      h('h2', {}, '3. Design'),
+      h('h3', {}, '3.1 Design traffic'),
+      overlayTrafficGiven(app, r, cite),
+      r.traffic.steps.map((step) => stepBlock(step, cite)),
+      h('h3', {}, '3.2 Overlay'),
+      d.steps.map((step) => stepBlock(step, cite)),
+      notes(r.warnings),
+      h('h2', {}, '4. Recommended overlay'),
+      d.structural
+        ? [
+            table(null, ['#', 'Layer', 'Thickness'], layersLaid.map((x, i) => [String(i + 1), x.label, `${x.thicknessMm} mm`])),
+            para(
+              `The characteristic deflection of ${d.Dc.toFixed(2)} mm at ${r.traffic.msa.toFixed(2)} msa calls for ${Math.round(d.overlayBmMm)} mm of bituminous macadam, `,
+              `or ${d.provided.dbmBcMm} mm of DBM or BC. `,
+              cite(IRC81.equivalence.ref)
+            ),
+          ]
+        : para('No structural overlay is called for; a thin surfacing may be laid for riding quality. ', cite(IRC81.noDeficiency.ref)),
+      para('The existing surface is to be brought to profile first, filling cracks, potholes and ruts; no part of the overlay is to be used for it. ', cite(IRC81.profile.ref)),
+    ];
+  }
+
+  const f = o.fwd;
+  const d = r.design;
+  const m = r.moduli;
+  const lifeRow = (label, x) => [label, x.tensile ? (x.tensile * 1e6).toFixed(1) : '—', (x.vertical * 1e6).toFixed(1), x.fatigueMsa.toFixed(1), x.ruttingMsa.toFixed(1), x.fromIitpave ? 'IITPAVE' : 'App'];
+  return [
+    header(app, codeId, 'Overlay on a flexible pavement'),
+    intro,
+    h('h2', {}, '2. Deflection survey'),
+    givenTable(
+      'Pavement and survey',
+      [
+        ['h1', 'Bituminous layers', `${f.bituminousMm} mm`, 'Input', IRC115.procedure.ref],
+        ['h2', 'Granular layers', `${f.granularMm} mm`, 'Input', IRC115.procedure.ref],
+        ['', 'Condition', { good: 'Good', fair: 'Fair', poor: 'Poor' }[f.condition], 'Input', IRC115.classification.ref],
+        ['', 'Measured in', { monsoon: 'Monsoon recession', winter: 'Winter', summer: 'Summer' }[f.season], 'Input', IRC115.seasonal.ref],
+        ['', 'Cold or high area', yes(f.coldArea), 'Input', IRC115.temperature.cold.ref],
+        ['μ', 'Poisson ratio', `${f.nu.bituminous}, ${f.nu.granular}, ${f.nu.subgrade}`, 'Code', IRC115.backcalculation.poisson.ref],
+        ['P', 'Load', `${IRC115.load.targetKN} kN on a ${IRC115.load.plateDiameterMm} mm plate`, 'Code', IRC115.load.ref],
+      ],
+      cite
+    ),
+    table(
+      `Deflections normalised to ${IRC115.load.targetKN} kN, mm`,
+      ['#', ...r.survey.radii.map((x) => `D${x}`), 'T, °C'],
+      r.survey.points.map((p) => [String(p.index + 1), ...p.normalised.map((v) => v.toFixed(3)), Number.isFinite(p.temperatureC) ? String(p.temperatureC) : '—'])
+    ),
+    h('h2', {}, '3. Layer moduli'),
+    para(
+      'The moduli of the three layers are those whose computed bowl comes closest to the measured one, by the sum of squared relative differences, ',
+      'within the ranges the code gives for each layer. ',
+      cite(IRC115.backcalculation.objective.ref),
+      ' ',
+      cite(IRC115.backcalculation.ranges.ref)
+    ),
+    table(
+      'Moduli, MPa',
+      ['#', 'Source', 'Bituminous', 'Granular', 'Subgrade', 'Bit. 35 °C', 'Gran. monsoon', 'Sub. monsoon'],
+      r.points.map((p, i) => [
+        String(p.index + 1),
+        p.source,
+        p.E[0].toFixed(0),
+        p.E[1].toFixed(0),
+        p.E[2].toFixed(1),
+        m.rows[i].bituminous35.toFixed(0),
+        m.rows[i].granularMonsoon.toFixed(1),
+        m.rows[i].subgradeMonsoon.toFixed(1),
+      ])
+    ),
+    m.steps.map((step) => stepBlock(step, cite)),
+    h('h2', {}, '4. Design'),
+    h('h3', {}, '4.1 Design traffic'),
+    overlayTrafficGiven(app, r, cite),
+    r.traffic.steps.map((step) => stepBlock(step, cite)),
+    h('h3', {}, '4.2 Remaining life and overlay'),
+    givenTable(
+      'Overlay mix',
+      [
+        ['', 'Mix', `${o.overlay.mix === 'BC' ? 'Bituminous concrete' : 'Dense bituminous macadam'}, ${o.overlay.binderGrade}`, 'Input', null],
+        ['E', 'Modulus', `${Math.round(overlayModulusOf(app.state))} MPa`, o.overlay.modulusMPa > 0 ? 'Input' : 'Code', o.overlay.modulusMPa > 0 ? IRC115.overlayModulus.ref : MODULI.bituminous.ref],
+      ],
+      cite
+    ),
+    d.steps.map((step) => stepBlock(step, cite)),
+    table('Strains and lives', ['', 'εt, µε', 'εv, µε', 'Fatigue, msa', 'Rutting, msa', 'Strains'], [lifeRow('As it stands', d.existing), d.withOverlay ? lifeRow(`With ${d.overlayMm} mm`, d.withOverlay) : null].filter(Boolean)),
+    notes(r.warnings),
+    h('h2', {}, '5. Recommended overlay'),
+    d.overlayMm > 0
+      ? [
+          table(null, ['#', 'Layer', 'Thickness'], layersLaid.map((x, i) => [String(i + 1), x.label, `${x.thicknessMm} mm`])),
+          para(
+            h('strong', {}, d.withOverlay.safe ? 'The overlay carries the design traffic' : 'The overlay does not carry the design traffic'),
+            `: fatigue life ${d.withOverlay.fatigueMsa.toFixed(1)} msa and rutting life ${d.withOverlay.ruttingMsa.toFixed(1)} msa against ${r.traffic.msa.toFixed(1)} msa. `,
+            cite(IRC115.procedure.ref)
+          ),
+        ]
+      : para(`The pavement as it stands carries ${r.traffic.msa.toFixed(1)} msa: no structural overlay is called for. `, cite(IRC115.procedure.ref)),
+    para('The functional condition of the surface is to be restored before strengthening. ', cite(IRC115.functional.ref)),
+  ];
+}
+
+const BUILDERS = { flexible: flexibleReport, rigid: rigidReport, rural: ruralReport, ruralRigid: ruralRigidReport, overlay: overlayReport };
 
 /** The report as one element, or null when there is no design to report. */
 export function buildReport(app) {
@@ -1132,9 +1321,9 @@ export function buildReport(app) {
   const refs = citations();
   const body = BUILDERS[design.type](app, refs.cite);
   const section = crossSectionBlock(app, refs.cite);
-  const bill = quantitiesBlock(5, app);
+  const bill = quantitiesBlock(design.type === 'overlay' && app.state.overlay.method === 'fwd' ? 6 : 5, app);
   const appendix = design.type === 'flexible' ? iitpaveAppendix(app) : null;
-  return h('article', { class: 'report' }, body, section, bill, referencesSection(bill ? 6 : 5, refs), appendix, closing());
+  return h('article', { class: 'report' }, body, section, bill, referencesSection((design.type === 'overlay' && app.state.overlay.method === 'fwd' ? 6 : 5) + (bill ? 1 : 0), refs), appendix, closing());
 }
 
 /* ---------- Export ---------- */

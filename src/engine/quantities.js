@@ -41,19 +41,21 @@ export function billOfQuantities(model, rates, lengthKm) {
     items.push({ item, unit, quantity, key, detail, rate: rate ?? 0, rateMissing: rate == null, amount: quantity * (rate ?? 0) });
   };
 
-  for (const l of model.layers) {
+  for (const l of model.layers.filter((x) => !x.existing)) {
     add(`${l.label}, ${l.thicknessMm} mm`, 'm³', (l.thicknessMm / 1000) * l.widthM * L, l.materialId, `${l.widthM.toFixed(2)} m wide`);
   }
 
   // Coats: a prime coat on a granular layer under the bituminous layers, a
-  // tack coat on every bituminous or cemented surface a bituminous course is laid on.
-  const bituminous = model.layers.filter((l) => l.behaviour === 'bituminous');
+  // tack coat on every bituminous or cemented surface a bituminous course is
+  // laid on, the old surface under an overlay among them.
+  const bituminous = model.layers.filter((l) => l.behaviour === 'bituminous' && !l.existing);
   if (bituminous.length) {
     const lowest = model.layers.indexOf(bituminous[bituminous.length - 1]);
     const below = model.layers[lowest + 1];
     const width = bituminous[0].widthM;
-    if (below?.behaviour === 'granular') add('Prime coat', 'm²', width * L, 'Prime coat', `on the ${below.label}`);
-    const tacks = bituminous.length - 1 + (below && ['cemented', 'treated'].includes(below.behaviour) ? 1 : 0);
+    const onOld = below?.existing && below.behaviour === 'bituminous';
+    if (below?.behaviour === 'granular' && !below.existing) add('Prime coat', 'm²', width * L, 'Prime coat', `on the ${below.label}`);
+    const tacks = bituminous.length - 1 + (below && (onOld || ['cemented', 'treated'].includes(below.behaviour)) ? 1 : 0);
     if (tacks > 0) add('Tack coat', 'm²', tacks * width * L, 'Tack coat', `${tacks} surface${tacks > 1 ? 's' : ''}`);
   }
 

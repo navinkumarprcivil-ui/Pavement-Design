@@ -8,6 +8,7 @@ import { combinationName } from '../data/layerCatalog.js';
 import { hasCTB } from './ctbProject.js';
 import { iitpaveMissing } from './iitpave.js';
 import { ruralDesignFor, lvRigidDesignFor } from './lowVolumeProject.js';
+import { overlayDesignFor } from './overlayProject.js';
 
 function flexible(app) {
   const result = app.state.result;
@@ -101,7 +102,30 @@ function ruralRigid(app) {
   };
 }
 
-const DESIGNS = { flexible, rigid, rural, ruralRigid };
+function overlay(app) {
+  const r = overlayDesignFor(app.state);
+  if (!r.ok) return null;
+  const code = r.method === 'bbd' ? 'IRC:81' : 'IRC:115';
+  return {
+    type: 'overlay',
+    slots: r.slots,
+    safe: r.safe,
+    name: `${code} · ${r.overlayMm > 0 ? `${r.overlayMm} mm overlay` : 'No structural overlay'}`,
+    chips: [r.overlayMm > 0 ? `${r.overlayMm} mm` : 'No overlay', msa(r.traffic.msa)],
+    inputsScreen: 'overlayResult',
+    record: () => ({
+      pavementType: 'overlay',
+      overlay: structuredClone(app.state.overlay),
+      method: r.method,
+      designTrafficMsa: r.traffic.msa,
+      totalThicknessMm: r.overlayMm,
+      governingLifeMsa: r.method === 'fwd' ? (r.design.withOverlay || r.design.existing).lifeMsa : null,
+      characteristicDeflectionMm: r.method === 'bbd' ? r.design.Dc : null,
+    }),
+  };
+}
+
+const DESIGNS = { flexible, rigid, rural, ruralRigid, overlay };
 
 export function currentDesign(app) {
   return (DESIGNS[app.state.pavementType] || flexible)(app);
