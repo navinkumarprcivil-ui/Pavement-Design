@@ -3000,3 +3000,57 @@ body.drawer-open .drawer {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* ---------- Trials side by side ---------- */
+
+.compare-scroll {
+  overflow-x: auto;
+  margin: 0 -4px;
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.compare-table thead th {
+  color: var(--title);
+  font-weight: 700;
+  min-width: 96px;
+}
+
+.compare-table tbody th,
+.compare-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+}
+
+.compare-table tbody th {
+  color: var(--text-dim);
+  font-weight: 600;
+  max-width: 7.5rem;
+}
+
+.compare-table tr.differs td {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.compare-table td.pass {
+  color: var(--safe);
+}
+
+.compare-table td.fail {
+  color: var(--danger);
+}

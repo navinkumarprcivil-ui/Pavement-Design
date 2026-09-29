@@ -100,7 +100,9 @@ dowel and tie bars in tonnes, and joint sealing.
 
 **Rates and trials.** Enter a rate for each item to cost the section, per km
 and per m². Save as many trials as you like; they are listed safe-first then
-cheapest, and you mark the one you intend to build.
+cheapest, and you mark the one you intend to build. Pick two or three with
+**Compare** to set them side by side: layer by layer, total thickness, design
+traffic, life or CFD, verdict and cost, with the rows that differ marked.
 
 **Low volume roads.** The home page offers flexible and rigid only; the traffic
 step suggests the low volume code where the traffic is low enough, and the
