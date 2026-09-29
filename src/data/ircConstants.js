@@ -857,6 +857,23 @@ export const RIGID = {
     designPeriodYears: 30,
   },
 
+  /**
+   * Jointed reinforced slabs (Cl. 9): for transverse joints more than 5.0 m
+   * apart, steel per m of As = Ld f W / (2 Sst) (Eq. 18), Ld the distance
+   * between free joints, f 1.5, Sst 50 - 60% of the yield stress; the mesh
+   * 50 - 60 mm below the surface and at least 50 mm from joint faces and edges.
+   */
+  reinforcement: {
+    ref: ref('IRC58', 'Cl. 9.1 – 9.4', { equation: 'Eq. 18', page: '29, 30' }),
+    verified: true,
+    aboveJointM: 5.0,
+    friction: 1.5,
+    workingShare: [0.5, 0.6],
+    depthBelowSurfaceMm: [50, 60],
+    clearOfJointsMm: 50,
+    barsMm: [8, 10, 12, 16],
+  },
+
   /** Dowel bars by slab thickness: [slab, diameter, length, spacing] mm (Table 5). */
   dowels: {
     ref: ref('IRC58', 'Cl. 7.2.6', { table: 'Table 5', page: 27 }),

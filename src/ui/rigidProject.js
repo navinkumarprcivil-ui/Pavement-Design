@@ -5,7 +5,7 @@
 
 import { RIGID, CROSS_SECTION, ref } from '../data/ircConstants.js';
 import { rigidTraffic, foundationK, evaluateSlab, designSlab, dowelBars } from '../engine/rigidDesign.js';
-import { bondedSlab, equivalentSlab, bondedSteps, tieBars, dowelBearing } from '../engine/rigidDetails.js';
+import { bondedSlab, equivalentSlab, bondedSteps, tieBars, dowelBearing, slabReinforcement } from '../engine/rigidDetails.js';
 import { drainageLayer, drainageMaterial } from '../engine/drainage.js';
 import { AXLES, defaultSpectrum, frontAxlePercent, spectrumTotal } from './spectrum.js';
 
@@ -72,6 +72,12 @@ export const defaultRigidState = () => ({
     tieBarDiameterMm: 12,
     laneWidthM: RIGID.tieBars.laneWidthM,
     jointSpacingM: RIGID.joints.maximumSpacingM,
+    /** A jointed reinforced slab (Cl. 9), for joints more than 5.0 m apart. */
+    reinforced: false,
+    freeWidthM: null,
+    steelYieldMPa: 500,
+    workingPercent: RIGID.reinforcement.workingShare[0] * 100,
+    meshBarMm: 10,
   },
   temperature: { mode: 'zone', zone: 'III', dayC: 16.8 },
   /** Drainage layer below the sub-base (Cl. 6.5); a granular sub-base is itself the layer. */
@@ -245,15 +251,19 @@ function inputWarnings(rigid, traffic) {
   if (slab.shoulder === 'widened' && !(slab.widenedM >= wMin && slab.widenedM <= wMax)) {
     warnings.push(`Outer lane widened by ${wMin} – ${wMax} m · ${CROSS_SECTION.widenedLane.clause}`);
   }
-  if (slab.jointSpacingM > 0 && slab.laneWidthM > 0 && slab.jointSpacingM / slab.laneWidthM > layout.maximumAspect) {
+  if (!slab.reinforced && slab.jointSpacingM > 0 && slab.laneWidthM > 0 && slab.jointSpacingM / slab.laneWidthM > layout.maximumAspect) {
     warnings.push(`Panel longer than ${layout.maximumAspect} times its width: reinforce it · ${layout.panelRef.clause}`);
   }
   if (!slab.doweled && traffic.openingCVPD > RIGID.scope.minimumCVPD) {
     warnings.push(`Dowel bars are required above ${RIGID.scope.minimumCVPD} CVPD`);
   }
   const joints = RIGID.joints;
-  if (slab.jointSpacingM > joints.maximumSpacingM) {
-    warnings.push(`Contraction joints no further apart than ${joints.maximumSpacingM} m · Cl. 7.1.3`);
+  if (slab.reinforced && slab.jointSpacingM > joints.analysedSlabM.length) {
+    warnings.push(`Slab stresses are from the relations for a ${joints.analysedSlabM.width} × ${joints.analysedSlabM.length} m panel · Cl. 6.2.6`);
+  } else if (!slab.reinforced && slab.jointSpacingM > joints.maximumSpacingM) {
+    warnings.push(
+      `Contraction joints no further apart than ${joints.maximumSpacingM} m, or a reinforced slab beyond ${RIGID.reinforcement.aboveJointM} m · Cl. 7.1.3 / 9.1`
+    );
   }
   if (slab.laneWidthM > joints.maximumSlabWidthM) {
     warnings.push(`A slab wider than ${joints.maximumSlabWidthM} m needs a longitudinal joint · Cl. 7.1.6`);
@@ -298,7 +308,7 @@ export function rigidSlots(rigid, slabMm) {
 export function rigidName(rigid) {
   const sub = subBaseOption(rigid.foundation.subBase);
   const shoulder = { tied: 'tied shoulders', widened: 'widened lane', none: 'no shoulders' }[rigid.slab.shoulder];
-  return `PQC ${isBonded(rigid) ? 'bonded to' : '/'} ${sub.label} · ${shoulder}${rigid.slab.doweled ? '' : ' · no dowels'}`;
+  return `${rigid.slab.reinforced ? 'JRCP' : 'PQC'} ${isBonded(rigid) ? 'bonded to' : '/'} ${sub.label} · ${shoulder}${rigid.slab.doweled ? '' : ' · no dowels'}`;
 }
 
 const fmt = (n, digits = 0) => n.toLocaleString('en-IN', { maximumFractionDigits: digits, minimumFractionDigits: digits });
@@ -487,6 +497,10 @@ export function runRigid(rigid, mode) {
   const bonded = isBonded(rigid);
   if (bonded && !(f.dlc28DayMPa > 0)) return { ok: false, message: 'Enter the DLC 28-day strength' };
   if (!(slab.laneWidthM > 0) || !(slab.tieBarDiameterMm > 0)) return { ok: false, message: 'Enter the lane width and tie bar diameter' };
+  if (slab.reinforced) {
+    if (!(slab.freeWidthM > 0)) return { ok: false, message: 'Enter the distance between free longitudinal joints' };
+    if (!(slab.steelYieldMPa > 0) || !(slab.workingPercent > 0)) return { ok: false, message: 'Enter the steel yield stress and working share' };
+  }
   const drainageGap = hasDrainage(rigid) ? missingDrainage(rigid) : null;
   if (drainageGap) return { ok: false, message: `Enter the ${drainageGap}` };
 
@@ -521,6 +535,16 @@ export function runRigid(rigid, mode) {
   const ties = tieBars({ slabMm: adoptedMm, laneWidthM: slab.laneWidthM, type: slab.tieBarType, diameterMm: slab.tieBarDiameterMm });
   const drainage = hasDrainage(rigid) ? rigidDrainage(rigid, adoptedMm) : null;
   const dowels = slab.doweled ? dowelsFor(rigid, adoptedMm, evaluation) : null;
+  const reinforcement = slab.reinforced
+    ? slabReinforcement({
+        slabMm: adoptedMm,
+        jointSpacingM: slab.jointSpacingM,
+        freeWidthM: slab.freeWidthM,
+        yieldMPa: slab.steelYieldMPa,
+        workingPercent: slab.workingPercent,
+        barMm: slab.meshBarMm,
+      })
+    : null;
 
   return {
     ok: true,
@@ -534,12 +558,13 @@ export function runRigid(rigid, mode) {
     foundation,
     dowels,
     tieBars: ties,
+    reinforcement,
     slots: rigidSlots(rigid, adoptedMm),
     name: rigidName(rigid),
     steps: [...(foundation.steps || []), ...workingSteps(rigid, traffic, foundation, evaluation), ...(bond ? bond.steps : [])],
     tieBarSteps: ties.steps,
     drainage,
-    warnings: [...warnings, ...ties.warnings, ...(dowels?.bearing && !dowels.bearing.safe ? [`Dowel bearing stress ${dowels.bearing.stress.toFixed(2)} MPa over the ${dowels.bearing.allowable.toFixed(2)} MPa allowed · Cl. 7.2.4`] : [])],
+    warnings: [...warnings, ...ties.warnings, ...(reinforcement ? reinforcement.warnings : []), ...(dowels?.bearing && !dowels.bearing.safe ? [`Dowel bearing stress ${dowels.bearing.stress.toFixed(2)} MPa over the ${dowels.bearing.allowable.toFixed(2)} MPa allowed · Cl. 7.2.4`] : [])],
     safe: evaluation.safe,
   };
 }

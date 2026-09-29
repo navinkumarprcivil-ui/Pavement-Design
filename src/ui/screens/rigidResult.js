@@ -207,6 +207,20 @@ export default function renderRigidResult(app) {
       result.tieBarSteps.map(stepCard)
     ),
 
+    result.reinforcement
+      ? card(
+          'Slab reinforcement',
+          h(
+            'div',
+            { class: 'metric-grid three' },
+            metric('Longitudinal', `Ø${result.reinforcement.barMm} @ ${result.reinforcement.longitudinal.spacingMm}`),
+            metric('Transverse', `Ø${result.reinforcement.barMm} @ ${result.reinforcement.transverse.spacingMm}`),
+            metric('Below surface, mm', RIGID.reinforcement.depthBelowSurfaceMm.join(' – '))
+          ),
+          result.reinforcement.steps.map(stepCard)
+        )
+      : null,
+
     dr
       ? card(
           'Drainage layer',

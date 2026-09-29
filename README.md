@@ -145,7 +145,9 @@ layer below the DLC and replaced by the thinnest PQC whose stiffness bonded to
 the DLC matches it (Eq. 10 – 13, reproducing Appendix-VII Option IV: 235 mm on
 150 mm DLC for 300 mm). Tie bars for the longitudinal joints are designed by
 Cl. 8.2 (Eq. 16 / 17), plain or deformed, reproducing Appendix-IX and every row
-of Table 6. A drainage layer below the DLC (Cl. 6.5) is sized from the water
+of Table 6. A slab with transverse joints more than 5.0 m apart can be
+reinforced (Cl. 9): the steel each way by Eq. 18, as bars at a spacing, with
+the mesh in the drawing and the bill of quantities. A drainage layer below the DLC (Cl. 6.5) is sized from the water
 entering by the joints (Eq. 9) and the flow down the resultant slope,
 reproducing the Appendix-VI example (319 m/day in 150 mm), with the 300 m/day
 floor, the 100 mm minimum and the material checks of Appendix-VI.
@@ -264,7 +266,7 @@ src/engine/             Calculation core — no browser APIs
   ruralRigid.js           Low volume roads, rigid (IRC:SP:62)
   rigidFatigue.js         IRC:58 stresses, fatigue and repetitions
   rigidDesign.js          IRC:58 foundation, temperature and slab search
-  rigidDetails.js         IRC:58 bonded PQC on DLC and tie bars
+  rigidDetails.js         IRC:58 bonded PQC on DLC, tie bars and slab reinforcement
   drainage.js             IRC:58 drainage layer
   crossSection.js         The road across its width: layer widths, shoulders, joints
   quantities.js           Bill of quantities off the cross-section

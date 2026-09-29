@@ -8,6 +8,7 @@ import { h } from './dom.js';
 import { crossSection } from '../engine/crossSection.js';
 import { currentDesign } from './currentDesign.js';
 import { isBonded, hasDrainage } from './rigidProject.js';
+import { RIGID } from '../data/ircConstants.js';
 
 export const LAYER_COLOURS = {
   bituminous: '#3c4552',
@@ -45,6 +46,14 @@ export function sectionFor(app) {
       separation: rigid.foundation.subBase === 'dlc' && !isBonded(rigid),
       dowels: r.dowels ? { diameterMm: r.dowels.diameterMm, lengthMm: r.dowels.lengthMm, spacingMm: r.dowels.spacingMm } : null,
       tieBars: { diameterMm: r.tieBars.diameterMm, lengthMm: r.tieBars.lengthMm, spacingMm: r.tieBars.spacingMm },
+      mesh: r.reinforcement
+        ? {
+            barMm: r.reinforcement.barMm,
+            longitudinalMm: r.reinforcement.longitudinal.spacingMm,
+            transverseMm: r.reinforcement.transverse.spacingMm,
+            depthMm: RIGID.reinforcement.depthBelowSurfaceMm,
+          }
+        : null,
     };
   }
   if (design.type === 'ruralRigid') {
@@ -184,6 +193,13 @@ export function crossSectionFigure(model) {
     shapes.push(svg('line', { x1: pavedLeft, x2: pavedRight, y1: slab.y2, y2: slab.y2, stroke: '#0d1117', 'stroke-width': 2.4 }));
   }
 
+  // The mesh of a reinforced slab, 50 - 60 mm below the surface.
+  if (model.mesh && slab) {
+    const depth = (model.mesh.depthMm[0] + model.mesh.depthMm[1]) / 2;
+    const yy = slab.y1 + ((slab.y2 - slab.y1) * depth) / slab.thicknessMm;
+    shapes.push(svg('line', { x1: pavedLeft + 3, x2: pavedRight - 3, y1: yy, y2: yy, stroke: '#1d5fa8', 'stroke-width': 1.4, 'stroke-dasharray': '6 3' }));
+  }
+
   // Longitudinal joints through the slab, with tie bars across them.
   if (slab) {
     const barPx = model.tieBars ? Math.max(10, (model.tieBars.lengthMm / 1000) * px) : 0;
@@ -250,6 +266,9 @@ export function crossSectionFigure(model) {
       `${l.thicknessMm} mm`,
       l.extent === 'formation' ? m(model.formationM) : m(model.pavedM),
     ]),
+    model.mesh
+      ? ['', `Mesh Ø${model.mesh.barMm} at ${model.mesh.longitudinalMm} mm longitudinal, ${model.mesh.transverseMm} mm transverse`, `${model.mesh.depthMm.join(' – ')} mm deep`, m(model.carriagewayM + 2 * model.widenedM)]
+      : null,
     model.membrane ? ['', `Polythene sheet, ${model.membrane.micron} micron or more, between slab and DLC`, '—', m(model.membrane.widthM)] : null,
     model.shoulderLayer
       ? ['', h('span', {}, swatch(LAYER_COLOURS.granular), ' Shoulder, sub-base quality material'), `${model.shoulderLayer.thicknessMm} mm`, `2 × ${m(model.shoulderLayer.widthM)}`]

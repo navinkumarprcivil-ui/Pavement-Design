@@ -423,7 +423,50 @@ export default function renderRigidSlab(app) {
         min: 0,
         step: 0.1,
         onInput: set(slab, 'jointSpacingM'),
-      })
+      }),
+      segmented({
+        label: 'Slab',
+        ref: RIGID.reinforcement.ref,
+        value: slab.reinforced ? 'reinforced' : 'plain',
+        options: [
+          { value: 'plain', label: 'Plain' },
+          { value: 'reinforced', label: 'Reinforced' },
+        ],
+        onChange: (value) => set(slab, 'reinforced', { rerender: true })(value === 'reinforced'),
+      }),
+      slab.reinforced
+        ? [
+            numberField({
+              label: 'Free longitudinal joints apart',
+              ref: RIGID.reinforcement.ref,
+              value: slab.freeWidthM,
+              suffix: 'm',
+              min: 0,
+              onInput: set(slab, 'freeWidthM'),
+            }),
+            h(
+              'div',
+              { class: 'field-row' },
+              numberField({ label: 'Steel yield stress', value: slab.steelYieldMPa, suffix: 'MPa', min: 0, onInput: set(slab, 'steelYieldMPa') }),
+              numberField({
+                label: 'Sst, share of yield',
+                ref: RIGID.reinforcement.ref,
+                aside: RIGID.reinforcement.workingShare.map((x) => x * 100).join(' – '),
+                value: slab.workingPercent,
+                suffix: '%',
+                min: 0,
+                max: 100,
+                onInput: set(slab, 'workingPercent'),
+              })
+            ),
+            selectField({
+              label: 'Mesh bar diameter',
+              value: String(slab.meshBarMm),
+              options: RIGID.reinforcement.barsMm.map((d) => ({ value: String(d), label: `${d} mm` })),
+              onChange: (value) => set(slab, 'meshBarMm')(Number(value)),
+            }),
+          ]
+        : null
     ),
 
     drainageCard(),

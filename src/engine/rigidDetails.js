@@ -257,3 +257,64 @@ export function dowelBearing({ diameterMm, spacingMm, lMm, axleKN, tiedShoulder,
     ],
   };
 }
+
+/**
+ * Steel in a jointed reinforced slab (Cl. 9.3, Eq. 18): As = Ld f W / (2 Sst)
+ * per m, longitudinally with Ld the distance between free transverse joints
+ * and transversely with Ld the distance between free longitudinal joints.
+ *
+ * @param {object} i
+ * @param {number} i.slabMm
+ * @param {number} i.jointSpacingM  Between free transverse joints.
+ * @param {number} i.freeWidthM     Between free longitudinal joints or edges.
+ * @param {number} i.yieldMPa
+ * @param {number} i.workingPercent Sst as a share of the yield stress, %.
+ * @param {number} i.barMm
+ */
+export function slabReinforcement({ slabMm, jointSpacingM, freeWidthM, yieldMPa, workingPercent, barMm }) {
+  const spec = RIGID.reinforcement;
+  const unit = RIGID.tieBars.concreteUnitWeightKNm3;
+  const W = (slabMm / 1000) * unit * 1000; // N/m²
+  const sst = (yieldMPa * workingPercent) / 100;
+  const barArea = (Math.PI * barMm ** 2) / 4;
+  const f = (x, digits = 1) => x.toFixed(digits);
+  const direction = (label, Ld) => {
+    const As = (Ld * spec.friction * W) / (2 * sst); // mm² per m
+    const spacingCalc = (1000 * barArea) / As;
+    const spacingMm = Math.floor(spacingCalc / 10) * 10;
+    const provided = (1000 * barArea) / spacingMm;
+    return { label, Ld, As, spacingCalc, spacingMm, provided };
+  };
+  const longitudinal = direction('Longitudinal', jointSpacingM);
+  const transverse = direction('Transverse', freeWidthM);
+
+  const warnings = [];
+  const [low, high] = spec.workingShare;
+  if (workingPercent < low * 100 || workingPercent > high * 100) {
+    warnings.push(`Sst is taken at ${low * 100} – ${high * 100}% of the yield stress · Cl. 9.3`);
+  }
+  if (jointSpacingM <= spec.aboveJointM) {
+    warnings.push(`Reinforced slabs are for transverse joints more than ${spec.aboveJointM} m apart · Cl. 9.1`);
+  }
+
+  const step = (d, of) => ({
+    title: `${d.label} steel`,
+    formula: 'As = Ld f W / (2 Sst)',
+    substitution:
+      `Ld = ${d.Ld} m between free ${of}, f = ${spec.friction}, W = ${slabMm / 1000} × ${unit * 1000} = ${f(W, 0)} N/m², ` +
+      `Sst = ${workingPercent}% × ${yieldMPa} = ${f(sst)} MPa;  ${d.Ld} × ${spec.friction} × ${f(W, 0)} / (2 × ${f(sst)})`,
+    result: `As = ${f(d.As)} mm² per m;  Ø${barMm} (${f(barArea)} mm²) at ${d.spacingMm} mm, ${f(d.provided)} mm² per m`,
+    ref: spec.ref,
+  });
+
+  return {
+    W,
+    sst,
+    barMm,
+    barArea,
+    longitudinal,
+    transverse,
+    warnings,
+    steps: [step(longitudinal, 'transverse joints'), step(transverse, 'longitudinal joints')],
+  };
+}

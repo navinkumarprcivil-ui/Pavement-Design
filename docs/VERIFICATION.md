@@ -121,6 +121,7 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Drainage layer | qi = Ic [Nc/Wp + Wc/(Wp Cs)] + Kp, Ic 0.223 m³/day/m, Kp 0; Q = AD qi; K = Q/(I t); K ≥ 300 m/day; designed where rainfall > 1000 mm; below the DLC with a separation layer | Cl. 6.5.1 – 6.5.3, Eq. 9 | 20, 21 | Note (11) |
 | Drainage material | t ≥ 100 mm; Cu = D60/D10 in 2 – 8, stabilised under 4; D10 > 2 mm; LA abrasion < 40%; stabiliser cement 2 – 2.5%, bitumen 1.5 – 2.5%, emulsion 2.5 – 3% | Cl. 5.7.3.9 / 6.5.2 / 6.5.3; Appendix VI, VI-II / VI-III | 10, 20, 21, 77, 78 | Note (11) |
 | Drainage example | B 10.4 m, AC 12.48 m, AD 16.24 m, I 0.039, qi 0.115, Q 1.868 m³/day/m; K 319 m/day in 150 mm, 160 m/day in 300 mm | Appendix VI, VI-VIII | 79 – 81 | ✓ (11) |
+| Reinforced slab | Joints over 5.0 m apart; As = Ld f W / (2 Sst) each way, f 1.5, Sst 50 – 60% of yield (warned outside), mesh 50 – 60 mm below the surface and 50 mm clear of joints; stresses still from the 3.5 × 4.5 m panel relations, noted | Cl. 6.2.6, 9.1 – 9.4, Eq. 18 | 17, 29, 30 | **Added** |
 | Layer widths | Drainage and separation layers throughout the road width, when a drainage layer is designed; PQC and sub-base under the carriageway and tied shoulders | Cl. 6.5.2 | 20 | **Added** (report) |
 | Separation layer | Polythene sheet of at least 125 micron between the slab and an unbonded DLC | Cl. 5.7.5 | 12 | **Added** (report) |
 | Widened lane | Outer lane widened 0.5 – 0.6 m, warned outside it | Cl. 6.6.1 | 21 | **Added** |
@@ -314,8 +315,7 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
    report; the analysis still decides it (Cl. 12.1).
 
 **Not built.** DCP route to CBR (IRC:58 Cl. 5.7.3.7, Eq. 3, optional);
-jointed reinforced concrete pavements (IRC:58 Cl. 9) — joints are held to
-4.5 m with a warning; the time-to-drain route of IRC:58 VI-VI.
+the time-to-drain route of IRC:58 VI-VI.
 
 ## How it is kept checked
 
@@ -333,6 +333,7 @@ jointed reinforced concrete pavements (IRC:58 Cl. 9) — joints are held to
 - `tests/sp72.test.js` — SP:72 Appendix A and D, Table 4, categories.
 - `tests/sp62.test.js` — SP:62 Appendix I.
 - `tests/catalogue.test.js` — IRC:37 catalogues against Annex-III.
+- `tests/jrcp.test.js` — IRC:58 Eq. 18 and the Cl. 9 limits.
 - `tests/crossSection.test.js` — layer widths, the separation sheet, the widened
   lane, SP:72 shoulders, SP:62 joints and the bill of quantities.
 

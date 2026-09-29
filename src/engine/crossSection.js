@@ -33,7 +33,8 @@ function drainsToFormation(slot, type, rigid) {
  * @param {object} input.geometry   carriagewayWidthM, pavedShoulderM and earthenShoulderM (each side).
  * @param {object} [input.rigid]    For IRC:58: shoulder, widenedM, laneWidthM, jointSpacingM,
  *                                   drainage (true when a drainage layer is designed),
- *                                   separation (true for a debonding sheet), dowels, tieBars.
+ *                                   separation (true for a debonding sheet), dowels, tieBars,
+ *                                   mesh (a reinforced slab's bars and spacings).
  * @param {object} [input.lvRigid]  For IRC:SP:62: jointSpacingM.
  */
 export function crossSection({ type, slots, geometry, rigid = null, lvRigid = null }) {
@@ -111,6 +112,7 @@ export function crossSection({ type, slots, geometry, rigid = null, lvRigid = nu
     joints,
     transverseSpacingM: type === 'rigid' ? width(rigid.jointSpacingM) : type === 'ruralRigid' ? width(lvRigid.jointSpacingM) : 0,
     dowels: type === 'rigid' ? rigid.dowels : null,
+    mesh: type === 'rigid' ? rigid.mesh ?? null : null,
     tieBars: type === 'rigid' ? rigid.tieBars : null,
     widenedRef: widenedM > 0 ? CROSS_SECTION.widenedLane : null,
     notes,

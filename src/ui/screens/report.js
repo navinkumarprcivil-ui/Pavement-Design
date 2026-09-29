@@ -672,6 +672,10 @@ function flexibleReport(app, cite) {
 
 function rigidReport(app, cite) {
   const result = app.state.rigidResult;
+  const rf = result.reinforcement;
+  // Sections after the verdict are numbered as they appear.
+  let last = 5;
+  const sub = () => ++last;
   const rigid = app.state.rigid;
   const { traffic: t, foundation: f, slab, temperature } = rigid;
   const e = result.evaluation;
@@ -802,7 +806,7 @@ function rigidReport(app, cite) {
     ),
     result.warnings.map((w) => h('p', { class: 'r-note' }, 'Note: ', w)),
 
-    result.dowels?.bearing ? h('h3', {}, '3.6 Dowel bars') : null,
+    result.dowels?.bearing ? h('h3', {}, `3.${sub()} Dowel bars`) : null,
     result.dowels?.bearing
       ? givenTable(
           'Dowel bar inputs',
@@ -820,7 +824,7 @@ function rigidReport(app, cite) {
       : null,
     result.dowels?.bearing ? result.dowels.bearing.steps.map((step) => stepBlock(step, cite)) : null,
 
-    h('h3', {}, result.dowels?.bearing ? '3.7 Tie bars' : '3.6 Tie bars'),
+    h('h3', {}, `3.${sub()} Tie bars`),
     givenTable(
       'Tie bar inputs',
       [
@@ -833,7 +837,23 @@ function rigidReport(app, cite) {
     ),
     result.tieBarSteps.map((step) => stepBlock(step, cite)),
 
-    dr ? h('h3', {}, result.dowels?.bearing ? '3.8 Drainage layer' : '3.7 Drainage layer') : null,
+    rf ? h('h3', {}, `3.${sub()} Slab reinforcement`) : null,
+    rf
+      ? givenTable(
+          'Reinforcement inputs',
+          [
+            ['Ld', 'Free transverse joints apart', `${slab.jointSpacingM} m`, 'Input', RIGID.reinforcement.ref],
+            ['Ld', 'Free longitudinal joints apart', `${slab.freeWidthM} m`, 'Input', RIGID.reinforcement.ref],
+            ['f', 'Coefficient of friction', String(RIGID.reinforcement.friction), 'Code', RIGID.reinforcement.ref],
+            ['W', 'Weight of slab', `${result.adoptedMm / 1000} m × ${RIGID.tieBars.concreteUnitWeightKNm3} kN/m³`, 'Code', RIGID.tieBars.example],
+            ['Sst', 'Working stress of the steel', `${slab.workingPercent}% of ${slab.steelYieldMPa} MPa`, 'Input', RIGID.reinforcement.ref],
+          ],
+          cite
+        )
+      : null,
+    rf ? rf.steps.map((step) => stepBlock(step, cite)) : null,
+
+    dr ? h('h3', {}, `3.${sub()} Drainage layer`) : null,
     dr
       ? givenTable(
           'Drainage layer inputs',
@@ -889,6 +909,13 @@ function rigidReport(app, cite) {
           `Dowel bars ${result.dowels.diameterMm} mm diameter, ${result.dowels.lengthMm} mm long at ${result.dowels.spacingMm} mm centres` +
             (result.dowels.bearing ? `, bearing ${result.dowels.bearing.stress.toFixed(2)} MPa against ${result.dowels.bearing.allowable.toFixed(2)} MPa allowed. ` : '. '),
           cite(RIGID.dowels.ref)
+        )
+      : null,
+    rf
+      ? para(
+          `Reinforcement ${rf.barMm} mm bars at ${rf.longitudinal.spacingMm} mm longitudinally and ${rf.transverse.spacingMm} mm transversely, ` +
+            `${RIGID.reinforcement.depthBelowSurfaceMm.join(' – ')} mm below the surface and at least ${RIGID.reinforcement.clearOfJointsMm} mm clear of joint faces and edges. `,
+          cite(RIGID.reinforcement.ref)
         )
       : null,
     para(

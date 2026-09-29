@@ -14,6 +14,7 @@ export const EXTRA_ITEMS = [
   { id: 'Separation membrane', unit: 'm²' },
   { id: 'Dowel bars', unit: 't' },
   { id: 'Tie bars', unit: 't' },
+  { id: 'Slab reinforcement', unit: 't' },
   { id: 'Joint sealing', unit: 'm' },
   { id: 'Shoulder', unit: 'm³' },
 ];
@@ -83,6 +84,19 @@ export function billOfQuantities(model, rates, lengthKm) {
       barTonnes(tied * perJoint, t.diameterMm, t.lengthMm),
       'Tie bars',
       `${tied} joint${tied > 1 ? 's' : ''} × ${perJoint} bars`
+    );
+  }
+  if (model.mesh && L > 0) {
+    // Bars each way, per m² of slab: the steel area per m of each spacing.
+    const { barMm, longitudinalMm, transverseMm } = model.mesh;
+    const bar = (Math.PI * (barMm / 1000) ** 2) / 4;
+    const perSqm = bar / (longitudinalMm / 1000) + bar / (transverseMm / 1000);
+    add(
+      `Slab reinforcement, Ø${barMm} at ${longitudinalMm} × ${transverseMm} mm`,
+      't',
+      (perSqm * slabWidth * L * STEEL_KG_PER_M3) / 1000,
+      'Slab reinforcement',
+      `${slabWidth.toFixed(2)} m wide, laps extra`
     );
   }
   const sealed = joints * model.pavedM + model.joints.length * L;
