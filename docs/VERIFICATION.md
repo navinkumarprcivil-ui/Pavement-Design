@@ -88,6 +88,10 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Top-down stress | Eq. V.13: −0.219, 1.686, 168.48, 0.1089; β 0.66 / 0.90 | Appendix V | 74, 75 | ✓ |
 | Criterion | CFD(BUC) + CFD(TDC) ≤ 1; +10 mm for retexturing | Cl. 6.3.4.1, Eq. 7 / 8 | 19 | ✓ |
 | Dowels | Table 5; none under 200 mm | Cl. 7.2.6, Table 5 | 27 | ✓ |
+| Bonded PQC on DLC | k on the 200 – 250 mm granular layer below the DLC (Table 3); slab h designed there; PQC h1 (5 mm steps) with D1 + D2 ≥ E h³/12(1 − µ²); DLC E = 1000 fck(28), µ 0.2, 7-day ≥ 10 MPa | Cl. 6.7.1 – 6.7.3, Eq. 10 – 13 | 22, 23 | Note (9) |
+| Bonded example | d 0.16 m; D1 46.65, D2 23.28, D 69.05 MN·m; 235 mm PQC on 150 mm DLC for a 300 mm slab | Appendix VII, Option IV | 89 | ✓ |
+| Tie bars | As = b f W / Sst, f 1.5, 24 kN/m³; Sst 125 / 200 MPa, B* 1.75 / 2.46 MPa (plain / deformed); L = 2 Sst A / (B* P) + 100 + 50 mm; spacing ≤ 750 mm, Ø ≤ 16 mm | Cl. 8.2.1 – 8.2.4, Eq. 16 / 17 | 28, 29 | Note (10) |
+| Tie bar examples | 330 mm slab, 3.5 m lane, 12 mm: plain 332.6 mm²/m, 340 c/c, 580 long; deformed 207.9 mm²/m, 540 c/c, 640 long; every row of Table 6 | Appendix IX; Table 6 | 92, 93; 29 | ✓ |
 | Worked example | Appendix VII stresses, repetitions and damage reproduced | Appendix VII | 82 – 88 | ✓ |
 
 ## IRC:SP:72-2015 — low volume roads, flexible
@@ -185,11 +189,29 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
    against 267 µε from the app and from comparable sections; the verdict is
    the same.
 
+9. **IRC:58 Eq. 13 (p. 23).** It is printed as E2 times the modular ratio
+   E2/E1 times the transformed section, so E2 enters twice; a transformed-section
+   derivation would carry E2 once (51.35 MN·m for the Appendix VII section in
+   place of 23.28). The app takes Eq. 13 as printed, which reproduces
+   Appendix VII; the printed form gives the DLC less credit and so a thicker
+   PQC. An entered bonded PQC is checked for fatigue as the monolithic slab of
+   equal stiffness, h = [12 (1 − µ²)(D1 + D2)/E]^(1/3).
+10. **IRC:58 tie bars.** Table 6 and Appendix IX round spacing and length to the
+   nearest 10 mm; the app does the same and reproduces both. Table 6 lists
+   deformed-bar spacings above the 750 mm of Cl. 8.2.4 (830, 900, 1060, 910);
+   the app holds them to 750 mm. Appendix IX prints the spacing as 100 × A/As
+   and the plain bar perimeter as 7 in its substitutions; the results it gives
+   are 1000 × A/As and 37.7 mm, which the app uses. Cl. 8.2.4 speaks of 50 –
+   80 mm added to the length; Appendix IX adds 100 mm for paint and 50 mm for
+   placement, and Table 6 follows Appendix IX, as does the app. For a bonded
+   slab, W is taken on the PQC alone.
+
 ## How it is kept checked
 
 - `tests/annexII.test.js`, `tests/annexExtra.test.js`, `tests/ctbDamage.test.js`,
   `tests/construction.test.js` — IRC:37 Annex II examples.
-- `tests/rigid*.test.js` — IRC:58 Appendix VII.
+- `tests/rigid*.test.js` — IRC:58 Appendix VII, including Option IV (bonded),
+  Appendix IX and Table 6 (tie bars).
 - `tests/sp72.test.js` — SP:72 Appendix A and D, Table 4, categories.
 - `tests/sp62.test.js` — SP:62 Appendix I.
 

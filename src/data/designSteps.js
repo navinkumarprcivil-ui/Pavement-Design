@@ -314,4 +314,17 @@ export const RIGID_DESIGN_STEPS = [
       'at 0.16 m and gives 46.65 + 23.28 = 69.93 MN·m, so it is adequate.',
     ref: ref('IRC58', 'Cl. 6.7', { equation: 'Eq. 10 – 13', page: '22, 23' }),
   },
+  {
+    title: 'Tie the longitudinal joints',
+    what:
+      'Tie bars hold the lanes together against the friction under the slab ' +
+      'out to the free edge. The steel per metre of joint is b f W / Sst; the ' +
+      'bar spacing follows from one bar\'s area, and its length is twice what ' +
+      'develops the bar in bond, plus 100 mm for paint and 50 mm for placement. ' +
+      'Bars no thicker than 16 mm, no further apart than 750 mm.',
+    example:
+      '330 mm slab, 3.5 m lane, 12 mm deformed bars: 207.9 mm² per metre, ' +
+      'so 540 mm apart; 487.4 mm in bond, 640 mm long.',
+    ref: ref('IRC58', 'Cl. 8.2 / Appendix-IX', { equation: 'Eq. 16 / 17', page: '28, 29, 92, 93' }),
+  },
 ];

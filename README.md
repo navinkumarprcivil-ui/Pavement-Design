@@ -108,8 +108,13 @@ Table 1, six-hour design repetitions, the Appendix-V stress equations for
 bottom-up and top-down cracking, and cumulative fatigue damage over the axle
 load spectrum. The thinnest slab with CFD ≤ 1 is found in 10 mm steps, with
 dowel bars from Table 5. It reproduces the illustrative design of Appendix-VII
-(290 mm with tied shoulders and dowels, 340 mm without). Bonded slabs, tie bars
-and drainage layers are not yet in the app.
+(290 mm with tied shoulders and dowels, 340 mm without).
+A PQC may be bonded to the DLC (Cl. 6.7): the slab is designed on the granular
+layer below the DLC and replaced by the thinnest PQC whose stiffness bonded to
+the DLC matches it (Eq. 10 – 13, reproducing Appendix-VII Option IV: 235 mm on
+150 mm DLC for 300 mm). Tie bars for the longitudinal joints are designed by
+Cl. 8.2 (Eq. 16 / 17), plain or deformed, reproducing Appendix-IX and every row
+of Table 6. Drainage layers are not yet in the app.
 
 ## Saved work and cloud sync
 
@@ -220,6 +225,7 @@ src/engine/             Calculation core — no browser APIs
   ruralRigid.js           Low volume roads, rigid (IRC:SP:62)
   rigidFatigue.js         IRC:58 stresses, fatigue and repetitions
   rigidDesign.js          IRC:58 foundation, temperature and slab search
+  rigidDetails.js         IRC:58 bonded PQC on DLC and tie bars
   costing.js              Quantities and cost
 src/data/               IRC constants with citations and pages; layer catalogue;
                         sp72.js and sp62.js for the low volume codes
@@ -263,4 +269,4 @@ rural roads across several IRC design methods. Next up:
 
 - The IRC:37 design catalogue as a second route alongside the
   mechanistic-empirical one already built.
-- IRC:58 bonded slabs, tie bars and drainage layers.
+- IRC:58 drainage layers.

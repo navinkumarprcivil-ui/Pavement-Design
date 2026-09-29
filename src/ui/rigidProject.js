@@ -5,6 +5,7 @@
 
 import { RIGID, ref } from '../data/ircConstants.js';
 import { rigidTraffic, foundationK, evaluateSlab, designSlab, dowelBars } from '../engine/rigidDesign.js';
+import { bondedSlab, equivalentSlab, bondedSteps, tieBars } from '../engine/rigidDetails.js';
 import { AXLES, defaultSpectrum, frontAxlePercent, spectrumTotal } from './spectrum.js';
 
 export { AXLES, frontAxlePercent, spectrumTotal, parseSpectrum } from './spectrum.js';
@@ -42,6 +43,10 @@ export const defaultRigidState = () => ({
     gsbMm: 150,
     kSource: 'tables',
     measuredK: null,
+    /** PQC laid straight on the DLC and bonded to it (Cl. 6.7), in place of a debonding layer. */
+    bonded: false,
+    dlc7DayMPa: RIGID.bonded.minimumDlcSevenDayMPa,
+    dlc28DayMPa: RIGID.bonded.dlc28DayMPa,
   },
   slab: {
     shoulder: 'tied',
@@ -52,6 +57,9 @@ export const defaultRigidState = () => ({
     mu: RIGID.concrete.poissonRatio,
     thicknessMm: 300,
     retexture: true,
+    tieBarType: 'deformed',
+    tieBarDiameterMm: 12,
+    laneWidthM: RIGID.tieBars.laneWidthM,
   },
   temperature: { mode: 'zone', zone: 'III', dayC: 16.8 },
 });
@@ -74,12 +82,28 @@ export function rigidTrafficFor(rigid) {
   return rigidTraffic(rigid.traffic);
 }
 
+/** Whether the PQC is bonded to a DLC layer (Cl. 6.7). */
+export const isBonded = (rigid) => rigid.foundation.subBase === 'dlc' && rigid.foundation.bonded === true;
+
 export function rigidFoundation(rigid) {
   const f = rigid.foundation;
-  if (f.kSource === 'measured') {
-    return { subgradeK: null, k: f.measuredK, warnings: [] };
+  const bonded = isBonded(rigid);
+  const warnings = [];
+  if (bonded) {
+    const b = RIGID.bonded;
+    if (!(f.dlc7DayMPa >= b.minimumDlcSevenDayMPa)) {
+      warnings.push(`DLC for a bonded slab needs a 7-day strength of ${b.minimumDlcSevenDayMPa} MPa or more · Cl. 6.7.1`);
+    }
+    if (!(f.gsbMm >= b.granularMm.min && f.gsbMm <= b.granularMm.max)) {
+      warnings.push(`Granular sub-base of ${b.granularMm.min} – ${b.granularMm.max} mm below the DLC · Cl. 6.7.2`);
+    }
   }
-  const result = foundationK(f);
+  if (f.kSource === 'measured') {
+    return { subgradeK: null, k: f.measuredK, warnings };
+  }
+  // A bonded slab is designed on the granular layer below the DLC (Cl. 6.7.2, Table 3).
+  const result = bonded ? foundationK({ ...f, subBase: 'granular', subBaseMm: f.gsbMm }) : foundationK(f);
+  result.warnings.push(...warnings);
   if (f.subgradeCBR < RIGID.subgradeK.minimumCBR) {
     result.warnings.push(`Select subgrade CBR below the ${RIGID.subgradeK.minimumCBR}% minimum`);
   }
@@ -125,7 +149,7 @@ export function rigidSlots(rigid, slabMm) {
   const sub = subBaseOption(f.subBase);
   const slots = [
     { slotId: 'PQC', materialId: 'PQC', label: 'PQC', thicknessMm: slabMm, behaviour: 'concrete' },
-    { slotId: 'SUB_BASE', materialId: sub.materialId, label: sub.label, thicknessMm: f.subBaseMm, behaviour: sub.behaviour },
+    { slotId: 'SUB_BASE', materialId: sub.materialId, label: isBonded(rigid) ? `${sub.label}, bonded` : sub.label, thicknessMm: f.subBaseMm, behaviour: sub.behaviour },
   ];
   if (sub.value !== 'granular' && f.gsbMm > 0) {
     slots.push({ slotId: 'GSB', materialId: 'GSB', label: 'GSB', thicknessMm: f.gsbMm, behaviour: 'granular' });
@@ -137,7 +161,7 @@ export function rigidSlots(rigid, slabMm) {
 export function rigidName(rigid) {
   const sub = subBaseOption(rigid.foundation.subBase);
   const shoulder = { tied: 'tied shoulders', widened: 'widened lane', none: 'no shoulders' }[rigid.slab.shoulder];
-  return `PQC / ${sub.label} · ${shoulder}${rigid.slab.doweled ? '' : ' · no dowels'}`;
+  return `PQC ${isBonded(rigid) ? 'bonded to' : '/'} ${sub.label} · ${shoulder}${rigid.slab.doweled ? '' : ' · no dowels'}`;
 }
 
 const fmt = (n, digits = 0) => n.toLocaleString('en-IN', { maximumFractionDigits: digits, minimumFractionDigits: digits });
@@ -200,7 +224,7 @@ function workingSteps(rigid, traffic, foundation, evaluation) {
       formula: 'Night = day / 2 + 5 °C built-in curl',
       substitution:
         rigid.temperature.mode === 'zone'
-          ? `Zone ${rigid.temperature.zone}, ${evaluation.thicknessMm} mm slab: ${evaluation.dayC} °C by day`
+          ? `Zone ${rigid.temperature.zone}, ${Math.round(evaluation.thicknessMm)} mm slab: ${evaluation.dayC} °C by day`
           : `Site value ${evaluation.dayC} °C by day`,
       result: `Day ${evaluation.dayC} °C · night ${evaluation.nightC.toFixed(1)} °C`,
       ref: ref('IRC58', 'Cl. 5.6.1.1 / 5.6.2.3', { table: 'Table 1', page: '6 – 8' }),
@@ -208,7 +232,7 @@ function workingSteps(rigid, traffic, foundation, evaluation) {
     {
       title: 'Radius of relative stiffness',
       formula: 'l = [E h³ / 12 k (1 − µ²)]^0.25',
-      substitution: `E = ${fmt(rigid.slab.E)} MPa, h = ${evaluation.thicknessMm / 1000} m, k = ${fmt(foundation.k, 1)} MPa/m, µ = ${rigid.slab.mu}`,
+      substitution: `E = ${fmt(rigid.slab.E)} MPa, h = ${+(evaluation.thicknessMm / 1000).toFixed(4)} m, k = ${fmt(foundation.k, 1)} MPa/m, µ = ${rigid.slab.mu}`,
       result: `l = ${evaluation.radiusOfRelativeStiffnessM.toFixed(3)} m`,
       ref: ref('IRC58', 'Appendix-V', { page: '73 – 75' }),
     }
@@ -235,32 +259,59 @@ export function runRigid(rigid, mode) {
     return { ok: false, message: `Enter the ${empty.label.toLowerCase()} axle load spectrum` };
   }
 
+  const { slab } = rigid;
+  const f = rigid.foundation;
+  const bonded = isBonded(rigid);
+  if (bonded && !(f.dlc28DayMPa > 0)) return { ok: false, message: 'Enter the DLC 28-day strength' };
+  if (!(slab.laneWidthM > 0) || !(slab.tieBarDiameterMm > 0)) return { ok: false, message: 'Enter the lane width and tie bar diameter' };
+
   const input = slabInput(rigid, traffic, foundation);
+  const retexture = mode === 'design' && slab.retexture ? RIGID.criterion.retexturingMm : 0;
+  const bondInput = { dlcMm: f.subBaseMm, E1: slab.E, mu1: slab.mu, dlc28MPa: f.dlc28DayMPa };
   let evaluation;
-  let adoptedMm;
+  let fatigueMm;
+  let bond = null;
   if (mode === 'design') {
     const outcome = designSlab(input);
     if (!outcome.found) return { ok: false, message: 'No slab up to 500 mm satisfies CFD ≤ 1' };
     evaluation = outcome.trial;
-    adoptedMm = outcome.thicknessMm + (rigid.slab.retexture ? RIGID.criterion.retexturingMm : 0);
+    fatigueMm = outcome.thicknessMm;
+    if (bonded) {
+      // The slab designed on the granular layer, replaced by a PQC as stiff bonded to the DLC.
+      const b = bondedSlab({ designMm: outcome.thicknessMm, ...bondInput });
+      fatigueMm = b.thicknessMm;
+      bond = { ...b, designMm: outcome.thicknessMm, pqcMm: b.thicknessMm, steps: bondedSteps(b, { ...bondInput, designMm: outcome.thicknessMm, pqcMm: b.thicknessMm }) };
+    }
+  } else if (bonded) {
+    // The entered PQC with the DLC, as the monolithic slab it is as stiff as.
+    const b = equivalentSlab({ pqcMm: slab.thicknessMm, ...bondInput });
+    evaluation = evaluateSlab({ ...input, thicknessMm: b.thicknessMm });
+    fatigueMm = slab.thicknessMm;
+    bond = { ...b, equivalentMm: b.thicknessMm, pqcMm: slab.thicknessMm, steps: bondedSteps(b, { ...bondInput, pqcMm: slab.thicknessMm, checking: true }) };
   } else {
-    evaluation = evaluateSlab({ ...input, thicknessMm: rigid.slab.thicknessMm });
-    adoptedMm = rigid.slab.thicknessMm;
+    evaluation = evaluateSlab({ ...input, thicknessMm: slab.thicknessMm });
+    fatigueMm = slab.thicknessMm;
   }
+  const adoptedMm = fatigueMm + retexture;
+  const ties = tieBars({ slabMm: adoptedMm, laneWidthM: slab.laneWidthM, type: slab.tieBarType, diameterMm: slab.tieBarDiameterMm });
 
   return {
     ok: true,
     mode,
     evaluation,
     adoptedMm,
-    retextureMm: adoptedMm - evaluation.thicknessMm,
+    fatigueMm,
+    retextureMm: retexture,
+    bonded: bond,
     traffic,
     foundation,
-    dowels: rigid.slab.doweled ? dowelBars(adoptedMm) : null,
+    dowels: slab.doweled ? dowelBars(adoptedMm) : null,
+    tieBars: ties,
     slots: rigidSlots(rigid, adoptedMm),
     name: rigidName(rigid),
-    steps: workingSteps(rigid, traffic, foundation, evaluation),
-    warnings,
+    steps: [...workingSteps(rigid, traffic, foundation, evaluation), ...(bond ? bond.steps : [])],
+    tieBarSteps: ties.steps,
+    warnings: [...warnings, ...ties.warnings],
     safe: evaluation.safe,
   };
 }

@@ -564,6 +564,48 @@ export const RIGID = {
     retexturingMm: 10,
   },
 
+  /**
+   * PQC bonded to a DLC layer (Cl. 6.7): the slab designed over the granular
+   * layer below the DLC is replaced by a thinner PQC whose flexural stiffness
+   * bonded to the DLC is at least the designed slab's (Eq. 10 – 13). The DLC
+   * modulus is 1000 × its 28-day compressive strength.
+   */
+  bonded: {
+    ref: ref('IRC58', 'Cl. 6.7.2 / 6.7.3', { equation: 'Eq. 10 – 13', page: '22, 23' }),
+    verified: true,
+    dlcModulusFactor: 1000,
+    dlcPoissonRatio: 0.2,
+    minimumDlcSevenDayMPa: 10,
+    dlc28DayMPa: 13.6,
+    dlcMm: 150,
+    granularMm: { min: 200, max: 250 },
+    example: ref('IRC58', 'Appendix-VII, Option IV', { page: 89 }),
+  },
+
+  /**
+   * Tie bars across longitudinal joints (Cl. 8.2, IRC:15): steel to hold the
+   * slab against friction, As = b f W / Sst, and the length to develop the
+   * bar twice over in bond, L = 2 Sst A / (B P), plus 100 mm for loss of bond
+   * to painting and 50 mm for placement (Appendix-IX).
+   */
+  tieBars: {
+    ref: ref('IRC58', 'Cl. 8.2', { equation: 'Eq. 16 / 17', table: 'Table 6', page: '28, 29' }),
+    verified: true,
+    friction: 1.5,
+    concreteUnitWeightKNm3: 24,
+    steel: {
+      plain: { label: 'Plain', allowableMPa: 125, bondMPa: 1.75 },
+      deformed: { label: 'Deformed', allowableMPa: 200, bondMPa: 2.46 },
+    },
+    paintingAllowanceMm: 100,
+    placementAllowanceMm: 50,
+    maximumDiameterMm: 16,
+    maximumSpacingMm: 750,
+    diametersMm: [8, 10, 12, 16],
+    laneWidthM: 3.5,
+    example: ref('IRC58', 'Appendix-IX', { page: '92, 93' }),
+  },
+
   /** Dowel bars by slab thickness: [slab, diameter, length, spacing] mm (Table 5). */
   dowels: {
     ref: ref('IRC58', 'Cl. 7.2.6', { table: 'Table 5', page: 27 }),

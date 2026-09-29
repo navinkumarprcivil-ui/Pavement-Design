@@ -1,10 +1,11 @@
 import { h, card, numberField, segmented, selectField, metric, notice, button } from '../dom.js';
-import { SUB_BASES, SHOULDERS, rigidFoundation, runRigid } from '../rigidProject.js';
+import { SUB_BASES, SHOULDERS, rigidFoundation, runRigid, isBonded } from '../rigidProject.js';
 import { RIGID } from '../../data/ircConstants.js';
 
 export default function renderRigidSlab(app) {
   const rigid = app.state.rigid;
   const { foundation: f, slab, temperature } = rigid;
+  const bonded = isBonded(rigid);
 
   const kHost = h('div', {});
   const status = h('div', {});
@@ -16,7 +17,7 @@ export default function renderRigidSlab(app) {
         'div',
         { class: 'metric-grid' },
         result.subgradeK != null ? metric('Subgrade k', `${result.subgradeK.toFixed(1)} MPa/m`) : null,
-        metric('Effective k', result.k > 0 ? `${result.k.toFixed(1)} MPa/m` : '—')
+        metric(bonded ? 'k on the GSB' : 'Effective k', result.k > 0 ? `${result.k.toFixed(1)} MPa/m` : '—')
       ),
       result.warnings.map((w) => notice('warn', null, w))
     );
@@ -73,12 +74,29 @@ export default function renderRigidSlab(app) {
           app.render();
         },
       }),
+      f.subBase === 'dlc'
+        ? segmented({
+            label: 'PQC on the DLC',
+            ref: bonded ? RIGID.bonded.ref : RIGID.dlcK.ref,
+            value: bonded ? 'bonded' : 'debonded',
+            options: [
+              { value: 'debonded', label: 'Debonding layer' },
+              { value: 'bonded', label: 'Bonded' },
+            ],
+            onChange: (value) => {
+              f.bonded = value === 'bonded';
+              if (f.bonded && !(f.gsbMm >= RIGID.bonded.granularMm.min)) f.gsbMm = RIGID.bonded.granularMm.max;
+              app.persist();
+              app.render();
+            },
+          })
+        : null,
       h(
         'div',
         { class: 'field-row' },
         numberField({
           label: `${SUB_BASES.find((o) => o.value === f.subBase).label} thickness`,
-          aside: subBaseRange.aside,
+          aside: bonded ? `Cl. 6.7.2: ${RIGID.bonded.dlcMm}` : subBaseRange.aside,
           value: f.subBaseMm,
           suffix: 'mm',
           min: subBaseRange.min,
@@ -87,9 +105,41 @@ export default function renderRigidSlab(app) {
           onInput: set(f, 'subBaseMm', { after: showK }),
         }),
         f.subBase !== 'granular'
-          ? numberField({ label: 'GSB below', value: f.gsbMm, suffix: 'mm', min: 0, step: 10, onInput: set(f, 'gsbMm') })
+          ? numberField({
+              label: 'GSB below',
+              ref: bonded ? RIGID.bonded.ref : null,
+              aside: bonded ? `${RIGID.bonded.granularMm.min} – ${RIGID.bonded.granularMm.max}` : null,
+              value: f.gsbMm,
+              suffix: 'mm',
+              min: 0,
+              step: 10,
+              onInput: set(f, 'gsbMm', { after: showK }),
+            })
           : null
       ),
+      bonded
+        ? h(
+            'div',
+            { class: 'field-row' },
+            numberField({
+              label: 'DLC 7-day compressive strength',
+              ref: RIGID.bonded.ref,
+              aside: `min ${RIGID.bonded.minimumDlcSevenDayMPa}`,
+              value: f.dlc7DayMPa,
+              suffix: 'MPa',
+              min: 0,
+              onInput: set(f, 'dlc7DayMPa', { after: showK }),
+            }),
+            numberField({
+              label: 'DLC 28-day compressive strength',
+              ref: RIGID.bonded.ref,
+              value: f.dlc28DayMPa,
+              suffix: 'MPa',
+              min: 0,
+              onInput: set(f, 'dlc28DayMPa'),
+            })
+          )
+        : null,
       segmented({
         label: 'k from',
         value: f.kSource,
@@ -155,7 +205,33 @@ export default function renderRigidSlab(app) {
           { value: 'no', label: 'Not doweled' },
         ],
         onChange: (value) => set(slab, 'doweled', { rerender: true })(value === 'yes'),
-      })
+      }),
+      segmented({
+        label: 'Tie bars at longitudinal joints',
+        ref: RIGID.tieBars.ref,
+        value: slab.tieBarType,
+        options: Object.entries(RIGID.tieBars.steel).map(([value, o]) => ({ value, label: o.label })),
+        onChange: set(slab, 'tieBarType', { rerender: true }),
+      }),
+      h(
+        'div',
+        { class: 'field-row' },
+        selectField({
+          label: 'Tie bar diameter',
+          ref: RIGID.tieBars.ref,
+          value: String(slab.tieBarDiameterMm),
+          options: RIGID.tieBars.diametersMm.map((d) => ({ value: String(d), label: `${d} mm` })),
+          onChange: (value) => set(slab, 'tieBarDiameterMm')(Number(value)),
+        }),
+        numberField({
+          label: 'Lane width, b',
+          ref: RIGID.tieBars.ref,
+          value: slab.laneWidthM,
+          suffix: 'm',
+          min: 0,
+          onInput: set(slab, 'laneWidthM'),
+        })
+      )
     ),
 
     card(
@@ -182,7 +258,14 @@ export default function renderRigidSlab(app) {
 
     card(
       'Slab',
-      numberField({ label: 'Thickness to check', value: slab.thicknessMm, suffix: 'mm', min: 150, step: 10, onInput: set(slab, 'thicknessMm') }),
+      numberField({
+        label: bonded ? 'PQC thickness to check' : 'Thickness to check',
+        value: slab.thicknessMm,
+        suffix: 'mm',
+        min: bonded ? 0 : 150,
+        step: bonded ? 5 : 10,
+        onInput: set(slab, 'thicknessMm'),
+      }),
       segmented({
         label: 'Retexturing allowance on the designed slab',
         ref: RIGID.criterion.ref,

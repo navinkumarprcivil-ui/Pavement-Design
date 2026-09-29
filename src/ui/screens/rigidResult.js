@@ -72,6 +72,8 @@ export default function renderRigidResult(app) {
   }
 
   const e = result.evaluation;
+  const b = result.bonded;
+  const ties = result.tieBars;
   const label = (id) => AXLES.find((a) => a.id === id).label;
 
   app.setActions(
@@ -87,20 +89,26 @@ export default function renderRigidResult(app) {
       'section',
       { class: `verdict ${result.safe ? 'safe' : 'unsafe'}` },
       h('h2', {}, result.safe ? 'Safe' : 'Not safe'),
-      h('p', {}, `${result.adoptedMm} mm slab · CFD ${e.cfd.toFixed(3)} against ${LIMIT.toFixed(2)}`)
+      h(
+        'p',
+        {},
+        `${result.adoptedMm} mm ${b ? 'PQC bonded to DLC' : 'slab'} · CFD ${e.cfd.toFixed(3)} against ${LIMIT.toFixed(2)}`
+      )
     ),
 
     h(
       'div',
       { class: 'key-results' },
-      keyResult('Slab', String(result.adoptedMm), 'mm', RIGID.criterion.ref),
+      keyResult(b ? 'PQC' : 'Slab', String(result.adoptedMm), 'mm', b ? RIGID.bonded.ref : RIGID.criterion.ref),
+      b ? keyResult(b.designMm ? 'Designed on the GSB' : 'Equivalent slab', (b.designMm ?? b.equivalentMm).toFixed(0), 'mm', RIGID.bonded.ref) : null,
       keyResult('CFD', e.cfd.toFixed(3), null, RIGID.criterion.ref),
       keyResult('Effective k', e.kMPaPerM.toFixed(0), 'MPa/m', RIGID.subgradeK.ref),
-      result.dowels ? keyResult('Dowel bars', `Ø${result.dowels.diameterMm}`, `@ ${result.dowels.spacingMm} mm`, RIGID.dowels.ref) : null
+      result.dowels ? keyResult('Dowel bars', `Ø${result.dowels.diameterMm}`, `@ ${result.dowels.spacingMm} mm`, RIGID.dowels.ref) : null,
+      keyResult('Tie bars', `Ø${ties.diameterMm}`, `@ ${ties.spacingMm} mm`, RIGID.tieBars.ref)
     ),
 
     result.mode === 'design' && result.retextureMm > 0
-      ? notice('info', null, `${e.thicknessMm} mm for fatigue + ${result.retextureMm} mm retexturing`)
+      ? notice('info', null, `${result.fatigueMm} mm for fatigue + ${result.retextureMm} mm retexturing`)
       : null,
 
     card(
@@ -143,6 +151,31 @@ export default function renderRigidResult(app) {
       'Stresses and damage by load class',
       ...['single', 'tandem'].map((id) => classTable(`Bottom-up, ${label(id).toLowerCase()}`, e.bottomUp[id])),
       ...['single', 'tandem', 'tridem'].map((id) => classTable(`Top-down, ${label(id).toLowerCase()}`, e.topDown[id]))
+    ),
+
+    b
+      ? card(
+          'Bonded to the DLC',
+          h(
+            'div',
+            { class: 'metric-grid three' },
+            metric('D1 + D2, MN·m', b.combined.toFixed(2)),
+            b.designMm ? metric('Required, MN·m', b.required.toFixed(2)) : metric('h equivalent, mm', b.equivalentMm.toFixed(1)),
+            metric('Neutral axis, m', b.d.toFixed(3))
+          )
+        )
+      : null,
+
+    card(
+      `Tie bars, ${RIGID.tieBars.steel[ties.type].label.toLowerCase()}`,
+      h(
+        'div',
+        { class: 'metric-grid three' },
+        metric('Ø, mm', String(ties.diameterMm)),
+        metric('L, mm', String(ties.lengthMm)),
+        metric('c/c, mm', String(ties.spacingMm))
+      ),
+      result.tieBarSteps.map(stepCard)
     ),
 
     card('Calculation steps', result.steps.map(stepCard))

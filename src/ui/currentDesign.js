@@ -46,7 +46,7 @@ function rigid(app) {
     slots: result.slots,
     safe: result.safe,
     name: result.name,
-    chips: [`${result.adoptedMm} mm slab`, `CFD ${result.evaluation.cfd.toFixed(2)}`],
+    chips: [`${result.adoptedMm} mm ${result.bonded ? 'PQC, bonded' : 'slab'}`, `CFD ${result.evaluation.cfd.toFixed(2)}`],
     inputsScreen: 'rigidSlab',
     record: () => ({
       pavementType: 'rigid',

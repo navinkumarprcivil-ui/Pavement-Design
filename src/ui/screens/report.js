@@ -535,6 +535,7 @@ function rigidReport(app, cite) {
   const rigid = app.state.rigid;
   const { traffic: t, foundation: f, slab, temperature } = rigid;
   const e = result.evaluation;
+  const b = result.bonded;
   const subBase = SUB_BASES.find((o) => o.value === f.subBase);
   const zone = RIGID.temperature.zones.find((z) => z.id === temperature.zone);
   const shoulder = SHOULDERS.find((o) => o.value === slab.shoulder)?.label;
@@ -555,14 +556,17 @@ function rigidReport(app, cite) {
       'IRC58',
       'Rigid pavement',
       'The slab is checked for cumulative fatigue damage from bottom-up and top-down cracking under the axle load ' +
-        'spectrum, with the flexural stresses from the relations of Appendix-V.',
+        'spectrum, with the flexural stresses from the relations of Appendix-V.' +
+        (b ? ' The PQC is bonded to the DLC and sized to the flexural stiffness of the slab designed on the granular sub-base below it (Cl. 6.7).' : ''),
       [
         ['Carriageway', t.carriageway === 'divided' ? 'Divided multi-lane' : 'Two-lane two-way'],
         ['Design period', `${t.designPeriodYears} years`],
         ['Shoulder', shoulder],
         ['Transverse joints', slab.doweled ? 'Doweled' : 'Not doweled'],
+        ['Longitudinal joints', `Tied, ${RIGID.tieBars.steel[result.tieBars.type].label.toLowerCase()} bars`],
+        b ? ['PQC and DLC', 'Bonded'] : null,
         ['Temperature', temperature.mode === 'zone' ? `Zone ${zone?.label}` : `Site, ${temperature.dayC} °C day-time differential`],
-      ]
+      ].filter(Boolean)
     ),
 
     h('h2', {}, '2. Materials'),
@@ -576,9 +580,11 @@ function rigidReport(app, cite) {
         f.kSource === 'measured'
           ? ['k', 'Effective k from plate load test', `${f.measuredK} MPa/m`, 'Input']
           : ['CBR', 'Effective subgrade CBR', `${f.subgradeCBR}%`, 'Input', RIGID.subgradeK.ref],
-        ['', `Sub-base, ${subBase?.name}`, `${f.subBaseMm} mm`, 'Input', f.subBase === 'dlc' ? RIGID.dlcK.ref : RIGID.subBaseK.ref],
-        f.subBase !== 'granular' && f.gsbMm > 0 ? ['', 'Granular sub-base below', `${f.gsbMm} mm`, 'Input'] : null,
-        ['k', 'Effective modulus of subgrade reaction', `${e.kMPaPerM.toFixed(1)} MPa/m`, 'Derived'],
+        ['', `Sub-base, ${subBase?.name}${b ? ', bonded to the PQC' : ''}`, `${f.subBaseMm} mm`, 'Input', b ? RIGID.bonded.ref : f.subBase === 'dlc' ? RIGID.dlcK.ref : RIGID.subBaseK.ref],
+        b ? ['', 'DLC compressive strength, 7 and 28 days', `${f.dlc7DayMPa} and ${f.dlc28DayMPa} MPa`, 'Input', RIGID.bonded.ref] : null,
+        b ? ['E2, μ2', 'DLC modulus and Poisson\'s ratio', `${Math.round(b.E2).toLocaleString('en-IN')} MPa, ${b.mu2}`, 'Code', RIGID.bonded.ref] : null,
+        f.subBase !== 'granular' && f.gsbMm > 0 ? ['', 'Granular sub-base below', `${f.gsbMm} mm`, 'Input', b ? RIGID.bonded.ref : null] : null,
+        ['k', b ? 'Effective modulus of subgrade reaction on the granular sub-base' : 'Effective modulus of subgrade reaction', `${e.kMPaPerM.toFixed(1)} MPa/m`, 'Derived', b ? RIGID.subBaseK.ref : null],
       ].filter(Boolean),
       cite
     ),
@@ -636,10 +642,25 @@ function rigidReport(app, cite) {
     ),
     para(
       h('strong', {}, result.safe ? 'The slab is safe' : 'The slab is not safe'),
-      ` at ${e.thicknessMm} mm: total damage ${e.cfd.toFixed(3)} against ${RIGID.criterion.maximumCFD}. `,
+      b?.equivalentMm
+        ? ` as the ${b.equivalentMm.toFixed(1)} mm slab its bonded PQC and DLC equal: total damage ${e.cfd.toFixed(3)} against ${RIGID.criterion.maximumCFD}. `
+        : ` at ${e.thicknessMm} mm${b ? ' on the granular sub-base' : ''}: total damage ${e.cfd.toFixed(3)} against ${RIGID.criterion.maximumCFD}. `,
       cite(RIGID.criterion.ref)
     ),
     result.warnings.map((w) => h('p', { class: 'r-note' }, 'Note: ', w)),
+
+    h('h3', {}, '3.6 Tie bars'),
+    givenTable(
+      'Tie bar inputs',
+      [
+        ['b', 'Lane width', `${slab.laneWidthM} m`, 'Input', RIGID.tieBars.ref],
+        ['f', 'Coefficient of friction', String(RIGID.tieBars.friction), 'Code', RIGID.tieBars.ref],
+        ['W', 'Weight of slab', `${result.adoptedMm / 1000} m × ${RIGID.tieBars.concreteUnitWeightKNm3} kN/m³`, 'Code', RIGID.tieBars.example],
+        ['Sst, B*', 'Allowable steel and bond stresses', `${RIGID.tieBars.steel[result.tieBars.type].allowableMPa} and ${RIGID.tieBars.steel[result.tieBars.type].bondMPa} MPa`, 'Code', RIGID.tieBars.ref],
+      ],
+      cite
+    ),
+    result.tieBarSteps.map((step) => stepBlock(step, cite)),
 
     h('h2', {}, '4. Recommended pavement composition'),
     table(
@@ -653,7 +674,7 @@ function rigidReport(app, cite) {
       ]
     ),
     result.retextureMm > 0 && result.mode === 'design'
-      ? para(`The slab is ${e.thicknessMm} mm for fatigue plus ${result.retextureMm} mm for retexturing. `, cite(RIGID.criterion.ref))
+      ? para(`The ${b ? 'PQC' : 'slab'} is ${result.fatigueMm} mm for fatigue plus ${result.retextureMm} mm for retexturing. `, cite(RIGID.criterion.ref))
       : null,
     result.dowels
       ? para(
@@ -661,6 +682,11 @@ function rigidReport(app, cite) {
           cite(RIGID.dowels.ref)
         )
       : null,
+    para(
+      `Tie bars at longitudinal joints, ${RIGID.tieBars.steel[result.tieBars.type].label.toLowerCase()}, ${result.tieBars.diameterMm} mm diameter, ` +
+        `${result.tieBars.lengthMm} mm long at ${result.tieBars.spacingMm} mm centres. `,
+      cite(RIGID.tieBars.ref)
+    ),
   ];
 }
 
