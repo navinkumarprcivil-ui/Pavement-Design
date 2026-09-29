@@ -5,6 +5,8 @@ import { sectionDiagram } from './layers.js';
 import { hasCTB, ctbDamageInput } from '../ctbProject.js';
 import { AXLES } from '../spectrum.js';
 import { TRAFFIC } from '../../data/ircConstants.js';
+import { iitpaveMissing } from '../iitpave.js';
+import { verdictBanner } from './iitpave.js';
 
 const ALLOWABLE_LABEL = {
   'bituminous-fatigue': 'Allowable εt, bituminous',
@@ -14,6 +16,17 @@ const ALLOWABLE_LABEL = {
 
 /** Whether any of a check's values were read from IITPAVE. */
 export const fromIitpave = (check) => check.source === 'IITPAVE' || Boolean(check.rows?.some((r) => r.source === 'IITPAVE'));
+
+/** Whether every value of a check was read from IITPAVE. */
+export const allFromIitpave = (check) =>
+  check.rows ? check.rows.every((r) => r.source === 'IITPAVE') : check.source === 'IITPAVE';
+
+/** Where a check's values came from: IITPAVE, or the app standing in for it. */
+const sourceBadge = (check) =>
+  allFromIitpave(check) ? badge('source', 'IITPAVE') : badge('muted', fromIitpave(check) ? 'Part app' : 'App');
+
+/** The app's own figure beside an IITPAVE one, as a cross-check. */
+const appFigure = (check, text) => (check.source === 'IITPAVE' && check.computed != null ? h('span', { class: 'check-app' }, `App ${text}`) : null);
 
 /** One performance check: the computed strain against the allowable one. */
 export function checkTile(check) {
@@ -31,7 +44,7 @@ export function checkTile(check) {
       'div',
       { class: 'check-head' },
       h('strong', {}, check.title),
-      h('span', { class: 'badges' }, fromIitpave(check) ? badge('info', 'IITPAVE') : null, badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail'))
+      h('span', { class: 'badges' }, sourceBadge(check), badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail'))
     ),
     h('span', { class: 'check-sub' }, check.strainLabel, clauseChip(check.title, check.ref)),
     compressive
@@ -42,7 +55,8 @@ export function checkTile(check) {
           h('span', { class: 'check-actual' }, micro(check.strainMicro)),
           check.allowableMicro != null
             ? h('span', { class: 'check-allowable' }, `of ${micro(check.allowableMicro)} allowable`)
-            : null
+            : null,
+          appFigure(check, check.computed != null ? micro(Math.max(0, check.computed) * 1e6) : '')
         ),
     compressive
       ? null
@@ -59,14 +73,15 @@ function stressTile(check) {
       'div',
       { class: 'check-head' },
       h('strong', {}, check.title),
-      h('span', { class: 'badges' }, fromIitpave(check) ? badge('info', 'IITPAVE') : null, badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail'))
+      h('span', { class: 'badges' }, sourceBadge(check), badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail'))
     ),
     h('span', { class: 'check-sub' }, check.strainLabel, clauseChip(check.title, check.ref)),
     h(
       'div',
       { class: 'check-figures' },
       h('span', { class: 'check-actual' }, `${check.stress.toFixed(3)} MPa`),
-      h('span', { class: 'check-allowable' }, `of ${check.allowableStress.toFixed(3)} MPa allowable`)
+      h('span', { class: 'check-allowable' }, `of ${check.allowableStress.toFixed(3)} MPa allowable`),
+      appFigure(check, check.computed != null ? `${check.computed.toFixed(3)} MPa` : '')
     ),
     h('div', { class: 'meter', role: 'presentation' }, h('span', { style: { width: `${Math.min(100, Math.max(2, check.utilisation * 100))}%` } }))
   );
@@ -86,7 +101,7 @@ function damageTile(check) {
       'div',
       { class: 'check-head' },
       h('strong', {}, check.title),
-      h('span', { class: 'badges' }, fromIitpave(check) ? badge('info', 'IITPAVE') : null, badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail'))
+      h('span', { class: 'badges' }, sourceBadge(check), badge(check.safe ? 'pass' : 'fail', check.safe ? 'Pass' : 'Fail'))
     ),
     h('span', { class: 'check-sub' }, check.strainLabel, clauseChip(check.title, check.ref)),
     h(
@@ -228,8 +243,9 @@ export default function renderResults(app) {
   const traffic = designTraffic(app.state);
   const damage = result.checks.find((c) => c.kind === 'damage');
 
+  const missing = iitpaveMissing(result, app.state);
   app.setActions(
-    button('Edit', () => app.go('inputs'), { kind: 'secondary' }),
+    button('IITPAVE', () => app.go('iitpave'), { kind: 'secondary' }),
     button('Report', () => app.go('report'))
   );
 
@@ -237,17 +253,7 @@ export default function renderResults(app) {
     'div',
     { class: 'card-stack' },
 
-    h(
-      'section',
-      { class: `verdict ${result.safe ? 'safe' : 'unsafe'}` },
-      h('h2', {}, result.safe ? 'Safe' : 'Not safe'),
-      h(
-        'p',
-        {},
-        `${result.totalThicknessMm} mm section · life ${msa(result.governingLifeMsa)} against ${msa(result.designTrafficMsa)}` +
-          (result.checks.some(fromIitpave) ? ' · IITPAVE values' : '')
-      )
-    ),
+    verdictBanner(result, missing),
 
     h(
       'div',
@@ -276,7 +282,7 @@ export default function renderResults(app) {
 
     card('Section', sectionDiagram(result.slots), layerTable(result.layers)),
 
-    card('Computed strains', strainTable(result.responses)),
+    card('Strains, app analysis', strainTable(result.responses)),
 
     damage ? damageCard(damage) : null,
 

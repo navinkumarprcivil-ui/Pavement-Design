@@ -45,35 +45,38 @@ and open its address on the phone over the same network.
    works out the expected repetitions of every class from the design traffic.
 4. **Inputs.** Subgrade CBR, or a select borrow over the embankment reduced
    to an effective modulus (Cl. 6.4, reproducing Annex-II.1). The surface
-   deflection of that two-layer system comes from the app's own analysis, or
-   from IITPAVE: the app sets out the entries in IITPAVE's order and takes the
-   deflection read back from it. Reliability,
+   deflection of that two-layer system is read from IITPAVE: the app sets out
+   the entries in IITPAVE's order and takes the deflection back, with its own
+   figure beside it as a check. Reliability,
    80% or 90%; binder grade, pavement temperature, mix modulus from the mix
    design if known, mix volumetrics; construction traffic (dumper axle loads
    and trips); trial thicknesses; and narrative paragraphs for the report.
-5. **Result.** Fatigue and rutting checks, and the construction traffic
+5. **IITPAVE.** The design rests on IITPAVE. Every analysis behind the trial
+   section is laid out as IITPAVE's inputs (layers, moduli, Poisson's ratios,
+   thicknesses, wheel load, tyre pressure, analysis points, wheel set), with a
+   copy button, and the outputs read from IITPAVE are entered back: the strains
+   of the standard axle, the CTB strain and the CTB stress of each axle load
+   class, and the construction traffic checks. The app's own multi-layer
+   elastic analysis stands beside each as a check. Until every value is
+   entered the verdict is marked provisional, with the app's figure standing
+   in for the missing ones.
+6. **Result.** Fatigue and rutting checks, and the construction traffic
    checks: the granular sub-base under the dumper traffic or 10,000 standard
    axles, whichever is more (Cl. 7.2.2), and a freshly laid CTB at its 7-day
    flexural strength under the dumpers bringing the layer above it (Cl. 8.2.1,
-   reproducing Annex-II.4). Also with a safe/unsafe verdict, the
-   governing life, the computed strains, every layer modulus with its working,
-   and the traffic calculation — each step citing the clause it came from.
+   reproducing Annex-II.4). Each check shows where its value came from
+   (IITPAVE, or the app pending IITPAVE) and the app's figure as a check,
+   with the governing life, every layer modulus with its working, and the
+   traffic calculation — each step citing the clause it came from.
    A cement treated base is checked for fatigue (Eq. 3.5) and for cumulative
    fatigue damage over the axle load spectrum (Eq. 3.6 / 3.7): tandem and
    tridem axles as two and three single axles, the CTB stress for each class
-   from the elastic analysis at 0.80 MPa, and CFD ≤ 1. The CTB is sized to
-   pass both. The stresses reproduce the Annex-II example (0.70 MPa under the
-   190 kN single axle).
-
-6. **IITPAVE.** Every analysis behind the design laid out as IITPAVE's
-   inputs (layers, moduli, Poisson's ratios, thicknesses, wheel load, tyre
-   pressure, analysis points, wheel set), with a copy button. Outputs read
-   from IITPAVE can be entered, are compared with the app's own, and can be
-   used for the verdict in their place, including the CTB stress of each axle
-   load class. The report carries the inputs as an appendix.
+   at 0.80 MPa, and CFD ≤ 1. The report carries the IITPAVE inputs and
+   outputs, with the app's figures, as an appendix.
 
 You can either check a trial section you have entered, or let the app find the
-thinnest safe bituminous thickness for the foundation you have set.
+thinnest bituminous thickness its own analysis passes for the foundation you
+have set; either way the section then goes to IITPAVE for its verdict.
 
 **Rates and trials.** Enter a rate per cubic metre for each layer to cost the
 section. Save as many trials as you like; they are listed safe-first then
@@ -160,9 +163,10 @@ production; `vercel.json` only sets cache and security headers.
 
 ## How the structural analysis works
 
-The strains driving the fatigue and rutting checks come from an exact
+The design rests on the strains read from IITPAVE. Beside them, and in the
+thickness search that proposes the trial section, the app runs its own exact
 multi-layer linear elastic analysis — the same class of analysis IITPAVE
-performs for IRC:37. It is not an approximation such as the method of equivalent
+performs for IRC:37, not an approximation such as the method of equivalent
 thicknesses.
 
 `src/engine/elastic.js` solves Love's axisymmetric stress function in the

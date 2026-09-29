@@ -109,8 +109,9 @@ export const FLEXIBLE_DESIGN_STEPS = [
     what:
       'Put a standard axle on the section and compute what the strains ' +
       'actually are: vertical at the top of the subgrade, horizontal tensile ' +
-      'at the underside of the bituminous layer. This app does that ' +
-      'calculation itself; the code does it with IITPAVE.',
+      'at the underside of the bituminous layer. The code does this in ' +
+      'IITPAVE, and the design rests on its values; the app runs the same ' +
+      'analysis as a check on them.',
     example:
       'The trial section gives 0.000243 at the subgrade and 0.000146 at the ' +
       'bottom of the bituminous layer.',

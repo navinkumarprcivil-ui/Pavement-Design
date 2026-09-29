@@ -2932,3 +2932,36 @@ body.drawer-open .drawer {
 .iitpave-entry .card-actions {
   margin-top: 8px;
 }
+
+/* ---------- IITPAVE first, the app's analysis as its cross-check ---------- */
+
+.badge.source {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.badge.muted {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.check-app {
+  flex-basis: 100%;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.verdict.provisional {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  border-style: dashed;
+}
+
+.verdict.provisional h2 {
+  color: var(--warn);
+}
+
+.check-figures {
+  flex-wrap: wrap;
+}

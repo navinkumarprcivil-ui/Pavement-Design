@@ -32,10 +32,10 @@ export function cbrForModulus(mr) {
  * @param {number} input.borrowCBR  Select borrow (subgrade) CBR.
  * @param {number} input.embankmentCBR
  * @param {number} [input.borrowMm]  Thickness of the borrow layer.
- * @param {'app'|'iitpave'} [input.source]  Whose surface deflection is used.
- * @param {number} [input.iitpaveDeflectionMm]  Read from IITPAVE for the same system.
+ * @param {number} [input.iitpaveDeflectionMm]  Read from IITPAVE for the same
+ *        system; the app's own analysis stands in until it is entered.
  */
-export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm, source, iitpaveDeflectionMm }) {
+export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm, iitpaveDeflectionMm }) {
   const spec = MODULI.effectiveSubgrade;
   const thickness = borrowMm || spec.subgradeThicknessMm;
   const raw = (cbr) => (cbr <= 5 ? 10 * cbr : 17.6 * Math.pow(cbr, 0.64));
@@ -52,7 +52,7 @@ export function effectiveSubgrade({ borrowCBR, embankmentCBR, borrowMm, source, 
     points: [{ x: 0, y: 0, z: 0, layerIndex: 0 }],
   });
   const computed = surface.surfaceDeflectionMm;
-  const fromIitpave = source === 'iitpave' && iitpaveDeflectionMm > 0;
+  const fromIitpave = iitpaveDeflectionMm > 0;
   const deflection = fromIitpave ? iitpaveDeflectionMm : computed;
   const equivalent = (2 * (1 - nu * nu) * spec.tyrePressureMPa * a) / deflection;
   const value = Math.min(equivalent, MODULI.subgrade.capMPa);

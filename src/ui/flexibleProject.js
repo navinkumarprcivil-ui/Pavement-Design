@@ -6,14 +6,15 @@
 import { designTraffic } from './project.js';
 import { hasCTB, ctbDamageInput, constructionInput } from './ctbProject.js';
 import { reliabilityFor } from '../engine/criteria.js';
+import { evaluateTrial } from '../engine/flexibleDesign.js';
+import { sectionKey, iitpaveMeasured } from './iitpave.js';
 
 export const defaultLayeredSubgrade = () => ({
   enabled: false,
   borrowCBR: null,
   borrowMm: 500,
   embankmentCBR: null,
-  /** Surface deflection from this app's analysis, or read from IITPAVE. */
-  source: 'app',
+  /** Read from IITPAVE; until then the app's analysis stands in. */
   iitpaveDeflectionMm: null,
 });
 
@@ -52,4 +53,16 @@ export function flexibleInput(state, { thicknesses, measured, stresses } = {}) {
     construction: constructionInput(state),
     measured,
   };
+}
+
+/**
+ * The section evaluated on the IITPAVE values entered for it, the app's own
+ * analysis standing in only for values not yet entered.
+ */
+export function flexibleResult(state, { thicknesses } = {}) {
+  const trial = evaluateTrial(flexibleInput(state, { thicknesses }));
+  if (state.iitpave?.key !== sectionKey(trial)) return trial;
+  const { measured, stresses } = iitpaveMeasured(trial, state);
+  if (!Object.keys(measured).length && !Object.keys(stresses).length) return trial;
+  return evaluateTrial(flexibleInput(state, { thicknesses, measured, stresses }));
 }

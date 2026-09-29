@@ -1,9 +1,27 @@
-import { h, card, numberField, segmented, button, msa } from '../dom.js';
+import { h, card, numberField, button, msa } from '../dom.js';
 import { clauseChip } from '../citations.js';
-import { iitpaveCases, sectionKey, engineValue } from '../iitpave.js';
+import { iitpaveCases, iitpaveMissing, sectionKey } from '../iitpave.js';
 import { stackTable, loadTable, copyButton } from '../iitpaveTables.js';
-import { flexibleInput } from '../flexibleProject.js';
-import { evaluateTrial } from '../../engine/flexibleDesign.js';
+import { flexibleResult } from '../flexibleProject.js';
+
+/**
+ * The verdict, and whether it rests on IITPAVE throughout or, for values not
+ * yet entered, on the app's analysis and so is provisional.
+ */
+export function verdictBanner(result, missing) {
+  const provisional = missing.length > 0;
+  return h(
+    'section',
+    { class: `verdict ${result.safe ? 'safe' : 'unsafe'}${provisional ? ' provisional' : ''}` },
+    h('h2', {}, `${provisional ? 'Provisional · ' : ''}${result.safe ? 'Safe' : 'Not safe'}`),
+    h(
+      'p',
+      {},
+      `${result.totalThicknessMm} mm section · life ${msa(result.governingLifeMsa)} against ${msa(result.designTrafficMsa)} · ` +
+        (provisional ? `${missing.length} IITPAVE value${missing.length > 1 ? 's' : ''} to enter` : 'IITPAVE')
+    )
+  );
+}
 
 const fmt = (value, unit) => (unit === 'MPa' ? value.toFixed(3) : value.toFixed(1));
 
@@ -24,14 +42,14 @@ export default function renderIitpave(app) {
   }
 
   app.setActions(
-    button('Result', () => app.go('results'), { kind: 'secondary' }),
-    button('Report', () => app.go('report'))
+    button('Inputs', () => app.go('inputs'), { kind: 'secondary' }),
+    button('Result', () => app.go('results'))
   );
 
   // Values read for another section do not carry over.
   const key = sectionKey(result);
   if (app.state.iitpave?.key !== key) {
-    app.state.iitpave = { key, values: {}, stresses: {}, use: false };
+    app.state.iitpave = { key, values: {}, stresses: {} };
     app.persist();
   }
   const store = app.state.iitpave;
@@ -40,34 +58,17 @@ export default function renderIitpave(app) {
     result.slots.filter((s) => s.behaviour !== 'subgrade').map((s) => [s.slotId, s.thicknessMm])
   );
 
-  const verdictHost = h('div', {});
-  const showVerdict = () => {
+  const statusHost = h('div', {});
+  const showStatus = () => {
     const r = app.state.result;
-    const fromIitpave = r.checks.some((c) => c.source === 'IITPAVE') || r.checks.some((c) => c.rows?.some((row) => row.source === 'IITPAVE'));
-    verdictHost.replaceChildren(
-      h(
-        'section',
-        { class: `verdict ${r.safe ? 'safe' : 'unsafe'}` },
-        h('h2', {}, r.safe ? 'Safe' : 'Not safe'),
-        h('p', {}, `Life ${msa(r.governingLifeMsa)} against ${msa(r.designTrafficMsa)} · ${fromIitpave ? 'IITPAVE values' : 'app analysis'}`)
-      )
-    );
+    const missing = iitpaveMissing(r, app.state);
+    statusHost.replaceChildren(verdictBanner(r, missing));
   };
 
   const reevaluate = () => {
-    const measured = {};
-    for (const c of cases) {
-      for (const o of c.outputs || []) {
-        const v = engineValue(o, store.values[o.key]);
-        if (v != null) measured[o.key] = v;
-      }
-    }
-    const stresses = Object.fromEntries(Object.entries(store.stresses).filter(([, v]) => v > 0));
-    app.state.result = evaluateTrial(
-      flexibleInput(app.state, store.use ? { thicknesses, measured, stresses } : { thicknesses })
-    );
+    app.state.result = flexibleResult(app.state, { thicknesses });
     app.persist();
-    showVerdict();
+    showStatus();
   };
 
   const outputsBlock = (c) => {
@@ -79,8 +80,8 @@ export default function renderIitpave(app) {
             'tr',
             {},
             h('td', {}, o.label),
-            h('td', { class: 'numeric' }, fmt(o.app, o.unit)),
             h('td', { class: 'numeric' }, store.values[o.key] > 0 ? fmt(store.values[o.key], o.unit) : '—'),
+            h('td', { class: 'numeric' }, fmt(o.app, o.unit)),
             h('td', { class: 'numeric' }, difference(o.app, store.values[o.key]))
           )
         )
@@ -97,7 +98,7 @@ export default function renderIitpave(app) {
             store.values[o.key] = value;
             app.persist();
             showCompare();
-            if (store.use) reevaluate();
+            reevaluate();
           },
         })
       ),
@@ -107,7 +108,7 @@ export default function renderIitpave(app) {
         h(
           'table',
           { class: 'data' },
-          h('thead', {}, h('tr', {}, h('th', {}, 'Output'), h('th', {}, 'App'), h('th', {}, 'IITPAVE'), h('th', {}, 'Diff.'))),
+          h('thead', {}, h('tr', {}, h('th', {}, 'Output'), h('th', {}, 'IITPAVE'), h('th', {}, 'App'), h('th', {}, 'App vs IITPAVE'))),
           compare
         )
       ),
@@ -124,7 +125,7 @@ export default function renderIitpave(app) {
         h(
           'thead',
           {},
-          h('tr', {}, h('th', {}, 'Axle, kN'), h('th', {}, 'Wheel, N'), h('th', {}, 'App σt'), h('th', {}, 'IITPAVE σt'))
+          h('tr', {}, h('th', {}, 'Axle, kN'), h('th', {}, 'Wheel, N'), h('th', {}, 'IITPAVE σt, MPa'), h('th', {}, 'App σt'))
         ),
         h(
           'tbody',
@@ -135,7 +136,6 @@ export default function renderIitpave(app) {
               {},
               h('td', { class: 'numeric' }, k.singleKN.toFixed(1)),
               h('td', { class: 'numeric' }, Math.round(k.wheelLoadN).toLocaleString('en-IN')),
-              h('td', { class: 'numeric' }, k.app.toFixed(3)),
               h(
                 'td',
                 {},
@@ -152,11 +152,10 @@ export default function renderIitpave(app) {
                     store.stresses[k.key] = raw === '' ? null : Number(raw);
                     app.persist();
                   },
-                  onchange: () => {
-                    if (store.use) reevaluate();
-                  },
+                  onchange: reevaluate,
                 })
-              )
+              ),
+              h('td', { class: 'numeric' }, k.app.toFixed(3))
             )
           )
         )
@@ -175,28 +174,7 @@ export default function renderIitpave(app) {
       copyButton(c)
     );
 
-  showVerdict();
+  showStatus();
 
-  return h(
-    'div',
-    { class: 'card-stack' },
-    verdictHost,
-    card(
-      'Verdict from',
-      segmented({
-        label: null,
-        value: store.use ? 'iitpave' : 'app',
-        options: [
-          { value: 'app', label: 'App analysis' },
-          { value: 'iitpave', label: 'IITPAVE values' },
-        ],
-        onChange: (value) => {
-          store.use = value === 'iitpave';
-          reevaluate();
-          app.render();
-        },
-      })
-    ),
-    cases.map(caseCard)
-  );
+  return h('div', { class: 'card-stack' }, statusHost, cases.map(caseCard));
 }

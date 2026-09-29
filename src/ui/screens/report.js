@@ -12,8 +12,8 @@ import { formatCitation } from '../citations.js';
 import { designTraffic } from '../project.js';
 import { currentDesign } from '../currentDesign.js';
 import { AXLES, SUB_BASES, SHOULDERS } from '../rigidProject.js';
-import { checkSteps, damageRows, fromIitpave } from './results.js';
-import { iitpaveCases } from '../iitpave.js';
+import { checkSteps, damageRows, fromIitpave, allFromIitpave } from './results.js';
+import { iitpaveCases, iitpaveMissing, iitpaveStore } from '../iitpave.js';
 import { ctbDamageInput, ctbSevenDay } from '../ctbProject.js';
 import { reliabilityOf } from '../flexibleProject.js';
 import { CONSTRUCTION_TYPES, FACILITY_TYPES, optionLabel } from '../modules.js';
@@ -248,8 +248,18 @@ function trafficGiven(app, traffic, cite) {
 function iitpaveAppendix(app) {
   const result = app.state.result;
   const cases = iitpaveCases(result, app.state);
+  const store = iitpaveStore(result, app.state);
+  const entered = (v, digits) => (v > 0 ? v.toFixed(digits) : 'Not entered');
+  const outputs = (c) => {
+    const rows = [
+      ...(c.effective ? [['Surface deflection, mm', c.effective.fromIitpave ? c.effective.deflection.toFixed(3) : 'Not entered', c.effective.computed.toFixed(3)]] : []),
+      ...(c.outputs || []).map((o) => [`${o.label}, ${o.unit}`, entered(store.values[o.key], o.unit === 'MPa' ? 3 : 1), o.unit === 'MPa' ? o.app.toFixed(3) : o.app.toFixed(1)]),
+      ...(c.classes || []).map((k) => [`σt, bottom of CTB, ${k.singleKN.toFixed(1)} kN, MPa`, entered(store.stresses[k.key], 3), k.app.toFixed(3)]),
+    ];
+    return rows.length ? table(null, ['Output', 'IITPAVE', 'App, check'], rows) : null;
+  };
   return [
-    h('h2', {}, 'Appendix A. IITPAVE inputs'),
+    h('h2', {}, 'Appendix A. IITPAVE inputs and outputs'),
     cases.map((c, i) => [
       h('h3', {}, `A.${i + 1} ${c.title}`),
       table(
@@ -270,6 +280,7 @@ function iitpaveAppendix(app) {
           ['Analysis points (z, r), mm', c.points.map((p) => `(${p.z.toFixed(0)}, ${p.r.toFixed(0)})`).join(', ')],
         ]
       ),
+      outputs(c),
     ]),
   ];
 }
@@ -379,14 +390,16 @@ function flexibleReport(app, cite) {
   const ctb = damage ? ctbDamageInput(app.state, traffic) : null;
   const rupture = CRITERIA.ctbRupture;
   const verdictNumber = damage ? '3.6' : '3.5';
+  const missing = iitpaveMissing(result, app.state);
 
   return [
     header(app, 'IRC37', 'Flexible pavement'),
     introduction(
       'IRC37',
       'Flexible pavement',
-      'Strains in the layer system are computed by multi-layer linear elastic analysis under the standard axle and ' +
-        'checked against the performance criteria of the code at the design reliability.',
+      'Strains in the layer system are taken from multi-layer linear elastic analysis in IITPAVE under the standard axle ' +
+        'and checked against the performance criteria of the code at the design reliability; the app\'s own elastic ' +
+        'analysis of the same section is given beside them as a check.',
       [
         ['Road category', category?.label],
         ['Terrain', project.terrain[0].toUpperCase() + project.terrain.slice(1)],
@@ -405,7 +418,7 @@ function flexibleReport(app, cite) {
               ['CBR', 'Select borrow CBR', `${layered.borrowCBR}%`, 'Input', MODULI.effectiveSubgrade.ref],
               ['', 'Select borrow thickness', `${layered.borrowMm} mm`, 'Input', MODULI.effectiveSubgrade.ref],
               ['CBR', 'Embankment CBR', `${layered.embankmentCBR}%`, 'Input', MODULI.effectiveSubgrade.ref],
-              ...(layered.source === 'iitpave' && layered.iitpaveDeflectionMm > 0
+              ...(layered.iitpaveDeflectionMm > 0
                 ? [['δ', 'Surface deflection of the two-layer system', `${layered.iitpaveDeflectionMm} mm`, 'IITPAVE', MODULI.effectiveSubgrade.ref]]
                 : []),
               ['CBR', 'Effective subgrade CBR', `${Number(materials.subgradeCBR).toFixed(1)}%`, 'Derived', MODULI.effectiveSubgrade.ref],
@@ -462,7 +475,7 @@ function flexibleReport(app, cite) {
     ),
     sectionFigure(result.slots, marks),
     table(
-      'Computed strains',
+      'Strains by the app\'s analysis, a check on IITPAVE',
       ['Depth, mm', 'Position', 'Horizontal, µε', 'Vertical, µε'],
       result.responses.map((r) => [
         r.z.toFixed(0),
@@ -481,19 +494,23 @@ function flexibleReport(app, cite) {
     h('h3', {}, `${verdictNumber} Verdict`),
     table(
       'Allowable against computed values',
-      ['Check', 'Allowable', 'Computed', 'Life', 'Verdict'],
+      ['Check', 'Allowable', 'Value', 'From', 'Life', 'Verdict'],
       result.checks.map((c) => [
         c.title,
         allowableCell(c),
-        fromIitpave(c) ? [computedCell(c), ' (IITPAVE)'] : computedCell(c),
+        computedCell(c),
+        allFromIitpave(c) ? 'IITPAVE' : fromIitpave(c) ? 'IITPAVE, part app' : 'App',
         msa(c.allowableMsa),
         h('strong', { class: c.safe ? 'r-pass' : 'r-fail' }, c.safe ? 'Pass' : 'Fail'),
       ])
     ),
     para(
-      h('strong', {}, result.safe ? 'The section is safe' : 'The section is not safe'),
+      h('strong', {}, `${missing.length ? 'Provisionally, t' : 'T'}he section is ${result.safe ? 'safe' : 'not safe'}`),
       ` for ${msa(result.designTrafficMsa)}: its governing life is ${msa(result.governingLifeMsa)}.`
     ),
+    missing.length
+      ? h('p', { class: 'r-note' }, `Provisional: the app's analysis stands in for ${missing.length} IITPAVE value${missing.length > 1 ? 's' : ''} not entered (${missing.join('; ')}).`)
+      : null,
     [...result.thicknessWarnings, ...result.notChecked.map((n) => `${n.title} not checked · ${formatCitation(n.ref)}`)].map((w) =>
       h('p', { class: 'r-note' }, 'Note: ', w)
     ),

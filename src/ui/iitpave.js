@@ -47,6 +47,8 @@ export function iitpaveCases(result, state) {
       key: 'bituminous',
       label: 'εt, bottom of bituminous layer',
       unit: 'µε',
+      // In compression by the app's analysis: nothing to read unless IITPAVE finds tension.
+      optional: byId('bituminous-fatigue').compressive === true,
       app: Math.max(0, worstOf(result, 'bituminous-tension', (r) => r.maxHorizontalStrain)) * 1e6,
     });
   }
@@ -117,7 +119,7 @@ export function iitpaveCases(result, state) {
       title: 'Sub-base under construction traffic',
       ref: CRITERIA.constructionTraffic.ref,
       ...gsb.analysis,
-      outputs: [{ key: 'construction', label: 'εv, top of subgrade', unit: 'µε', app: gsb.computed * 1e6 }],
+      outputs: [{ key: 'construction', label: 'εv, top of subgrade, sub-base alone', unit: 'µε', app: gsb.computed * 1e6 }],
     });
   }
 
@@ -128,7 +130,7 @@ export function iitpaveCases(result, state) {
       title: 'CTB under construction traffic',
       ref: CRITERIA.ctbConstruction.ref,
       ...ctbBuild.analysis,
-      outputs: [{ key: 'ctbConstruction', label: 'σt, bottom of CTB', unit: 'MPa', app: ctbBuild.computed }],
+      outputs: [{ key: 'ctbConstruction', label: 'σt, bottom of CTB, laid fresh', unit: 'MPa', app: ctbBuild.computed }],
     });
   }
 
@@ -152,12 +154,50 @@ export function effectiveSubgradeCase(layered) {
     dualSpacingMm: 0,
     points: [{ z: 0, r: 0 }],
     readout: {
-      label: e.fromIitpave ? 'Surface deflection, IITPAVE' : 'Surface deflection',
+      label: e.fromIitpave ? 'Surface deflection, IITPAVE' : 'Surface deflection, app',
       unit: 'mm',
       value: e.deflection.toFixed(3),
     },
     effective: e,
   };
+}
+
+/** The IITPAVE values held for this section, or empty ones for another. */
+export function iitpaveStore(result, state) {
+  const store = state.iitpave;
+  return store?.key === sectionKey(result) ? store : { key: sectionKey(result), values: {}, stresses: {} };
+}
+
+/** The entered values as the design takes them: strains and stresses by key. */
+export function iitpaveMeasured(result, state) {
+  const store = iitpaveStore(result, state);
+  const measured = {};
+  for (const c of iitpaveCases(result, state)) {
+    for (const o of c.outputs || []) {
+      const v = engineValue(o, store.values[o.key]);
+      if (v != null) measured[o.key] = v;
+    }
+  }
+  const stresses = Object.fromEntries(Object.entries(store.stresses || {}).filter(([, v]) => v > 0));
+  return { measured, stresses };
+}
+
+/**
+ * The IITPAVE values the section still needs. Until there are none the verdict
+ * rests partly on the app's own analysis and is provisional.
+ */
+export function iitpaveMissing(result, state) {
+  const store = iitpaveStore(result, state);
+  const missing = [];
+  for (const c of iitpaveCases(result, state)) {
+    if (c.id === 'subgrade') {
+      if (!c.effective.fromIitpave) missing.push('Surface deflection, effective subgrade');
+      continue;
+    }
+    for (const o of c.outputs || []) if (!o.optional && !(store.values[o.key] > 0)) missing.push(o.label);
+    for (const k of c.classes || []) if (!(store.stresses[k.key] > 0)) missing.push(`σt, bottom of CTB, ${k.singleKN.toFixed(1)} kN`);
+  }
+  return missing;
 }
 
 /** An entered output in engine units: strains as fractions, stresses in MPa. */

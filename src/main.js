@@ -58,8 +58,8 @@ const SCREENS = {
   layers: { render: renderLayers, title: 'Pavement composition', back: 'traffic' },
   ctbAxles: { render: renderCtbAxles, title: 'Axle load spectrum', back: 'layers' },
   inputs: { render: renderInputs, title: 'Design inputs', back: () => (hasCTB(app.state) ? 'ctbAxles' : 'layers') },
-  results: { render: renderResults, title: 'Design result', back: 'inputs' },
-  iitpave: { render: renderIitpave, title: 'IITPAVE', back: 'results' },
+  iitpave: { render: renderIitpave, title: 'IITPAVE', back: 'inputs' },
+  results: { render: renderResults, title: 'Design result', back: 'iitpave' },
   report: { render: renderReport, title: 'Design report', back: () => RESULT_SCREEN[app.state.pavementType] },
   rates: { render: renderRates, title: 'Cost', back: () => 'report' },
   trials: { render: renderTrials, title: 'Compare trials', back: 'home' },
@@ -141,7 +141,7 @@ export const defaultState = () => ({
   /** The designer's own paragraphs, placed in the report. */
   narratives: defaultNarratives(),
   /** Outputs read from IITPAVE for the section last designed. */
-  iitpave: { key: '', values: {}, stresses: {}, use: false },
+  iitpave: { key: '', values: {}, stresses: {} },
   mix: {
     airVoidsPercent: 3.5,
     effectiveBinderPercent: 11.5,

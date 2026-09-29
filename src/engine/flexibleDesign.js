@@ -155,7 +155,8 @@ export function evaluateTrial(input) {
   const checks = [];
 
   if (lastBituminous >= 0) {
-    const strain = measured('bituminous') ?? worst(responses, 'bituminous-tension', (r) => r.maxHorizontalStrain);
+    const computed = worst(responses, 'bituminous-tension', (r) => r.maxHorizontalStrain);
+    const strain = measured('bituminous') ?? computed;
     const fatigue = bituminousFatigueLife({
       tensileStrain: strain,
       modulusMPa: layers[lastBituminous].E,
@@ -168,6 +169,7 @@ export function evaluateTrial(input) {
       check({
         id: 'bituminous-fatigue',
         source: sourceOf('bituminous'),
+        computed,
         title: 'Fatigue of the bituminous layer',
         strainLabel: 'Tensile strain, bottom of bituminous layer',
         strain: Math.max(strain, 0),
@@ -178,11 +180,13 @@ export function evaluateTrial(input) {
     );
   }
 
-  const verticalStrain = measured('subgrade') ?? worst(responses, 'subgrade-compression', (r) => r.verticalCompressiveStrain);
+  const computedVertical = worst(responses, 'subgrade-compression', (r) => r.verticalCompressiveStrain);
+  const verticalStrain = measured('subgrade') ?? computedVertical;
   checks.push(
     check({
       id: 'subgrade-rutting',
       source: sourceOf('subgrade'),
+      computed: computedVertical,
       title: 'Rutting of the subgrade',
       strainLabel: 'Vertical strain, top of subgrade',
       strain: verticalStrain,
@@ -193,12 +197,14 @@ export function evaluateTrial(input) {
   );
 
   if (ctbIndex >= 0) {
-    const strain = measured('ctb') ?? worst(responses, 'cemented-tension', (r) => r.maxHorizontalStrain);
+    const computed = worst(responses, 'cemented-tension', (r) => r.maxHorizontalStrain);
+    const strain = measured('ctb') ?? computed;
     const reliabilityFactor = ctbReliabilityFactor(designTrafficMsa, roadCategory);
     checks.push(
       check({
         id: 'cemented-fatigue',
         source: sourceOf('ctb'),
+        computed,
         title: 'Fatigue of the cement treated base',
         strainLabel: 'Tensile strain, bottom of CTB at 0.80 MPa',
         strain: Math.max(strain, 0),

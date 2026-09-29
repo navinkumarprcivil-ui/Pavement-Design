@@ -1,9 +1,9 @@
 import { h, card, numberField, segmented, notice, button, msa, keyResult, fold, textArea } from '../dom.js';
 import { designTraffic, subgradeWarning } from '../project.js';
 import { hasCTB, ctbSevenDay } from '../ctbProject.js';
-import { flexibleInput, reliabilityOf } from '../flexibleProject.js';
+import { flexibleInput, flexibleResult, reliabilityOf } from '../flexibleProject.js';
 import { describeCombination, BINDER_GRADES, BEHAVIOUR } from '../../data/layerCatalog.js';
-import { evaluateTrial, designSection } from '../../engine/flexibleDesign.js';
+import { designSection } from '../../engine/flexibleDesign.js';
 import { bituminousModulus } from '../../engine/materials.js';
 import { effectiveSubgradeCase } from '../iitpave.js';
 import { entryGuide, copyButton } from '../iitpaveTables.js';
@@ -64,9 +64,11 @@ export default function renderInputs(app) {
     cbrWarning.replaceChildren(text ? notice('warn', null, text) : '');
   };
 
+  // The app finds or checks a trial section; IITPAVE's values then decide it.
   const check = () => {
-    app.state.result = evaluateTrial(flexibleInput(app.state));
-    app.go('results');
+    app.state.result = flexibleResult(app.state);
+    app.persist();
+    app.go('iitpave');
   };
 
   const design = () => {
@@ -80,9 +82,9 @@ export default function renderInputs(app) {
         return;
       }
       app.state.thicknesses = outcome.thicknesses;
-      app.state.result = outcome.trial;
+      app.state.result = flexibleResult(app.state);
       app.persist();
-      app.go('results');
+      app.go('iitpave');
     }, 30);
   };
 
@@ -110,17 +112,12 @@ export default function renderInputs(app) {
     app.state.materials.subgradeCBR = Math.round(e.cbr * 100) / 100;
     app.persist();
     const ref = MODULI.effectiveSubgrade.ref;
-    const viaIitpave = layered.source === 'iitpave';
-    guideHost.replaceChildren(viaIitpave ? h('div', { class: 'iitpave-entry' }, h('h4', {}, 'IITPAVE input'), entryGuide(c), copyButton(c)) : '');
+    guideHost.replaceChildren(h('div', { class: 'iitpave-entry' }, h('h4', {}, 'IITPAVE input'), entryGuide(c), copyButton(c)));
     effectiveHost.replaceChildren(
-      ...[
-        viaIitpave
-          ? keyResult('Deflection, IITPAVE', e.fromIitpave ? e.deflection.toFixed(3) : '—', 'mm', ref)
-          : keyResult('Surface deflection', e.deflection.toFixed(3), 'mm', ref),
-        viaIitpave ? keyResult('Deflection, this app', e.computed.toFixed(3), 'mm', ref) : null,
-        keyResult('Effective MR', e.value.toFixed(1), 'MPa', ref),
-        keyResult('Effective CBR', e.cbr.toFixed(1), '%', MODULI.subgrade.ref),
-      ].filter(Boolean)
+      keyResult('Deflection, IITPAVE', e.fromIitpave ? e.deflection.toFixed(3) : '—', 'mm', ref),
+      keyResult('Deflection, app', e.computed.toFixed(3), 'mm', ref),
+      keyResult(e.fromIitpave ? 'Effective MR' : 'Effective MR, provisional', e.value.toFixed(1), 'MPa', ref),
+      keyResult(e.fromIitpave ? 'Effective CBR' : 'Effective CBR, provisional', e.cbr.toFixed(1), '%', MODULI.subgrade.ref)
     );
     showCbrWarning();
   };
@@ -184,22 +181,8 @@ export default function renderInputs(app) {
             layeredField('Select borrow CBR', 'borrowCBR', '%'),
             layeredField('Select borrow thickness', 'borrowMm', 'mm'),
             layeredField('Embankment CBR', 'embankmentCBR', '%'),
-            segmented({
-              label: 'Surface deflection',
-              ref: MODULI.effectiveSubgrade.ref,
-              value: layered.source === 'iitpave' ? 'iitpave' : 'app',
-              options: [
-                { value: 'app', label: 'This app' },
-                { value: 'iitpave', label: 'IITPAVE' },
-              ],
-              onChange: (value) => {
-                layered.source = value;
-                app.persist();
-                app.render();
-              },
-            }),
             guideHost,
-            layered.source === 'iitpave' ? layeredField('Surface deflection, IITPAVE DispZ at z 0, r 0', 'iitpaveDeflectionMm', 'mm') : null,
+            layeredField('Surface deflection, IITPAVE DispZ at z 0, r 0', 'iitpaveDeflectionMm', 'mm'),
             effectiveHost,
           ]
         : numberField({

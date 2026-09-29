@@ -6,6 +6,7 @@
 import { msa } from './dom.js';
 import { combinationName } from '../data/layerCatalog.js';
 import { hasCTB } from './ctbProject.js';
+import { iitpaveMissing } from './iitpave.js';
 import { ruralDesignFor, lvRigidDesignFor } from './lowVolumeProject.js';
 
 function flexible(app) {
@@ -17,7 +18,7 @@ function flexible(app) {
     slots: result.slots,
     safe: result.safe,
     name: combinationName(combination),
-    chips: [`${result.totalThicknessMm} mm`, msa(result.governingLifeMsa)],
+    chips: [`${result.totalThicknessMm} mm`, msa(result.governingLifeMsa), iitpaveMissing(result, app.state).length ? 'Provisional' : 'IITPAVE'],
     inputsScreen: 'inputs',
     record: () => ({
       pavementType: 'flexible',
