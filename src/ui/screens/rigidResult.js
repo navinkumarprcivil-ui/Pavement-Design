@@ -74,6 +74,7 @@ export default function renderRigidResult(app) {
   const e = result.evaluation;
   const b = result.bonded;
   const ties = result.tieBars;
+  const dr = result.drainage;
   const label = (id) => AXLES.find((a) => a.id === id).label;
 
   app.setActions(
@@ -104,7 +105,8 @@ export default function renderRigidResult(app) {
       keyResult('CFD', e.cfd.toFixed(3), null, RIGID.criterion.ref),
       keyResult('Effective k', e.kMPaPerM.toFixed(0), 'MPa/m', RIGID.subgradeK.ref),
       result.dowels ? keyResult('Dowel bars', `Ø${result.dowels.diameterMm}`, `@ ${result.dowels.spacingMm} mm`, RIGID.dowels.ref) : null,
-      keyResult('Tie bars', `Ø${ties.diameterMm}`, `@ ${ties.spacingMm} mm`, RIGID.tieBars.ref)
+      keyResult('Tie bars', `Ø${ties.diameterMm}`, `@ ${ties.spacingMm} mm`, RIGID.tieBars.ref),
+      dr ? keyResult('Drainage layer K', `≥ ${Math.round(dr.specifiedK)}`, 'm/day', RIGID.drainage.ref) : null
     ),
 
     result.mode === 'design' && result.retextureMm > 0
@@ -177,6 +179,56 @@ export default function renderRigidResult(app) {
       ),
       result.tieBarSteps.map(stepCard)
     ),
+
+    dr
+      ? card(
+          'Drainage layer',
+          h(
+            'div',
+            { class: 'check-grid' },
+            h(
+              'div',
+              { class: 'check-tile', 'data-safe': String(dr.checks.permeability !== false) },
+              h(
+                'div',
+                { class: 'check-head' },
+                h('strong', {}, 'Permeability'),
+                dr.checks.permeability == null ? badge('muted', 'To specify') : badge(dr.checks.permeability ? 'pass' : 'fail', dr.checks.permeability ? 'Pass' : 'Fail')
+              ),
+              h('span', { class: 'check-sub' }, `${dr.layerMm} mm layer`, clauseChip('Permeability', RIGID.drainage.ref)),
+              h(
+                'div',
+                { class: 'check-figures' },
+                h('span', { class: 'check-actual' }, dr.permeability != null ? `${dr.permeability}` : '—'),
+                h('span', { class: 'check-allowable' }, `of ${Math.round(dr.specifiedK)} m/day needed`)
+              )
+            ),
+            h(
+              'div',
+              { class: 'check-tile', 'data-safe': String(dr.checks.thickness) },
+              h('div', { class: 'check-head' }, h('strong', {}, 'Thickness'), badge(dr.checks.thickness ? 'pass' : 'fail', dr.checks.thickness ? 'Pass' : 'Fail')),
+              h('span', { class: 'check-sub' }, 'Minimum', clauseChip('Thickness', RIGID.drainage.thickness)),
+              h(
+                'div',
+                { class: 'check-figures' },
+                h('span', { class: 'check-actual' }, String(dr.layerMm)),
+                h('span', { class: 'check-allowable' }, `of ${RIGID.drainage.minimumThicknessMm} mm min`)
+              )
+            )
+          ),
+          h(
+            'div',
+            { class: 'metric-grid' },
+            metric('qi, m³/day/m²', dr.qi.toFixed(4)),
+            metric('Flow path, m', dr.pathM.toFixed(2)),
+            metric('Gradient, I', dr.slope.toFixed(4)),
+            metric('K for the flow, m/day', Math.round(dr.requiredK).toString()),
+            dr.thicknessForK ? metric('Thickness at tested K, mm', String(dr.thicknessForK)) : null
+          ),
+          dr.warnings.map((w) => notice('warn', null, w)),
+          dr.steps.map(stepCard)
+        )
+      : null,
 
     card('Calculation steps', result.steps.map(stepCard))
   );

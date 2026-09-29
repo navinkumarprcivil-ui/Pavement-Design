@@ -92,6 +92,10 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
 | Bonded example | d 0.16 m; D1 46.65, D2 23.28, D 69.05 MN·m; 235 mm PQC on 150 mm DLC for a 300 mm slab | Appendix VII, Option IV | 89 | ✓ |
 | Tie bars | As = b f W / Sst, f 1.5, 24 kN/m³; Sst 125 / 200 MPa, B* 1.75 / 2.46 MPa (plain / deformed); L = 2 Sst A / (B* P) + 100 + 50 mm; spacing ≤ 750 mm, Ø ≤ 16 mm | Cl. 8.2.1 – 8.2.4, Eq. 16 / 17 | 28, 29 | Note (10) |
 | Tie bar examples | 330 mm slab, 3.5 m lane, 12 mm: plain 332.6 mm²/m, 340 c/c, 580 long; deformed 207.9 mm²/m, 540 c/c, 640 long; every row of Table 6 | Appendix IX; Table 6 | 92, 93; 29 | ✓ |
+| Joints | Contraction joints ≤ 4.5 m; slab wider than 4.5 m needs a longitudinal joint; stress relations for a 3.5 × 4.5 m slab | Cl. 6.2.6 / 7.1.3 / 7.1.6 | 17, 25, 26 | ✓ |
+| Drainage layer | qi = Ic [Nc/Wp + Wc/(Wp Cs)] + Kp, Ic 0.223 m³/day/m, Kp 0; Q = AD qi; K = Q/(I t); K ≥ 300 m/day; designed where rainfall > 1000 mm; below the DLC with a separation layer | Cl. 6.5.1 – 6.5.3, Eq. 9 | 20, 21 | Note (11) |
+| Drainage material | t ≥ 100 mm; Cu = D60/D10 in 2 – 8, stabilised under 4; D10 > 2 mm; LA abrasion < 40%; stabiliser cement 2 – 2.5%, bitumen 1.5 – 2.5%, emulsion 2.5 – 3% | Cl. 5.7.3.9 / 6.5.2 / 6.5.3; Appendix VI, VI-II / VI-III | 10, 20, 21, 77, 78 | Note (11) |
+| Drainage example | B 10.4 m, AC 12.48 m, AD 16.24 m, I 0.039, qi 0.115, Q 1.868 m³/day/m; K 319 m/day in 150 mm, 160 m/day in 300 mm | Appendix VI, VI-VIII | 79 – 81 | ✓ (11) |
 | Worked example | Appendix VII stresses, repetitions and damage reproduced | Appendix VII | 82 – 88 | ✓ |
 
 ## IRC:SP:72-2015 — low volume roads, flexible
@@ -205,6 +209,21 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
    80 mm added to the length; Appendix IX adds 100 mm for paint and 50 mm for
    placement, and Table 6 follows Appendix IX, as does the app. For a bonded
    slab, W is taken on the PQC alone.
+11. **IRC:58 drainage layer.** The Appendix VI example rounds I to 0.039 and qi
+   to 0.115 on the way and prints K = 319 m/day (160 m/day in 300 mm); carried
+   unrounded, the same inputs give 318 and 159 m/day, which the app shows. The
+   flow path follows Fig. VI.1, whose gradient comes to √(S² + Sx²). The
+   example's Wp counts the earthen shoulder and Wc only the concrete width; the
+   app does the same. The 300 m/day of Cl. 6.5.2 is a floor on the specified
+   permeability, so the 300 mm case is specified at 300 m/day. Cl. 5.7.3.9 and
+   Cl. 6.5.2 give different stabiliser contents (bitumen 1.5 – 2% against
+   2 – 2.5%, emulsion 3% against 2.5 – 3%); the app accepts either range. The
+   drainage layer sits between the DLC (or cement treated sub-base) and the GSB
+   separation layer; a granular sub-base is itself the drainage layer. Under a
+   bonded slab the drainage and separation layers together make up the
+   200 – 250 mm of Cl. 6.7.2 and the k of Table 3. The time-to-drain route of
+   VI-VI (AASHTO 93) is not built; the code's example uses inflow against
+   outflow, as the app does.
 
 ## How it is kept checked
 
@@ -212,6 +231,8 @@ Status: **✓** agrees with the code · **Corrected** changed in this check ·
   `tests/construction.test.js` — IRC:37 Annex II examples.
 - `tests/rigid*.test.js` — IRC:58 Appendix VII, including Option IV (bonded),
   Appendix IX and Table 6 (tie bars).
+- `tests/drainage.test.js` — IRC:58 Eq. 9 and the Appendix VI drainage layer
+  example.
 - `tests/sp72.test.js` — SP:72 Appendix A and D, Table 4, categories.
 - `tests/sp62.test.js` — SP:62 Appendix I.
 

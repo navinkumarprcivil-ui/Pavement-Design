@@ -536,6 +536,8 @@ function rigidReport(app, cite) {
   const { traffic: t, foundation: f, slab, temperature } = rigid;
   const e = result.evaluation;
   const b = result.bonded;
+  const dr = result.drainage;
+  const d = rigid.drainage;
   const subBase = SUB_BASES.find((o) => o.value === f.subBase);
   const zone = RIGID.temperature.zones.find((z) => z.id === temperature.zone);
   const shoulder = SHOULDERS.find((o) => o.value === slab.shoulder)?.label;
@@ -557,12 +559,14 @@ function rigidReport(app, cite) {
       'Rigid pavement',
       'The slab is checked for cumulative fatigue damage from bottom-up and top-down cracking under the axle load ' +
         'spectrum, with the flexural stresses from the relations of Appendix-V.' +
-        (b ? ' The PQC is bonded to the DLC and sized to the flexural stiffness of the slab designed on the granular sub-base below it (Cl. 6.7).' : ''),
+        (b ? ' The PQC is bonded to the DLC and sized to the flexural stiffness of the slab designed on the granular sub-base below it (Cl. 6.7).' : '') +
+        (dr ? ' The drainage layer is sized to carry the water entering by the joints out to the embankment (Cl. 6.5).' : ''),
       [
         ['Carriageway', t.carriageway === 'divided' ? 'Divided multi-lane' : 'Two-lane two-way'],
         ['Design period', `${t.designPeriodYears} years`],
         ['Shoulder', shoulder],
         ['Transverse joints', slab.doweled ? 'Doweled' : 'Not doweled'],
+        ['Transverse joint spacing', `${slab.jointSpacingM} m`],
         ['Longitudinal joints', `Tied, ${RIGID.tieBars.steel[result.tieBars.type].label.toLowerCase()} bars`],
         b ? ['PQC and DLC', 'Bonded'] : null,
         ['Temperature', temperature.mode === 'zone' ? `Zone ${zone?.label}` : `Site, ${temperature.dayC} °C day-time differential`],
@@ -583,7 +587,8 @@ function rigidReport(app, cite) {
         ['', `Sub-base, ${subBase?.name}${b ? ', bonded to the PQC' : ''}`, `${f.subBaseMm} mm`, 'Input', b ? RIGID.bonded.ref : f.subBase === 'dlc' ? RIGID.dlcK.ref : RIGID.subBaseK.ref],
         b ? ['', 'DLC compressive strength, 7 and 28 days', `${f.dlc7DayMPa} and ${f.dlc28DayMPa} MPa`, 'Input', RIGID.bonded.ref] : null,
         b ? ['E2, μ2', 'DLC modulus and Poisson\'s ratio', `${Math.round(b.E2).toLocaleString('en-IN')} MPa, ${b.mu2}`, 'Code', RIGID.bonded.ref] : null,
-        f.subBase !== 'granular' && f.gsbMm > 0 ? ['', 'Granular sub-base below', `${f.gsbMm} mm`, 'Input', b ? RIGID.bonded.ref : null] : null,
+        dr && f.subBase !== 'granular' ? ['', 'Drainage layer below the sub-base', `${d.layerMm} mm`, 'Input', RIGID.drainage.ref] : null,
+        f.subBase !== 'granular' && f.gsbMm > 0 ? ['', dr ? 'Granular separation layer' : 'Granular sub-base below', `${f.gsbMm} mm`, 'Input', b ? RIGID.bonded.ref : null] : null,
         ['k', b ? 'Effective modulus of subgrade reaction on the granular sub-base' : 'Effective modulus of subgrade reaction', `${e.kMPaPerM.toFixed(1)} MPa/m`, 'Derived', b ? RIGID.subBaseK.ref : null],
       ].filter(Boolean),
       cite
@@ -662,6 +667,43 @@ function rigidReport(app, cite) {
     ),
     result.tieBarSteps.map((step) => stepBlock(step, cite)),
 
+    dr ? h('h3', {}, '3.7 Drainage layer') : null,
+    dr
+      ? givenTable(
+          'Drainage layer inputs',
+          [
+            d.rainfallMm != null ? ['', 'Annual rainfall', `${d.rainfallMm} mm`, 'Input', RIGID.drainage.ref] : null,
+            ['', 'Carriageway draining one way', `${d.pavementM} m`, 'Input', RIGID.drainage.example],
+            ['', 'Concrete and earthen shoulders', `${d.concreteShoulderM} and ${d.unpavedShoulderM} m`, 'Input', RIGID.drainage.example],
+            ['Nc', 'Longitudinal joints and edges', String(d.longitudinalJoints), 'Input', RIGID.drainage.ref],
+            ['Cs', 'Transverse joint spacing', `${slab.jointSpacingM} m`, 'Input', RIGID.joints.ref],
+            ['', 'Longitudinal gradient and camber', `${d.gradePercent}% and ${d.crossFallPercent}%`, 'Input', RIGID.drainage.example],
+            ['', 'Embankment side slope', `${d.sideSlope} H : 1 V`, 'Input', RIGID.drainage.example],
+            ['', 'Depth to the drainage layer', `${dr.depthMm} mm`, 'Derived', RIGID.drainage.example],
+            ['t', 'Drainage layer thickness', `${dr.layerMm} mm`, 'Input', RIGID.drainage.thickness],
+            ['Ic', 'Crack infiltration rate', `${RIGID.drainage.crackInfiltration} m³/day/m`, 'Code', RIGID.drainage.ref],
+            ['Kp', 'Infiltration through uncracked concrete', String(RIGID.drainage.surfaceInfiltration), 'Code', RIGID.drainage.ref],
+            dr.permeability != null ? ['K', 'Permeability of the material, tested', `${dr.permeability} m/day`, 'Input', RIGID.drainage.ref] : null,
+            dr.cu != null ? ['Cu', 'Uniformity coefficient, D60 / D10', dr.cu.toFixed(1), 'Derived', RIGID.drainage.grading] : null,
+            d.abrasionPercent != null ? ['', 'Los Angeles abrasion', `${d.abrasionPercent}%`, 'Input', RIGID.drainage.abrasion] : null,
+            d.stabiliser !== 'none'
+              ? ['', 'Stabiliser', `${RIGID.drainage.stabilisers[d.stabiliser].label}${d.stabiliserPercent != null ? `, ${d.stabiliserPercent}%` : ''}`, 'Input', RIGID.drainage.stabilisation]
+              : null,
+          ].filter(Boolean),
+          cite
+        )
+      : null,
+    dr ? dr.steps.map((step) => stepBlock(step, cite)) : null,
+    dr
+      ? para(
+          h('strong', {}, dr.permeability == null ? 'Drainage material to be specified' : dr.checks.permeability ? 'The drainage layer is adequate' : 'The drainage layer is not adequate'),
+          `: ${dr.layerMm} mm needs a permeability of at least ${Math.round(dr.specifiedK)} m/day` +
+            (dr.permeability != null ? `, against ${dr.permeability} m/day tested. ` : '. '),
+          cite(RIGID.drainage.ref)
+        )
+      : null,
+    dr ? dr.warnings.map((w) => h('p', { class: 'r-note' }, 'Note: ', w)) : null,
+
     h('h2', {}, '4. Recommended pavement composition'),
     table(
       null,
@@ -687,6 +729,13 @@ function rigidReport(app, cite) {
         `${result.tieBars.lengthMm} mm long at ${result.tieBars.spacingMm} mm centres. `,
       cite(RIGID.tieBars.ref)
     ),
+    dr
+      ? para(
+          `${f.subBase === 'granular' ? 'Granular sub-base as the drainage layer' : 'Drainage layer'}, ${dr.layerMm} mm, ` +
+            `permeability not less than ${Math.round(dr.specifiedK)} m/day, across the full width of the embankment. `,
+          cite(RIGID.drainage.ref)
+        )
+      : null,
   ];
 }
 

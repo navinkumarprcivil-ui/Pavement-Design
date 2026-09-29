@@ -327,4 +327,21 @@ export const RIGID_DESIGN_STEPS = [
       'so 540 mm apart; 487.4 mm in bond, 640 mm long.',
     ref: ref('IRC58', 'Cl. 8.2 / Appendix-IX', { equation: 'Eq. 16 / 17', page: '28, 29, 92, 93' }),
   },
+  {
+    title: 'Drain the foundation',
+    what:
+      'Water entering by the joints must leave through a drainage layer below ' +
+      'the DLC, with a separation layer under it, across the full width of the ' +
+      'embankment. Find the infiltration from the joints, the flow path down ' +
+      'the resultant of gradient and camber, and the permeability that carries ' +
+      'the flow in the layer: not less than 300 m/day, and at least 100 mm thick. ' +
+      'Design it wherever the annual rainfall exceeds 1000 mm.',
+    example:
+      '7 m carriageway, 1.5 m concrete and 1.0 m earthen shoulders, 450 mm to ' +
+      'the layer on a 2:1 embankment: 10.4 m wide. At 3% gradient and 2.5% ' +
+      'camber the path is 16.24 m at I = 0.039. Three longitudinal joints and ' +
+      'joints every 4.5 m let in 0.115 m³/day/m², so 1.868 m³/day per metre: ' +
+      'K = 319 m/day in 150 mm, or 160 m/day in 300 mm.',
+    ref: ref('IRC58', 'Cl. 6.5 / Appendix-VI', { equation: 'Eq. 9', page: '20, 21, 79 – 81' }),
+  },
 ];

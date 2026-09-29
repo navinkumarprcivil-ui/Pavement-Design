@@ -114,7 +114,10 @@ layer below the DLC and replaced by the thinnest PQC whose stiffness bonded to
 the DLC matches it (Eq. 10 – 13, reproducing Appendix-VII Option IV: 235 mm on
 150 mm DLC for 300 mm). Tie bars for the longitudinal joints are designed by
 Cl. 8.2 (Eq. 16 / 17), plain or deformed, reproducing Appendix-IX and every row
-of Table 6. Drainage layers are not yet in the app.
+of Table 6. A drainage layer below the DLC (Cl. 6.5) is sized from the water
+entering by the joints (Eq. 9) and the flow down the resultant slope,
+reproducing the Appendix-VI example (319 m/day in 150 mm), with the 300 m/day
+floor, the 100 mm minimum and the material checks of Appendix-VI.
 
 ## Saved work and cloud sync
 
@@ -226,6 +229,7 @@ src/engine/             Calculation core — no browser APIs
   rigidFatigue.js         IRC:58 stresses, fatigue and repetitions
   rigidDesign.js          IRC:58 foundation, temperature and slab search
   rigidDetails.js         IRC:58 bonded PQC on DLC and tie bars
+  drainage.js             IRC:58 drainage layer
   costing.js              Quantities and cost
 src/data/               IRC constants with citations and pages; layer catalogue;
                         sp72.js and sp62.js for the low volume codes
@@ -269,4 +273,3 @@ rural roads across several IRC design methods. Next up:
 
 - The IRC:37 design catalogue as a second route alongside the
   mechanistic-empirical one already built.
-- IRC:58 drainage layers.

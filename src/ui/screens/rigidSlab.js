@@ -1,11 +1,13 @@
-import { h, card, numberField, segmented, selectField, metric, notice, button } from '../dom.js';
-import { SUB_BASES, SHOULDERS, rigidFoundation, runRigid, isBonded } from '../rigidProject.js';
+import { h, card, numberField, segmented, selectField, metric, notice, button, fold } from '../dom.js';
+import { SUB_BASES, SHOULDERS, rigidFoundation, runRigid, isBonded, hasDrainage, granularBelowMm } from '../rigidProject.js';
 import { RIGID } from '../../data/ircConstants.js';
 
 export default function renderRigidSlab(app) {
   const rigid = app.state.rigid;
-  const { foundation: f, slab, temperature } = rigid;
+  const { foundation: f, slab, temperature, drainage: d } = rigid;
   const bonded = isBonded(rigid);
+  const drains = hasDrainage(rigid);
+  const D = RIGID.drainage;
 
   const kHost = h('div', {});
   const status = h('div', {});
@@ -54,7 +56,117 @@ export default function renderRigidSlab(app) {
     granular: { aside: 'Table 3: 150 – 300', min: 150, max: 300 },
   }[f.subBase];
 
+  const rainHost = h('div', {});
+  const showRain = () =>
+    rainHost.replaceChildren(
+      !drains && d.rainfallMm > D.rainfallMm ? notice('warn', null, `Annual rainfall over ${D.rainfallMm} mm: design a drainage layer · Cl. 6.5.2`) : ''
+    );
+
+  const materialFold = () =>
+    fold({
+      title: 'Drainage material',
+      memory: app.folds,
+      key: 'rigid-drainage-material',
+      children: [
+        numberField({
+          label: 'Permeability, tested',
+          ref: D.ref,
+          aside: `min ${D.minimumPermeability}`,
+          value: d.permeability,
+          suffix: 'm/day',
+          min: 0,
+          onInput: set(d, 'permeability'),
+        }),
+        h(
+          'div',
+          { class: 'field-row' },
+          numberField({ label: 'D10', ref: D.grading, aside: `over ${D.minimumD10Mm}`, value: d.d10Mm, suffix: 'mm', min: 0, onInput: set(d, 'd10Mm') }),
+          numberField({ label: 'D60', value: d.d60Mm, suffix: 'mm', min: 0, onInput: set(d, 'd60Mm') })
+        ),
+        numberField({
+          label: 'Los Angeles abrasion',
+          ref: D.abrasion,
+          aside: `under ${D.maximumAbrasionPercent}`,
+          value: d.abrasionPercent,
+          suffix: '%',
+          min: 0,
+          max: 100,
+          onInput: set(d, 'abrasionPercent'),
+        }),
+        segmented({
+          label: 'Stabilised with',
+          ref: D.stabilisation,
+          value: d.stabiliser,
+          options: [{ value: 'none', label: 'None' }, ...Object.entries(D.stabilisers).map(([value, o]) => ({ value, label: o.label }))],
+          onChange: set(d, 'stabiliser', { rerender: true }),
+        }),
+        d.stabiliser !== 'none'
+          ? numberField({
+              label: `${D.stabilisers[d.stabiliser].label} content`,
+              aside: D.stabilisers[d.stabiliser].percent.join(' – '),
+              value: d.stabiliserPercent,
+              suffix: '%',
+              min: 0,
+              onInput: set(d, 'stabiliserPercent'),
+            })
+          : null,
+      ],
+    });
+
+  function drainageCard() {
+    return card(
+      'Drainage layer',
+      numberField({
+        label: 'Annual rainfall',
+        value: d.rainfallMm,
+        suffix: 'mm',
+        min: 0,
+        onInput: set(d, 'rainfallMm', { after: showRain }),
+      }),
+      segmented({
+        label: f.subBase === 'granular' ? 'GSB as the drainage layer' : 'Drainage layer below the sub-base',
+        ref: D.ref,
+        value: drains ? 'yes' : 'no',
+        options: [
+          { value: 'yes', label: 'Design' },
+          { value: 'no', label: 'None' },
+        ],
+        onChange: (value) => {
+          // A bonded slab keeps its 200 – 250 mm of granular layers, now drainage and separation.
+          if (bonded) f.gsbMm = Math.max(0, f.gsbMm + (d.layerMm || 0) * (value === 'yes' ? -1 : 1));
+          set(d, 'provided', { rerender: true })(value === 'yes');
+        },
+      }),
+      rainHost,
+      drains
+        ? [
+            h(
+              'div',
+              { class: 'field-row' },
+              numberField({ label: 'Carriageway draining one way', value: d.pavementM, suffix: 'm', min: 0, onInput: set(d, 'pavementM') }),
+              numberField({ label: 'Longitudinal joints and edges, Nc', ref: D.ref, value: d.longitudinalJoints, min: 0, step: 1, onInput: set(d, 'longitudinalJoints') })
+            ),
+            h(
+              'div',
+              { class: 'field-row' },
+              numberField({ label: 'Concrete shoulder', value: d.concreteShoulderM, suffix: 'm', min: 0, onInput: set(d, 'concreteShoulderM') }),
+              numberField({ label: 'Earthen shoulder', value: d.unpavedShoulderM, suffix: 'm', min: 0, onInput: set(d, 'unpavedShoulderM') })
+            ),
+            h(
+              'div',
+              { class: 'field-row' },
+              numberField({ label: 'Longitudinal gradient', value: d.gradePercent, suffix: '%', min: 0, onInput: set(d, 'gradePercent') }),
+              numberField({ label: 'Camber', value: d.crossFallPercent, suffix: '%', min: 0, onInput: set(d, 'crossFallPercent') })
+            ),
+            numberField({ label: 'Embankment side slope', ref: D.example, value: d.sideSlope, suffix: 'H : 1V', min: 0, onInput: set(d, 'sideSlope') }),
+            materialFold(),
+          ]
+        : null
+    );
+  }
+
   showK();
+  showRain();
 
   return h(
     'div',
@@ -85,7 +197,9 @@ export default function renderRigidSlab(app) {
             ],
             onChange: (value) => {
               f.bonded = value === 'bonded';
-              if (f.bonded && !(f.gsbMm >= RIGID.bonded.granularMm.min)) f.gsbMm = RIGID.bonded.granularMm.max;
+              if (f.bonded && !(granularBelowMm(rigid) >= RIGID.bonded.granularMm.min)) {
+                f.gsbMm = Math.max(0, RIGID.bonded.granularMm.max - (drains ? d.layerMm || 0 : 0));
+              }
               app.persist();
               app.render();
             },
@@ -104,11 +218,23 @@ export default function renderRigidSlab(app) {
           step: 10,
           onInput: set(f, 'subBaseMm', { after: showK }),
         }),
+        f.subBase !== 'granular' && drains
+          ? numberField({
+              label: 'Drainage layer thickness',
+              ref: D.thickness,
+              aside: `min ${D.minimumThicknessMm}`,
+              value: d.layerMm,
+              suffix: 'mm',
+              min: 0,
+              step: 10,
+              onInput: set(d, 'layerMm', { after: showK }),
+            })
+          : null,
         f.subBase !== 'granular'
           ? numberField({
-              label: 'GSB below',
+              label: drains ? 'GSB separation layer' : 'GSB below',
               ref: bonded ? RIGID.bonded.ref : null,
-              aside: bonded ? `${RIGID.bonded.granularMm.min} – ${RIGID.bonded.granularMm.max}` : null,
+              aside: bonded ? `${drains ? 'with drainage ' : ''}${RIGID.bonded.granularMm.min} – ${RIGID.bonded.granularMm.max}` : null,
               value: f.gsbMm,
               suffix: 'mm',
               min: 0,
@@ -226,13 +352,26 @@ export default function renderRigidSlab(app) {
         numberField({
           label: 'Lane width, b',
           ref: RIGID.tieBars.ref,
+          aside: `max ${RIGID.joints.maximumSlabWidthM}`,
           value: slab.laneWidthM,
           suffix: 'm',
           min: 0,
           onInput: set(slab, 'laneWidthM'),
         })
-      )
+      ),
+      numberField({
+        label: 'Transverse joint spacing',
+        ref: RIGID.joints.ref,
+        aside: `max ${RIGID.joints.maximumSpacingM}`,
+        value: slab.jointSpacingM,
+        suffix: 'm',
+        min: 0,
+        step: 0.1,
+        onInput: set(slab, 'jointSpacingM'),
+      })
     ),
+
+    drainageCard(),
 
     card(
       'Temperature differential',

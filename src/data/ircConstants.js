@@ -606,6 +606,55 @@ export const RIGID = {
     example: ref('IRC58', 'Appendix-IX', { page: '92, 93' }),
   },
 
+  /**
+   * Transverse contraction joints no further apart than 4.5 m (Cl. 7.1.3),
+   * the slab the stress charts were worked out on (Cl. 6.2.6), and
+   * longitudinal joints in any slab wider than 4.5 m (Cl. 7.1.6).
+   */
+  joints: {
+    ref: ref('IRC58', 'Cl. 6.2.6 / 7.1.3 / 7.1.6', { page: '17, 25, 26' }),
+    verified: true,
+    maximumSpacingM: 4.5,
+    maximumSlabWidthM: 4.5,
+    analysedSlabM: { width: 3.5, length: 4.5 },
+  },
+
+  /**
+   * Drainage layer below the sub-base (Cl. 6.5, Appendix-VI). Water entering
+   * by the joints, qi = Ic [Nc / Wp + Wc / (Wp Cs)] + Kp (Eq. 9), flows out
+   * down the resultant slope of the layer, Q = K I A (VI-VIII).
+   */
+  drainage: {
+    ref: ref('IRC58', 'Cl. 6.5.2 / 6.5.3', { equation: 'Eq. 9', page: '20, 21' }),
+    verified: true,
+    /** Ic, m³/day per m of joint, and Kp, the uncracked concrete surface. */
+    crackInfiltration: 0.223,
+    surfaceInfiltration: 0,
+    minimumPermeability: 300,
+    /** Rainfall above which the layer must be designed, mm a year (Cl. 6.5.2). */
+    rainfallMm: 1000,
+    minimumThicknessMm: 100,
+    maximumAbrasionPercent: 40,
+    /** Cu = D60 / D10 from 2 to 8; below 4, stabilise under heavy traffic (VI-III). */
+    uniformity: { min: 2, max: 8, stabiliseBelow: 4 },
+    minimumD10Mm: 2,
+    /**
+     * Stabiliser content, %. Cl. 5.7.3.9 gives 1.5 – 2 bitumen, 3 emulsion and
+     * 2 – 2.5 cement; Cl. 6.5.2 gives 2 – 2.5 bitumen or cement and 2.5 – 3
+     * emulsion. Either clause's range is accepted.
+     */
+    stabilisers: {
+      cement: { label: 'Cement', percent: [2, 2.5] },
+      bitumen: { label: 'Bitumen', percent: [1.5, 2.5] },
+      emulsion: { label: 'Bitumen emulsion', percent: [2.5, 3] },
+    },
+    thickness: ref('IRC58', 'Appendix-VI, VI-II', { page: 77 }),
+    grading: ref('IRC58', 'Appendix-VI, VI-III', { page: 78 }),
+    abrasion: ref('IRC58', 'Cl. 6.5.3', { page: 21 }),
+    stabilisation: ref('IRC58', 'Cl. 5.7.3.9 / 6.5.2', { page: '10, 20' }),
+    example: ref('IRC58', 'Appendix-VI, VI-VIII', { page: '79 – 81' }),
+  },
+
   /** Dowel bars by slab thickness: [slab, diameter, length, spacing] mm (Table 5). */
   dowels: {
     ref: ref('IRC58', 'Cl. 7.2.6', { table: 'Table 5', page: 27 }),

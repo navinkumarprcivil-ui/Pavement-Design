@@ -6,6 +6,7 @@
 import { RIGID, ref } from '../data/ircConstants.js';
 import { rigidTraffic, foundationK, evaluateSlab, designSlab, dowelBars } from '../engine/rigidDesign.js';
 import { bondedSlab, equivalentSlab, bondedSteps, tieBars } from '../engine/rigidDetails.js';
+import { drainageLayer, drainageMaterial } from '../engine/drainage.js';
 import { AXLES, defaultSpectrum, frontAxlePercent, spectrumTotal } from './spectrum.js';
 
 export { AXLES, frontAxlePercent, spectrumTotal, parseSpectrum } from './spectrum.js';
@@ -60,8 +61,28 @@ export const defaultRigidState = () => ({
     tieBarType: 'deformed',
     tieBarDiameterMm: 12,
     laneWidthM: RIGID.tieBars.laneWidthM,
+    jointSpacingM: RIGID.joints.maximumSpacingM,
   },
   temperature: { mode: 'zone', zone: 'III', dayC: 16.8 },
+  /** Drainage layer below the sub-base (Cl. 6.5); a granular sub-base is itself the layer. */
+  drainage: {
+    provided: false,
+    rainfallMm: null,
+    layerMm: 150,
+    pavementM: null,
+    concreteShoulderM: null,
+    unpavedShoulderM: null,
+    longitudinalJoints: null,
+    gradePercent: null,
+    crossFallPercent: null,
+    sideSlope: null,
+    permeability: null,
+    d10Mm: null,
+    d60Mm: null,
+    abrasionPercent: null,
+    stabiliser: 'none',
+    stabiliserPercent: null,
+  },
 });
 
 /** Fill a saved rigid state up to the current shape. */
@@ -85,6 +106,18 @@ export function rigidTrafficFor(rigid) {
 /** Whether the PQC is bonded to a DLC layer (Cl. 6.7). */
 export const isBonded = (rigid) => rigid.foundation.subBase === 'dlc' && rigid.foundation.bonded === true;
 
+/** Whether a drainage layer is designed (Cl. 6.5). */
+export const hasDrainage = (rigid) => rigid.drainage?.provided === true;
+
+/** A DLC or cement treated sub-base, with granular layers below it. */
+const boundSubBase = (rigid) => rigid.foundation.subBase !== 'granular';
+
+/** Granular layers under a DLC: the drainage layer, when designed, and the GSB below it. */
+export function granularBelowMm(rigid) {
+  const f = rigid.foundation;
+  return f.gsbMm + (hasDrainage(rigid) && boundSubBase(rigid) ? rigid.drainage.layerMm || 0 : 0);
+}
+
 export function rigidFoundation(rigid) {
   const f = rigid.foundation;
   const bonded = isBonded(rigid);
@@ -94,15 +127,16 @@ export function rigidFoundation(rigid) {
     if (!(f.dlc7DayMPa >= b.minimumDlcSevenDayMPa)) {
       warnings.push(`DLC for a bonded slab needs a 7-day strength of ${b.minimumDlcSevenDayMPa} MPa or more · Cl. 6.7.1`);
     }
-    if (!(f.gsbMm >= b.granularMm.min && f.gsbMm <= b.granularMm.max)) {
-      warnings.push(`Granular sub-base of ${b.granularMm.min} – ${b.granularMm.max} mm below the DLC · Cl. 6.7.2`);
+    const granular = granularBelowMm(rigid);
+    if (!(granular >= b.granularMm.min && granular <= b.granularMm.max)) {
+      warnings.push(`Granular layers of ${b.granularMm.min} – ${b.granularMm.max} mm below the DLC, ${granular} mm given · Cl. 6.7.2`);
     }
   }
   if (f.kSource === 'measured') {
     return { subgradeK: null, k: f.measuredK, warnings };
   }
   // A bonded slab is designed on the granular layer below the DLC (Cl. 6.7.2, Table 3).
-  const result = bonded ? foundationK({ ...f, subBase: 'granular', subBaseMm: f.gsbMm }) : foundationK(f);
+  const result = bonded ? foundationK({ ...f, subBase: 'granular', subBaseMm: granularBelowMm(rigid) }) : foundationK(f);
   result.warnings.push(...warnings);
   if (f.subgradeCBR < RIGID.subgradeK.minimumCBR) {
     result.warnings.push(`Select subgrade CBR below the ${RIGID.subgradeK.minimumCBR}% minimum`);
@@ -134,6 +168,17 @@ function inputWarnings(rigid, traffic) {
   if (!slab.doweled && traffic.openingCVPD > RIGID.scope.minimumCVPD) {
     warnings.push(`Dowel bars are required above ${RIGID.scope.minimumCVPD} CVPD`);
   }
+  const joints = RIGID.joints;
+  if (slab.jointSpacingM > joints.maximumSpacingM) {
+    warnings.push(`Contraction joints no further apart than ${joints.maximumSpacingM} m · Cl. 7.1.3`);
+  }
+  if (slab.laneWidthM > joints.maximumSlabWidthM) {
+    warnings.push(`A slab wider than ${joints.maximumSlabWidthM} m needs a longitudinal joint · Cl. 7.1.6`);
+  }
+  const d = rigid.drainage;
+  if (!hasDrainage(rigid) && d?.rainfallMm > RIGID.drainage.rainfallMm) {
+    warnings.push(`Annual rainfall over ${RIGID.drainage.rainfallMm} mm: design a drainage layer · Cl. 6.5.2`);
+  }
   if (frontAxlePercent(t.axleMix) < 0) warnings.push('Axle mix adds up to more than 100%');
   for (const axle of AXLES) {
     if ((t.axleMix[axle.id] || 0) > 0 && Math.abs(spectrumTotal(spectrum[axle.id]) - 100) > 0.5) {
@@ -143,16 +188,25 @@ function inputWarnings(rigid, traffic) {
   return warnings;
 }
 
+/** What a drainage layer is costed as. */
+export const DRAINAGE_MATERIAL = 'Drainage layer';
+
 /** The section as laid, top down, for drawing and costing. */
 export function rigidSlots(rigid, slabMm) {
   const f = rigid.foundation;
   const sub = subBaseOption(f.subBase);
+  const drains = hasDrainage(rigid);
   const slots = [
     { slotId: 'PQC', materialId: 'PQC', label: 'PQC', thicknessMm: slabMm, behaviour: 'concrete' },
-    { slotId: 'SUB_BASE', materialId: sub.materialId, label: isBonded(rigid) ? `${sub.label}, bonded` : sub.label, thicknessMm: f.subBaseMm, behaviour: sub.behaviour },
+    sub.value === 'granular' && drains
+      ? { slotId: 'SUB_BASE', materialId: DRAINAGE_MATERIAL, label: 'GSB, drainage', thicknessMm: f.subBaseMm, behaviour: 'granular' }
+      : { slotId: 'SUB_BASE', materialId: sub.materialId, label: isBonded(rigid) ? `${sub.label}, bonded` : sub.label, thicknessMm: f.subBaseMm, behaviour: sub.behaviour },
   ];
+  if (sub.value !== 'granular' && drains) {
+    slots.push({ slotId: 'DRAIN', materialId: DRAINAGE_MATERIAL, label: 'Drainage layer', thicknessMm: rigid.drainage.layerMm, behaviour: 'granular' });
+  }
   if (sub.value !== 'granular' && f.gsbMm > 0) {
-    slots.push({ slotId: 'GSB', materialId: 'GSB', label: 'GSB', thicknessMm: f.gsbMm, behaviour: 'granular' });
+    slots.push({ slotId: 'GSB', materialId: 'GSB', label: drains ? 'GSB, separation' : 'GSB', thicknessMm: f.gsbMm, behaviour: 'granular' });
   }
   slots.push({ slotId: 'SUBGRADE', materialId: null, label: 'Subgrade', thicknessMm: null, behaviour: 'subgrade' });
   return slots;
@@ -240,6 +294,50 @@ function workingSteps(rigid, traffic, foundation, evaluation) {
   return steps;
 }
 
+/** Drainage inputs, each with what to ask for and whether zero is allowed. */
+const DRAINAGE_INPUTS = [
+  ['pavementM', 'carriageway width draining one way', false],
+  ['concreteShoulderM', 'concrete shoulder width', true],
+  ['unpavedShoulderM', 'earthen shoulder width', true],
+  ['longitudinalJoints', 'number of longitudinal joints and edges', false],
+  ['gradePercent', 'longitudinal gradient', true],
+  ['crossFallPercent', 'camber', false],
+  ['sideSlope', 'embankment side slope', true],
+];
+
+/** The first drainage input still to be entered, or null. */
+export function missingDrainage(rigid) {
+  const d = rigid.drainage;
+  const given = (value, zero) => Number.isFinite(value) && (zero ? value >= 0 : value > 0);
+  const gap = DRAINAGE_INPUTS.find(([key, , zero]) => !given(d[key], zero));
+  if (gap) return gap[1];
+  if (boundSubBase(rigid) && !given(d.layerMm, false)) return 'drainage layer thickness';
+  if (!given(rigid.slab.jointSpacingM, false)) return 'transverse joint spacing';
+  return null;
+}
+
+/**
+ * The drainage layer under a slab of the given thickness: below a DLC or
+ * cement treated sub-base, or the granular sub-base itself.
+ */
+export function rigidDrainage(rigid, slabMm) {
+  const d = rigid.drainage;
+  const f = rigid.foundation;
+  const bound = boundSubBase(rigid);
+  const depthMm = slabMm + (bound ? f.subBaseMm : 0);
+  const layerMm = bound ? d.layerMm : f.subBaseMm;
+  const layer = drainageLayer({ ...d, jointSpacingM: rigid.slab.jointSpacingM, depthMm, layerMm });
+  const material = drainageMaterial(d);
+  const spec = RIGID.drainage;
+  const warnings = [];
+  if (!layer.checks.thickness) warnings.push(`Drainage layer at least ${spec.minimumThicknessMm} mm · Appendix-VI, VI-II`);
+  if (layer.checks.permeability === false) {
+    warnings.push(`Tested permeability ${layer.permeability} m/day, under the ${Math.round(layer.specifiedK)} m/day needed · Cl. 6.5.2`);
+  }
+  warnings.push(...material.warnings);
+  return { ...layer, depthMm, layerMm, cu: material.cu, warnings, ok: layer.ok && warnings.length === 0 };
+}
+
 /**
  * Run a rigid design: 'design' finds the thickness, 'check' evaluates the one
  * entered. Returns everything the result and cost screens show.
@@ -264,6 +362,8 @@ export function runRigid(rigid, mode) {
   const bonded = isBonded(rigid);
   if (bonded && !(f.dlc28DayMPa > 0)) return { ok: false, message: 'Enter the DLC 28-day strength' };
   if (!(slab.laneWidthM > 0) || !(slab.tieBarDiameterMm > 0)) return { ok: false, message: 'Enter the lane width and tie bar diameter' };
+  const drainageGap = hasDrainage(rigid) ? missingDrainage(rigid) : null;
+  if (drainageGap) return { ok: false, message: `Enter the ${drainageGap}` };
 
   const input = slabInput(rigid, traffic, foundation);
   const retexture = mode === 'design' && slab.retexture ? RIGID.criterion.retexturingMm : 0;
@@ -294,6 +394,7 @@ export function runRigid(rigid, mode) {
   }
   const adoptedMm = fatigueMm + retexture;
   const ties = tieBars({ slabMm: adoptedMm, laneWidthM: slab.laneWidthM, type: slab.tieBarType, diameterMm: slab.tieBarDiameterMm });
+  const drainage = hasDrainage(rigid) ? rigidDrainage(rigid, adoptedMm) : null;
 
   return {
     ok: true,
@@ -311,6 +412,7 @@ export function runRigid(rigid, mode) {
     name: rigidName(rigid),
     steps: [...workingSteps(rigid, traffic, foundation, evaluation), ...(bond ? bond.steps : [])],
     tieBarSteps: ties.steps,
+    drainage,
     warnings: [...warnings, ...ties.warnings],
     safe: evaluation.safe,
   };

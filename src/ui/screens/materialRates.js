@@ -5,7 +5,7 @@ import {
   CRACK_RELIEF_OPTIONS,
   SUB_BASE_OPTIONS,
 } from '../../data/layerCatalog.js';
-import { SUB_BASES } from '../rigidProject.js';
+import { SUB_BASES, DRAINAGE_MATERIAL } from '../rigidProject.js';
 
 /** Every material a design can lay, keyed as the costing keys its rate. */
 function materialGroups() {
@@ -25,6 +25,7 @@ function materialGroups() {
       items: unique([
         ...SUB_BASE_OPTIONS.map(named),
         ...SUB_BASES.map((o) => ({ id: o.materialId, label: `${o.name} (${o.materialId})` })),
+        { id: DRAINAGE_MATERIAL, label: 'Drainage layer, open graded' },
       ]),
     },
     { title: 'Concrete', items: [{ id: 'PQC', label: 'Pavement Quality Concrete (PQC)' }] },
